@@ -121,3 +121,42 @@
     @apply bg-background text-foreground;
   }
 }
+
+@font-face {
+  font-family: "Futura";
+  src: url("/fonts/Futura Light font.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Futura";
+  src: url("/fonts/Futura Book font.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Futura";
+  src: url("/fonts/Futura Bold font.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Futura";
+  src: url("/fonts/Futura Heavy font.ttf") format("truetype");
+  font-weight: 900;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Futura";
+  src: url("/fonts/Futura Bold Italic font.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+}
+
+body {
+  font-family: "Futura", sans-serif;
+}

@@ -3,10 +3,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import StyledWrapper from "@/components/ui/custom-input";
 
 export default function NewSplit() {
   const [splitName, setSplitName] = useState("");
@@ -42,7 +41,7 @@ export default function NewSplit() {
 
     const timer = setTimeout(() => {
       setShouldAnimate(true);
-    }, 1000);
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, [splitName]);
@@ -51,7 +50,7 @@ export default function NewSplit() {
     if (!splitName.trim()) return;
     const muscleTimer = setTimeout(() => {
       setShowMuscles(true);
-    }, 1000);
+    }, 2000);
     return () => clearTimeout(muscleTimer);
   }, [splitName]);
 
@@ -65,28 +64,34 @@ export default function NewSplit() {
     label: string;
   }) => {
     return (
-      <StyledWrapper>
-        <motion.div
-          animate={{ y: 0 }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
-          className="input-container"
-        >
-          <input
-            type="text"
-            id={label.toLowerCase()}
-            required
-            value={value}
-            autoFocus={label === "New Split"}
-            onChange={(e) => setValue(e.target.value)}
-          />
-          <label htmlFor={label.toLowerCase()} className="label">
-            {label}
-          </label>
-          <div className="underline" />
-        </motion.div>
-      </StyledWrapper>
+      <motion.div
+        animate={{ y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="input-container"
+      >
+        <input
+          type="text"
+          id={label.toLowerCase()}
+          required
+          value={value}
+          autoFocus={label === "New Split"}
+          onChange={(e) => setValue(e.target.value)}
+        />
+        <label htmlFor={label.toLowerCase()} className="label">
+          {label}
+        </label>
+        <div className="underline" />
+      </motion.div>
     );
   };
+
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, []);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6">
@@ -96,7 +101,14 @@ export default function NewSplit() {
         transition={{ duration: 0.4, ease: "easeOut" }}
         className="w-full text-center"
       >
-        <Input value={splitName} setValue={setSplitName} label="New Split" />
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder="Split..."
+          value={splitName}
+          onChange={(e) => setSplitName(e.target.value)}
+          className="text-5xl font-futura font-bold italic text-center bg-transparent outline-none w-full"
+        />
       </motion.div>
 
       <div className="grid grid-cols-2 gap-6 mt-6">
@@ -107,7 +119,7 @@ export default function NewSplit() {
                 key={muscle.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: index * 0.3 }} // Staggered fade-in effect
+                transition={{ duration: 0.5, delay: index * 0.3 }}
                 className="w-36 h-40 bg-gray-300 rounded-lg flex flex-col items-center justify-between p-3 shadow-lg"
               >
                 <div className="flex-1 flex items-center justify-center">
@@ -117,7 +129,7 @@ export default function NewSplit() {
                     className="w-24 h-24 object-contain"
                   />
                 </div>
-                <div className="w-full border-t border-black text-center pt-2">
+                <div className="w-full border-t font-futura italic font-medium border-black text-center pt-2">
                   {muscle.name}
                 </div>
               </motion.div>
