@@ -19,7 +19,7 @@ export default function UploadQR() {
     if (!token) return;
 
     try {
-      const response = await fetch(`${process.env.BACKEND_URL}/users/get-qr`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/users/get-qr`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -29,7 +29,7 @@ export default function UploadQR() {
       const data = await response.json();
       if (data.qr_code) {
         setQrCode(
-          `${process.env.BACKEND_URL}/uploads/qrcodes/${data.qr_code}?t=${new Date().getTime()}`
+          `${process.env.NEXT_PUBLIC_BASE_URL}/uploads/qrcodes/${data.qr_code}?t=${new Date().getTime()}`
         );
       }
     } catch (error) {
@@ -60,7 +60,7 @@ export default function UploadQR() {
 
     try {
       const response = await fetch(
-        `${process.env.BACKEND_URL}/users/upload-qr`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}/users/upload-qr`,
         {
           method: "POST",
           body: formData,
@@ -76,7 +76,7 @@ export default function UploadQR() {
       if (data.qr_code) {
         // Force update by adding a timestamp query parameter
         setQrCode(
-          `${process.env.BACKEND_URL}/uploads/qrcodes/${data.qr_code}?t=${new Date().getTime()}`
+          `${process.env.NEXT_PUBLIC_BASE_URL}/uploads/qrcodes/${data.qr_code}?t=${new Date().getTime()}`
         );
       }
     } catch (error) {

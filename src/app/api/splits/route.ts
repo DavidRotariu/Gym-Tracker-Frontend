@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const response = await fetch(`${process.env.BACKEND_URL}/splits`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/splits`, {
       method: "GET",
       headers: { Authorization: token },
     });

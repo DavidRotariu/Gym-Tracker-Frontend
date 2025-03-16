@@ -23,7 +23,9 @@ export default function NewSplit() {
   useEffect(() => {
     const fetchMuscles = async () => {
       try {
-        const response = await fetch(`${process.env.BACKEND_URL}/muscles`);
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BASE_URL}/muscles`
+        );
 
         if (!response.ok) throw new Error("Failed to fetch muscles");
 
@@ -94,14 +96,17 @@ export default function NewSplit() {
       return;
     }
     try {
-      const response = await fetch(`${process.env.BACKEND_URL}/splits`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(splitData),
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_URL}/splits`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(splitData),
+        }
+      );
 
       if (!response.ok) {
         throw new Error("Failed to save split");

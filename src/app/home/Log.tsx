@@ -58,18 +58,21 @@ export const Log = ({ exerciseId }: LogProps) => {
     );
 
     try {
-      const response = await fetch(`${process.env.BACKEND_URL}/log-workout`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          exercise_id: exerciseId,
-          reps: logData.reps,
-          weights: logData.weights,
-        }),
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_URL}/log-workout`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            exercise_id: exerciseId,
+            reps: logData.reps,
+            weights: logData.weights,
+          }),
+        }
+      );
 
       if (!response.ok) throw new Error("Failed to log exercise");
 

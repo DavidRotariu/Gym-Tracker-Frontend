@@ -9,10 +9,13 @@ export async function GET(req: Request) {
   }
 
   try {
-    const response = await fetch(`${process.env.BACKEND_URL}/muscles`, {
-      method: "GET",
-      headers: { Authorization: token },
-    });
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_BASE_URL}/muscles`,
+      {
+        method: "GET",
+        headers: { Authorization: token },
+      }
+    );
 
     const data = await response.json();
     return NextResponse.json(data);

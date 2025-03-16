@@ -37,7 +37,7 @@ export const Split = ({
     const fetchSplits = async () => {
       try {
         const response = await fetch(
-          `${process.env.BACKEND_URL}/exercises/by-muscle/${selectedMuscle.id}`,
+          `${process.env.NEXT_PUBLIC_BASE_URL}/exercises/by-muscle/${selectedMuscle.id}`,
           {
             method: "GET",
             headers: {
