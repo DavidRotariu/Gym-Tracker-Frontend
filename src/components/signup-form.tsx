@@ -15,16 +15,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function LoginForm({
+export function SignupForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const router = useRouter();
-  const [forgotText, setForgotText] = useState("Forgot your password?");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,10 +32,10 @@ export function LoginForm({
     setErrorMessage("");
 
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch("http://127.0.0.1:8000/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ name, email, password }),
       });
 
       const data = await response.json();
@@ -44,8 +44,7 @@ export function LoginForm({
         throw new Error(data.detail || "Login failed");
       }
 
-      localStorage.setItem("token", data.access_token);
-      router.push("/home");
+      router.push("/login");
     } catch (error: any) {
       setErrorMessage(error.message);
     } finally {
@@ -57,20 +56,31 @@ export function LoginForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader>
-          <CardTitle>Login</CardTitle>
+          <CardTitle>Sign up</CardTitle>
           <CardDescription>
-            Enter your email below to login to your account
+            Enter your details so I can sell them later
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit}>
             <div className="flex flex-col gap-6">
               <div className="grid gap-3">
+                <Label htmlFor="email">Name</Label>
+                <Input
+                  id="name"
+                  type="name"
+                  placeholder="David"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="grid gap-3">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="m@example.com"
+                  placeholder="gymbro@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -79,14 +89,6 @@ export function LoginForm({
               <div className="grid gap-3">
                 <div className="flex items-center">
                   <Label htmlFor="password">Password</Label>
-                  <a
-                    onClick={() => {
-                      setForgotText("Forgot your password? Nasol");
-                    }}
-                    className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
-                  >
-                    {forgotText}
-                  </a>
                 </div>
                 <Input
                   id="password"
@@ -109,9 +111,9 @@ export function LoginForm({
               </div>
             </div>
             <div className="mt-4 text-center text-sm">
-              Don&apos;t have an account?{" "}
-              <a href="/signup" className="underline underline-offset-4">
-                Sign up
+              Already have an account?{" "}
+              <a href="/login" className="underline underline-offset-4">
+                Log in
               </a>
             </div>
           </form>
