@@ -72,14 +72,14 @@ export const Muscle = ({
                       <div className="w-full h-30 bg-gray-200 flex items-center justify-center">
                         {isVideo ? (
                           <video
-                            src={exercise.pic}
+                            src={`${process.env.NEXT_PUBLIC_BASE_URL}${exercise.pic}`}
                             className="w-full h-full object-cover"
                             autoPlay
                             loop
                           />
                         ) : (
                           <img
-                            src={exercise.pic}
+                            src={`${process.env.NEXT_PUBLIC_BASE_URL}${exercise.pic}`}
                             alt={exercise.name}
                             className="w-24 h-24 object-contain rounded-lg"
                           />

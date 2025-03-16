@@ -164,7 +164,7 @@ export default function NewSplit() {
                     ))}
                   </div>
                   <img
-                    src={muscle.pic}
+                    src={`${process.env.NEXT_PUBLIC_BASE_URL}${muscle.pic}`}
                     alt={muscle.name}
                     className="w-24 h-24 object-contain"
                   />

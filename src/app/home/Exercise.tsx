@@ -46,7 +46,7 @@ export const Exercise = ({
                 />
               ) : (
                 <img
-                  src={currentExercise.pic}
+                  src={`${process.env.NEXT_PUBLIC_BASE_URL}${currentExercise.pic}`}
                   alt={currentExercise.name}
                   className="w-full h-full object-contain"
                 />
