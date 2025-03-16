@@ -37,7 +37,7 @@ export const Split = ({
     const fetchSplits = async () => {
       try {
         const response = await fetch(
-          `http://127.0.0.1:8000/exercises/by-muscle/${selectedMuscle.id}`,
+          `${process.env.BACKEND_URL}/exercises/by-muscle/${selectedMuscle.id}`,
           {
             method: "GET",
             headers: {

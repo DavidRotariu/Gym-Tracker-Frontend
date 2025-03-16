@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const response = await fetch(`http://127.0.0.1:8000/muscles`, {
+    const response = await fetch(`${process.env.BACKEND_URL}/muscles`, {
       method: "GET",
       headers: { Authorization: token },
     });

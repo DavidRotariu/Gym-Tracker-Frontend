@@ -30,7 +30,7 @@ export const PreviousLogs = ({ exerciseId }: { exerciseId: string }) => {
 
       try {
         const response = await fetch(
-          `http://127.0.0.1:8000/workouts/last-three?exercise_id=${exerciseId}`,
+          `${process.env.BACKEND_URL}/workouts/last-three?exercise_id=${exerciseId}`,
           {
             method: "GET",
             headers: {

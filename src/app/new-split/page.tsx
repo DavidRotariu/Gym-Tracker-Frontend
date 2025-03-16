@@ -23,7 +23,7 @@ export default function NewSplit() {
   useEffect(() => {
     const fetchMuscles = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/muscles");
+        const response = await fetch(`${process.env.BACKEND_URL}/muscles`);
 
         if (!response.ok) throw new Error("Failed to fetch muscles");
 
@@ -94,7 +94,7 @@ export default function NewSplit() {
       return;
     }
     try {
-      const response = await fetch("http://127.0.0.1:8000/splits", {
+      const response = await fetch(`${process.env.BACKEND_URL}/splits`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

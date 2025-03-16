@@ -19,7 +19,7 @@ export default function UploadQR() {
     if (!token) return;
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/users/get-qr", {
+      const response = await fetch(`${process.env.BACKEND_URL}/users/get-qr`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -29,7 +29,7 @@ export default function UploadQR() {
       const data = await response.json();
       if (data.qr_code) {
         setQrCode(
-          `http://127.0.0.1:8000/uploads/qrcodes/${data.qr_code}?t=${new Date().getTime()}`
+          `${process.env.BACKEND_URL}/uploads/qrcodes/${data.qr_code}?t=${new Date().getTime()}`
         );
       }
     } catch (error) {
@@ -59,13 +59,16 @@ export default function UploadQR() {
     setLoading(true); // Show loading state
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/users/upload-qr", {
-        method: "POST",
-        body: formData,
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await fetch(
+        `${process.env.BACKEND_URL}/users/upload-qr`,
+        {
+          method: "POST",
+          body: formData,
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       const data = await response.json();
       setMessage(data.message || "Upload successful");
@@ -73,7 +76,7 @@ export default function UploadQR() {
       if (data.qr_code) {
         // Force update by adding a timestamp query parameter
         setQrCode(
-          `http://127.0.0.1:8000/uploads/qrcodes/${data.qr_code}?t=${new Date().getTime()}`
+          `${process.env.BACKEND_URL}/uploads/qrcodes/${data.qr_code}?t=${new Date().getTime()}`
         );
       }
     } catch (error) {
