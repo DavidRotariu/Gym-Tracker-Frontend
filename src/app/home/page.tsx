@@ -18,13 +18,11 @@ export default function Home() {
   useEffect(() => {
     const fetchSplits = async () => {
       const token = localStorage.getItem("token");
-
       if (!token) {
         setError("Unauthorized. Please log in.");
         setLoading(false);
         return;
       }
-
       try {
         const response = await fetch("/api/splits", {
           method: "GET",
@@ -33,15 +31,14 @@ export default function Home() {
             Authorization: `Bearer ${token}`,
           },
         });
-
         if (!response.ok) {
           throw new Error("Failed to fetch splits");
         }
-
         const data = await response.json();
-        setSplits(data); // Store API response in state
+        setSplits(data);
       } catch (error: any) {
         setError(error.message);
+        console.error(error);
       } finally {
         setLoading(false);
       }
@@ -81,15 +78,7 @@ export default function Home() {
         animate={{ y: showSplits ? "0%" : "100%" }}
         transition={{ duration: 0.6, ease: "easeInOut" }}
       >
-        {showSplits && (
-          <>
-            <Splits
-              error={error}
-              splits={splits}
-              setShowSplits={setShowSplits}
-            />
-          </>
-        )}
+        <Splits error={error} splits={splits} setShowSplits={setShowSplits} />
       </motion.div>
     </div>
   );
