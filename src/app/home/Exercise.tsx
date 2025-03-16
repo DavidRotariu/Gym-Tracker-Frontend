@@ -1,8 +1,12 @@
 /* eslint-disable @next/next/no-img-element */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 import React from "react";
+import { Log } from "./Log";
+import { PreviousLogs } from "./PreviousLogs";
 
 export const Exercise = ({
   setSelectedMuscle,
@@ -48,10 +52,8 @@ export const Exercise = ({
                 />
               )}
             </div>
-
-            <div className="w-full max-w-lg h-[700px] overflow-y-auto scrollbar-hide px-6">
-              <div className="grid grid-cols-2 gap-6"></div>
-            </div>
+            <Log exerciseId={currentExercise.id} />
+            <PreviousLogs exerciseId={currentExercise.id} />
           </div>
         </motion.div>
       </>

@@ -11,6 +11,9 @@ export default function NewSplit() {
   const [splitName, setSplitName] = useState("");
   const [shouldAnimate, setShouldAnimate] = useState(false);
   const [showMuscles, setShowMuscles] = useState(false);
+  const [selectedMuscles, setSelectedMuscles] = useState<
+    Record<number, number>
+  >({}); // Track clicks per muscle
   const router = useRouter();
 
   const [muscles, setMuscles] = useState([]);
@@ -54,44 +57,62 @@ export default function NewSplit() {
     return () => clearTimeout(muscleTimer);
   }, [splitName]);
 
-  const Input = ({
-    value,
-    setValue,
-    label,
-  }: {
-    value: string;
-    setValue: (v: string) => void;
-    label: string;
-  }) => {
-    return (
-      <motion.div
-        animate={{ y: 0 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
-        className="input-container"
-      >
-        <input
-          type="text"
-          id={label.toLowerCase()}
-          required
-          value={value}
-          autoFocus={label === "New Split"}
-          onChange={(e) => setValue(e.target.value)}
-        />
-        <label htmlFor={label.toLowerCase()} className="label">
-          {label}
-        </label>
-        <div className="underline" />
-      </motion.div>
-    );
+  const handleMuscleClick = (muscleId: number) => {
+    setSelectedMuscles((prev) => ({
+      ...prev,
+      [muscleId]: (prev[muscleId] || 0) + 1, // Add a circle
+    }));
   };
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const handleCircleClick = (muscleId: number) => {
+    setSelectedMuscles((prev) => ({
+      ...prev,
+      [muscleId]: Math.max(0, (prev[muscleId] || 0) - 1), // Remove a circle, min is 0
+    }));
+  };
 
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
+  const handleSaveSplit = async () => {
+    if (!splitName.trim()) {
+      alert("Please enter a split name.");
+      return;
     }
-  }, []);
+
+    const splitData = {
+      name: splitName,
+      pic: "", // Add picture support later
+      muscles: Object.entries(selectedMuscles).map(
+        ([muscleId, nr_of_exercises]) => ({
+          muscle_id: muscleId,
+          nr_of_exercises,
+        })
+      ),
+    };
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setError("Unauthorized. Please log in.");
+      setLoading(false);
+      return;
+    }
+    try {
+      const response = await fetch("http://127.0.0.1:8000/splits", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(splitData),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save split");
+      }
+
+      const result = await response.json();
+      router.push("/home"); // Redirect to homepage
+    } catch (error: any) {
+      alert("Error saving split: " + error.message);
+    }
+  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6">
@@ -102,7 +123,6 @@ export default function NewSplit() {
         className="w-full text-center"
       >
         <input
-          ref={inputRef}
           type="text"
           placeholder="Split..."
           value={splitName}
@@ -121,8 +141,23 @@ export default function NewSplit() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.3 }}
                 className="w-36 h-40 bg-gray-300 rounded-lg flex flex-col items-center justify-between p-3 shadow-lg"
+                onClick={() => handleMuscleClick(muscle.id)}
               >
-                <div className="flex-1 flex items-center justify-center">
+                <div className="relative flex-1 flex items-center justify-center w-full">
+                  <div className="absolute top-0 right-0 flex space-x-1">
+                    {Array.from({
+                      length: selectedMuscles[muscle.id] || 0,
+                    }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="w-4 h-4 bg-green-400 rounded-full border border-white cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent muscle click event
+                          handleCircleClick(muscle.id);
+                        }}
+                      ></div>
+                    ))}
+                  </div>
                   <img
                     src={muscle.pic}
                     alt={muscle.name}
@@ -137,7 +172,10 @@ export default function NewSplit() {
           )}
       </div>
 
-      <button className="mt-6 bg-black text-white px-6 py-3 rounded-full text-lg">
+      <button
+        className="mt-6 bg-black text-white px-6 py-3 rounded-full text-lg"
+        onClick={handleSaveSplit}
+      >
         Save Split
       </button>
 
