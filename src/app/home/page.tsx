@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { QRCodeCanvas } from "qrcode.react";
 import Splits from "./Splits";
+import QRcode from "./QRcode";
 
 export default function Home() {
   const [showSplits, setShowSplits] = useState(false);
@@ -60,8 +61,8 @@ export default function Home() {
           <h1 className="text-6xl font-futura font-bold italic">TRACKER</h1>
         </div>
 
-        <Card className="flex items-center justify-center p-4">
-          <QRCodeCanvas value="https://example.com" size={180} />
+        <Card className="flex items-center justify-center p-4 border-0 shadow-none">
+          <QRcode />
         </Card>
 
         <Button
