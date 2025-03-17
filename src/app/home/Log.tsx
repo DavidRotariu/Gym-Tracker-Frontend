@@ -12,6 +12,7 @@ interface LogProps {
   exerciseId: string; // Pass the exercise ID to associate logs
   currentMuscle: any;
   setSelectedExercise: any;
+  setSelectedMuscle: any;
 }
 
 export const Log = ({ exerciseId, currentMuscle, setSelectedExercise, setSelectedMuscle }: LogProps) => {

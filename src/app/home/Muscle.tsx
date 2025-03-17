@@ -85,7 +85,7 @@ export const Muscle = ({ currentSplit, setSelectedMuscle, currentMuscle, exercis
                             <img
                               src={`${process.env.NEXT_PUBLIC_BASE_URL}${exercise.pic}`}
                               alt={exercise.name}
-                              className="w-24 h-24 object-contain rounded-lg"
+                              className="w-full h-full object-cover"
                             />
                           )}
                         </div>

@@ -19,20 +19,17 @@ export default function UploadQR() {
     if (!token) return;
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/users/get-qr`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/users/get-qr`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       const data = await response.json();
       if (data.qr_code) {
         setQrCode(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/uploads/qrcodes/${data.qr_code}?t=${new Date().getTime()}`
+          `${process.env.NEXT_PUBLIC_BASE_URL}/uploads/qrcodes/${data.qr_code}?t=${new Date().getTime()}`,
         );
       }
     } catch (error) {
@@ -62,23 +59,20 @@ export default function UploadQR() {
     setLoading(true); // Show loading state
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/users/upload-qr`,
-        {
-          method: "POST",
-          body: formData,
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/users/upload-qr`, {
+        method: "POST",
+        body: formData,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       const data = await response.json();
       setMessage(data.message || "Upload successful");
 
       if (data.qr_code) {
         setQrCode(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/uploads/qrcodes/${data.qr_code}?t=${new Date().getTime()}`
+          `${process.env.NEXT_PUBLIC_BASE_URL}/uploads/qrcodes/${data.qr_code}?t=${new Date().getTime()}`,
         );
       }
     } catch (error) {
@@ -91,13 +85,7 @@ export default function UploadQR() {
   return (
     <div className="relative flex flex-col items-center justify-center w-64 h-64">
       {qrCode ? (
-        <img
-          src={qrCode}
-          alt="QR Code"
-          width={192}
-          height={192}
-          className="w-64 h-64 mt-4"
-        />
+        <img src={qrCode} alt="QR Code" width={192} height={192} className="w-64 h-64 mt-4" />
       ) : (
         <div className="w-64 h-64 flex items-center justify-center border-2 border-gray-300 rounded-md">
           <p className="text-gray-500">No QR uploaded</p>
@@ -114,13 +102,7 @@ export default function UploadQR() {
           <FaUpload size={16} />
         )}
       </label>
-      <input
-        id="fileInput"
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleFileChange}
-      />
+      <input id="fileInput" type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
     </div>
   );
 }

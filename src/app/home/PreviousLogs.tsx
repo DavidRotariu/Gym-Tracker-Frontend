@@ -36,12 +36,11 @@ export const PreviousLogs = ({ exerciseId }: { exerciseId: string }) => {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
-          }
+          },
         );
 
         if (!response.ok) {
-          if (response.status === 401)
-            throw new Error("Unauthorized: Invalid token.");
+          if (response.status === 401) throw new Error("Unauthorized: Invalid token.");
           throw new Error("Failed to fetch logs");
         }
 
@@ -59,8 +58,7 @@ export const PreviousLogs = ({ exerciseId }: { exerciseId: string }) => {
 
   if (loading) return <p className="text-center text-lg">Loading...</p>;
   if (error) return <p className="text-center text-red-500">{error}</p>;
-  if (logs.length === 0)
-    return <p className="text-center text-gray-500">No previous logs found.</p>;
+  if (logs.length === 0) return <p className="text-center text-gray-500">No previous logs found.</p>;
 
   const logColumns: { date: string; log: LogEntry | null }[] = logs
     .map((log) => {
