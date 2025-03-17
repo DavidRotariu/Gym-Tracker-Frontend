@@ -31,7 +31,7 @@ export const Muscle = ({
     }
   }, [selectedExercise]);
 
-  if (currentMuscle)
+  if (currentMuscle) {
     return (
       <>
         <motion.div
@@ -50,10 +50,13 @@ export const Muscle = ({
               {currentMuscle.name}
             </h1>
 
-            <div className="w-full max-w-lg h-[700px] overflow-y-auto scrollbar-hide px-6">
+            <div className="w-full max-w-lg h-[600px] overflow-y-auto scrollbar-hide px-6">
               <div className="grid grid-cols-2 gap-6">
                 {exercises.map((exercise: ExerciseType, index: number) => {
                   const isVideo = exercise.pic.endsWith(".mp4");
+                  const name = exercise.name
+                    .replace(/\s*\(.*?\)\s*/g, " ")
+                    .trim();
 
                   return (
                     <motion.div
@@ -62,13 +65,21 @@ export const Muscle = ({
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.5, delay: index * 0.1 }}
                       onClick={() => setSelectedExercise(exercise)}
-                      className="w-40 bg-gray-300 rounded-lg shadow-lg flex flex-col items-center overflow-hidden"
+                      className="relative w-[150px] h-[200px] bg-white rounded-lg shadow-lg flex flex-col items-center justify-center overflow-hidden"
                     >
-                      <div className="w-full bg-gray-500 text-white text-center py-2">
-                        {exercise.name}
+                      <div className="ex-slanted-top rounded-t-xl flex items-center justify-start pl-1">
+                        <p
+                          className="text-white "
+                          style={{
+                            fontFamily: "Futura",
+                            fontWeight: 500,
+                            fontSize: 16,
+                          }}
+                        >
+                          {name}
+                        </p>
                       </div>
 
-                      {/* Image / Video */}
                       <div className="w-full h-30 bg-gray-200 flex items-center justify-center">
                         {isVideo ? (
                           <video
@@ -86,9 +97,17 @@ export const Muscle = ({
                         )}
                       </div>
 
-                      {/* Equipment Name */}
-                      <div className="w-full bg-gray-500 text-white text-center py-2">
-                        ({exercise.equipment})
+                      <div className="ex-slanted-bottom rounded-b-xl flex items-center justify-end pr-3">
+                        <p
+                          className="text-white "
+                          style={{
+                            fontFamily: "Futura",
+                            fontWeight: 500,
+                            fontSize: 22,
+                          }}
+                        >
+                          ({exercise.equipment})
+                        </p>
                       </div>
                     </motion.div>
                   );
@@ -112,4 +131,5 @@ export const Muscle = ({
         </motion.div>
       </>
     );
+  }
 };

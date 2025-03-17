@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { QRCodeCanvas } from "qrcode.react";
 import Splits from "./Splits";
 import QRcode from "./QRcode";
-import { Loader } from "@/components/loader";
+import { Loader } from "@/components/Loader";
 
 export default function Home() {
   const [showSplits, setShowSplits] = useState(false);
@@ -53,7 +53,7 @@ export default function Home() {
     return (
       <div className="relative h-screen overflow-hidden bg-[#EFEDEC]">
         <motion.div
-          className="absolute inset-0 w-full h-full flex flex-col items-center p-4 my-16 z-1"
+          className="absolute inset-0 flex flex-col items-center p-4 my-16 z-0"
           animate={{ y: showSplits ? "-100%" : "0%" }}
           transition={{ duration: 0.6, ease: "easeInOut" }}
         >
@@ -75,7 +75,7 @@ export default function Home() {
           </Button>
         </motion.div>
         <motion.div
-          className="absolute inset-0 w-full h-full flex flex-col items-center justify-center z-0 bg-[#EFEDEC]"
+          className="w-full h-full items-center justify-center z-0 bg-[#EFEDEC]"
           animate={{ y: showSplits ? "0%" : "100%" }}
           transition={{ duration: 0.6, ease: "easeInOut" }}
         >

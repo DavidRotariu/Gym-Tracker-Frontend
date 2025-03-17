@@ -386,13 +386,22 @@ html {
   clip-path: polygon(0% 25%, 100% 0%, 100% 100%, 0% 100%);
 }
 
-/* .slanted-top {
+.ex-slanted-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 40px;
+  background-color: #d14a3a;
+  clip-path: polygon(0% 25%, 100% 0%, 100% 100%, 0% 100%);
+}
+
+.ex-slanted-top {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
-  height: 200px;
-  background-color: black;
-  clip-path: polygon(0% 0%, 100% 0%, 100% 80%, 0% 85%);
-  box-shadow: #1da1f2;
-} */
+  height: 40px;
+  background-color: black; /* Red section */
+  clip-path: polygon(0% 0%, 100% 00%, 100% 75%, 0% 100%);
+}
