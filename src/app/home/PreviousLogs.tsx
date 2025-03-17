@@ -2,8 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { formatDistanceToNow } from "date-fns";
-import { Card } from "@/components/ui/card";
+import { differenceInDays, parseISO } from "date-fns";
 
 interface LogEntry {
   id: string;
@@ -47,7 +46,6 @@ export const PreviousLogs = ({ exerciseId }: { exerciseId: string }) => {
         }
 
         const data = await response.json();
-        console.log(data);
         setLogs(data);
       } catch (error: any) {
         setError(error.message);
@@ -64,42 +62,42 @@ export const PreviousLogs = ({ exerciseId }: { exerciseId: string }) => {
   if (logs.length === 0)
     return <p className="text-center text-gray-500">No previous logs found.</p>;
 
-  // ✅ Ensure exactly 3 columns (fill missing columns with placeholders)
   const logColumns: { date: string; log: LogEntry | null }[] = logs
-    .map((log) => ({
-      date: formatDistanceToNow(new Date(log.date), { addSuffix: true }),
-      log,
-    }))
-    .slice(0, 3); // Only take the last 3 logs
+    .map((log) => {
+      const daysAgo = differenceInDays(new Date(), parseISO(log.date));
+      return {
+        date: `${daysAgo} days ago`,
+        log,
+      };
+    })
+    .slice(0, 3);
 
-  // Fill up to 3 columns with empty data
   while (logColumns.length < 3) {
     logColumns.push({ date: "No Data", log: null });
   }
 
   return (
-    <Card className="p-4 rounded-xl shadow-md w-full max-w-lg mt-4">
-      <div className="grid grid-cols-3 text-center text-gray-800 font-semibold pb-2 border-b">
+    <div className="bg-[#D3442F] text-black px-8 py-4 rounded-2xl w-full my-2">
+      <div className="flex justify-between font-bold text-lg">
         {logColumns.map((column, index) => (
-          <div key={index}>{column.date}</div>
+          <span key={index}>{column.date}</span>
         ))}
       </div>
+      <div className="border-b border-white mb-3 mt-2"></div>
 
-      <div className="grid grid-cols-3 gap-4 mt-2 text-center">
+      <div className="flex justify-between text-black">
         {logColumns.map((column, index) => (
-          <div key={index} className="space-y-2">
-            {column.log ? (
-              column.log.reps.map((rep, i) => (
-                <div key={i} className="text-sm text-gray-700">
-                  {rep}×{column.log?.weights[i]} kg
-                </div>
-              ))
-            ) : (
-              <div className="text-sm text-gray-500">No Data</div>
-            )}
+          <div key={index} className="flex flex-col items-center">
+            {column.log
+              ? column.log.reps.map((rep, idx) => (
+                  <p key={idx}>
+                    {rep}x{column.log!.weights[idx]} kg
+                  </p>
+                ))
+              : [1, 2, 3].map((idx) => <p key={idx}>-</p>)}
           </div>
         ))}
       </div>
-    </Card>
+    </div>
   );
 };
