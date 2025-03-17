@@ -39,6 +39,7 @@ export default function Splits({ splits, error, setShowSplits }: SplitsProps) {
 
   if (error) {
     return (
+        
       <div className="flex flex-col items-center justify-center h-screen">
         <p className="text-lg text-red-500">{error}</p>
         <button

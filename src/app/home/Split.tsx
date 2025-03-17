@@ -89,29 +89,36 @@ export const Split = ({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: index * 0.3 }}
-                  className="w-36 h-40 bg-gray-300 rounded-lg flex flex-col items-center justify-between py-3 shadow-lg"
+                  className="relative w-[150px] h-[200px] bg-black rounded-xl flex flex-col items-center justify-between py-3 shadow-lg"
                   onClick={() => setSelectedMuscle(muscle)}
                 >
-                  <div className="relative flex-1 flex items-center justify-center w-full">
-                    <div className="absolute top-0 right-0 flex mx-2">
-                      {Array.from({ length: muscle.nr_of_exercises }).map(
-                        (_, index) => (
-                          <div
-                            key={index}
-                            className="w-4 h-4 bg-green-400 rounded-full border border-white"
-                            style={{ marginRight: index }}
-                          ></div>
-                        )
-                      )}
-                    </div>
-                    <img
-                      src={`${process.env.NEXT_PUBLIC_BASE_URL}${muscle.pic}`}
-                      alt={muscle.name}
-                      className="w-24 h-24 object-contain"
-                    />
+                  <div className="absolute top-1 right-0 flex mx-2">
+                    {Array.from({ length: muscle.nr_of_exercises }).map(
+                      (_, index) => (
+                        <div
+                          key={index}
+                          className="w-5 h-5 bg-[#AF6659] ml-1 rounded-full border border-white z-2"
+                          style={{ marginRight: index }}
+                        ></div>
+                      )
+                    )}
                   </div>
-                  <div className="w-full border-t font-futura italic font-medium border-black text-center pt-2">
-                    {muscle.name}
+                  <img
+                    src={`${process.env.NEXT_PUBLIC_BASE_URL}${muscle.pic}`}
+                    alt={muscle.name}
+                    className="absolute object-contain"
+                  />
+                  <div className="slanted-bottom rounded-b-xl  flex items-center justify-end pr-3">
+                    <p
+                      className="text-white "
+                      style={{
+                        fontFamily: "Futura",
+                        fontWeight: 500,
+                        fontSize: 22,
+                      }}
+                    >
+                      {muscle.name}
+                    </p>
                   </div>
                 </motion.div>
               ))}

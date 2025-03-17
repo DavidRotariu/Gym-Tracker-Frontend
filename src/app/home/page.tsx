@@ -53,7 +53,7 @@ export default function Home() {
     return (
       <div className="relative h-screen overflow-hidden bg-[#EFEDEC]">
         <motion.div
-          className="absolute inset-0 w-full h-full flex flex-col items-center p-4 my-16 bg-[#EFEDEC] z-1"
+          className="absolute inset-0 w-full h-full flex flex-col items-center p-4 my-16 z-1"
           animate={{ y: showSplits ? "-100%" : "0%" }}
           transition={{ duration: 0.6, ease: "easeInOut" }}
         >
