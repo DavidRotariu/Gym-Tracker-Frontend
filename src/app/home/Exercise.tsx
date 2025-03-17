@@ -43,6 +43,7 @@ export const Exercise = ({
                            className="w-full h-full object-cover"
                            autoPlay
                            loop
+                           playsInline
                         />
                      ) : (
                         <img

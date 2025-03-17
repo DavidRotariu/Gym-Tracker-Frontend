@@ -79,6 +79,7 @@ export const Muscle = ({ currentSplit, setSelectedMuscle, currentMuscle, exercis
                                              className="w-full h-full object-cover"
                                              autoPlay
                                              loop
+                                             playsInline
                                           />
                                        ) : (
                                           <img
