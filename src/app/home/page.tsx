@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { QRCodeCanvas } from "qrcode.react";
 import Splits from "./Splits";
 import QRcode from "./QRcode";
+import { Loader } from "@/components/loader";
 
 export default function Home() {
   const [showSplits, setShowSplits] = useState(false);
@@ -48,39 +49,45 @@ export default function Home() {
     fetchSplits();
   }, []);
 
-  return (
-    <div className="relative h-screen overflow-hidden">
-      <motion.div
-        className="absolute inset-0 w-full h-full flex flex-col items-center justify-around p-4 bg-white"
-        animate={{ y: showSplits ? "-100%" : "0%" }}
-        transition={{ duration: 0.6, ease: "easeInOut" }}
-      >
-        {/* First Section (Gym Tracker) */}
-        <div className="text-center">
-          <h1 className="text-6xl font-futura font-bold italic">GYM</h1>
-          <h1 className="text-6xl font-futura font-bold italic">TRACKER</h1>
-        </div>
-
-        <Card className="flex items-center justify-center p-4 border-0 shadow-none">
-          <QRcode />
-        </Card>
-
-        <Button
-          onClick={() => setShowSplits(true)}
-          className="w-16 h-16 rounded-full text-4xl shadow-lg mb-4"
-          variant="default"
+  if (!loading)
+    return (
+      <div className="relative h-screen overflow-hidden">
+        <motion.div
+          className="absolute inset-0 w-full h-full flex flex-col items-center justify-around p-4 bg-white z-1"
+          animate={{ y: showSplits ? "-100%" : "0%" }}
+          transition={{ duration: 0.6, ease: "easeInOut" }}
         >
-          ↓
-        </Button>
-      </motion.div>
+          <div className="text-center">
+            <h1 className="text-6xl font-futura font-bold italic">GYM</h1>
+            <h1 className="text-6xl font-futura font-bold italic">TRACKER</h1>
+          </div>
 
-      <motion.div
-        className="absolute inset-0 w-full h-full flex flex-col items-center justify-center"
-        animate={{ y: showSplits ? "0%" : "100%" }}
-        transition={{ duration: 0.6, ease: "easeInOut" }}
-      >
-        <Splits error={error} splits={splits} setShowSplits={setShowSplits} />
-      </motion.div>
-    </div>
-  );
+          <Card className="flex items-center justify-center p-4 border-0 shadow-none">
+            <QRcode />
+          </Card>
+
+          <Button
+            className="w-16 h-16 rounded-full text-4xl shadow-lg mb-4"
+            variant="default"
+          >
+            ↓
+          </Button>
+        </motion.div>
+        <motion.div
+          className="absolute inset-0 w-full h-full flex flex-col items-center justify-center z-0"
+          animate={{ y: showSplits ? "0%" : "100%" }}
+          transition={{ duration: 0.6, ease: "easeInOut" }}
+        >
+          <Splits error={error} splits={splits} setShowSplits={setShowSplits} />
+        </motion.div>
+      </div>
+    );
+  if (loading)
+    return (
+      <div className="flex align-center justify-center">
+        <div className="loaderbody">
+          <Loader />
+        </div>
+      </div>
+    );
 }
