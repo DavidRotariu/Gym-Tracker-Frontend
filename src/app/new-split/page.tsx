@@ -106,7 +106,7 @@ export default function NewSplit() {
       }
 
       const result = await response.json();
-      router.push("/home");
+      router.push("/home?scroll=true");
     } catch (error: any) {
       alert("Error saving split: " + error.message);
     }

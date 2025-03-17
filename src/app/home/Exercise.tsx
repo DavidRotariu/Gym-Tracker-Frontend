@@ -58,6 +58,7 @@ export const Exercise = ({
               exerciseId={currentExercise.id}
               currentMuscle={currentMuscle}
               setSelectedExercise={setSelectedExercise}
+              setSelectedMuscle={setSelectedMuscle}
             />
             <PreviousLogs exerciseId={currentExercise.id} />
           </div>

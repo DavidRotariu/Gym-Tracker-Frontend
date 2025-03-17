@@ -10,12 +10,20 @@ import Splits from "./Splits";
 import QRcode from "./QRcode";
 import { Loader } from "@/components/Loader";
 import { FaArrowDown } from "react-icons/fa";
+import { useSearchParams } from "next/navigation";
 
 export default function Home() {
   const [showSplits, setShowSplits] = useState(false);
   const [splits, setSplits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get("scroll") === "true") {
+      setShowSplits(true);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const fetchSplits = async () => {

@@ -14,7 +14,7 @@ interface LogProps {
   setSelectedExercise: any;
 }
 
-export const Log = ({ exerciseId, currentMuscle, setSelectedExercise }: LogProps) => {
+export const Log = ({ exerciseId, currentMuscle, setSelectedExercise, setSelectedMuscle }: LogProps) => {
   const router = useRouter();
   const token = localStorage.getItem("token"); // Retrieve token from storage
   const [loading, setLoading] = useState(false);
@@ -74,6 +74,7 @@ export const Log = ({ exerciseId, currentMuscle, setSelectedExercise }: LogProps
       setSuccess(true);
       currentMuscle.nr_of_exercises_done_today++;
       setSelectedExercise(null);
+      setSelectedMuscle(null);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error: any) {
       setError(error.message);
