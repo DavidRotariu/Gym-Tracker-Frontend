@@ -51,9 +51,9 @@ export default function Home() {
 
   if (!loading)
     return (
-      <div className="relative h-screen overflow-hidden">
+      <div className="relative h-screen overflow-hidden bg-[#EFEDEC]">
         <motion.div
-          className="absolute inset-0 w-full h-full flex flex-col items-center justify-around p-4 bg-white z-1"
+          className="absolute inset-0 w-full h-full flex flex-col items-center p-4 my-16 bg-[#EFEDEC] z-1"
           animate={{ y: showSplits ? "-100%" : "0%" }}
           transition={{ duration: 0.6, ease: "easeInOut" }}
         >
@@ -62,19 +62,20 @@ export default function Home() {
             <h1 className="text-6xl font-futura font-bold italic">TRACKER</h1>
           </div>
 
-          <Card className="flex items-center justify-center p-4 border-0 shadow-none">
+          <Card className="flex items-center justify-center p-4 border-0 shadow-none my-16 bg-[#EFEDEC]">
             <QRcode />
           </Card>
 
           <Button
-            className="w-16 h-16 rounded-full text-4xl shadow-lg mb-4"
+            className="w-16 h-16 rounded-full text-4xl shadow-lg my-8"
             variant="default"
+            onClick={() => setShowSplits(true)}
           >
             ↓
           </Button>
         </motion.div>
         <motion.div
-          className="absolute inset-0 w-full h-full flex flex-col items-center justify-center z-0"
+          className="absolute inset-0 w-full h-full flex flex-col items-center justify-center z-0 bg-[#EFEDEC]"
           animate={{ y: showSplits ? "0%" : "100%" }}
           transition={{ duration: 0.6, ease: "easeInOut" }}
         >

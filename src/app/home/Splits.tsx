@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { Split } from "./Split";
+import { FaArrowRight } from "react-icons/fa";
 
 interface MuscleType {
   name: string;
@@ -54,7 +55,7 @@ export default function Splits({ splits, error, setShowSplits }: SplitsProps) {
     <>
       <div className="flex flex-col items-center p-6 space-y-4">
         <motion.div
-          className="absolute inset-0 w-full h-full flex flex-col items-center justify-around p-4 bg-white"
+          className="absolute inset-0 w-full h-full flex flex-col items-center justify-around p-4"
           animate={{ x: selectedSplit ? "-100%" : "0%" }}
           transition={{ duration: 0.6, ease: "easeInOut" }}
         >
@@ -63,30 +64,32 @@ export default function Splits({ splits, error, setShowSplits }: SplitsProps) {
             {splits.map((split) => (
               <button
                 key={split.id}
-                className="flex items-center justify-between w-80 px-6 py-2 bg-gray-300 rounded-full"
+                className="flex items-center justify-between w-80 pl-8 pr-3 py-2 bg-[#BCBBBB] rounded-full shadow-lg"
                 onClick={() => setSelectedSplit(split)}
               >
                 <div className="flex flex-col text-left">
                   <span className="text-black font-futura italic text-3xl font-medium">
                     {split.name}
                   </span>
-                  <span className="text-sm text-gray-700">
+                  <span className="text-sm text-[#AF6659]">
                     {split.description}
                   </span>
                 </div>
-                <div className="w-10 h-10 flex items-center justify-center bg-gray-400 rounded-full">
-                  <span className="text-black text-2xl">→</span>
+                <div className="w-14 h-14 flex items-center justify-center bg-white rounded-full shadow-lg">
+                  <span className="text-black text-xl">
+                    <FaArrowRight />
+                  </span>
                 </div>
               </button>
             ))}
           </div>
 
-          <button
+          <Button
             onClick={() => router.push("/new-split")}
-            className="bg-gray-300 text-black font-futura text-2xl px-6 py-2 rounded-full mt-4"
+            className="bg-black text-white font-futura text-2xl px-10 py-7 rounded-full mt-4 shadow-lg"
           >
             New split
-          </button>
+          </Button>
           <Button
             onClick={() => setShowSplits(false)}
             className="mt-6 w-16 h-16 rounded-full text-2xl shadow-lg"

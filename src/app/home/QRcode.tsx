@@ -77,7 +77,6 @@ export default function UploadQR() {
       setMessage(data.message || "Upload successful");
 
       if (data.qr_code) {
-        // Force update by adding a timestamp query parameter
         setQrCode(
           `${process.env.NEXT_PUBLIC_BASE_URL}/uploads/qrcodes/${data.qr_code}?t=${new Date().getTime()}`
         );
@@ -90,23 +89,21 @@ export default function UploadQR() {
   };
 
   return (
-    <div className="relative flex flex-col items-center justify-center w-48 h-48">
-      {/* Display QR Code if available */}
+    <div className="relative flex flex-col items-center justify-center w-64 h-64">
       {qrCode ? (
         <img
           src={qrCode}
           alt="QR Code"
           width={192}
           height={192}
-          className="w-48 h-48 mt-4"
+          className="w-64 h-64 mt-4"
         />
       ) : (
-        <div className="w-48 h-48 flex items-center justify-center border-2 border-gray-300 rounded-md">
+        <div className="w-64 h-64 flex items-center justify-center border-2 border-gray-300 rounded-md">
           <p className="text-gray-500">No QR uploaded</p>
         </div>
       )}
 
-      {/* Upload Button (always visible) */}
       <label
         htmlFor="fileInput"
         className="absolute -bottom-4 right-0 bg-blue-500 text-white p-3 rounded-full shadow-md cursor-pointer hover:bg-blue-600 transition"
