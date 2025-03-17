@@ -125,6 +125,7 @@ export const Muscle = ({ currentSplit, setSelectedMuscle, currentMuscle, exercis
             currentMuscle={currentMuscle}
             selectedExercise={selectedExercise}
             currentExercise={currentExercise}
+            currentSplit={currentSplit}
           />
         </motion.div>
       </>

@@ -23,7 +23,7 @@ interface ExerciseType {
   secondary_muscles: string[];
 }
 
-export const Split = ({ setSelectedSplit, selectedSplit, currentSplit }: any) => {
+export const Split = ({ setSelectedSplit, setSplits, splits, currentSplit }: any) => {
   const [selectedMuscle, setSelectedMuscle] = useState<any>(null);
   const [currentMuscle, setCurrentMuscle] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -33,12 +33,15 @@ export const Split = ({ setSelectedSplit, selectedSplit, currentSplit }: any) =>
   useEffect(() => {
     const fetchSplits = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/exercises/by-muscle/${selectedMuscle.id}`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BASE_URL}/exercises/by-muscle/${selectedMuscle.id}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
           },
-        });
+        );
         if (!response.ok) {
           throw new Error("Failed to fetch exercises");
         }
@@ -58,6 +61,31 @@ export const Split = ({ setSelectedSplit, selectedSplit, currentSplit }: any) =>
     }
   }, [selectedMuscle]);
 
+  const deleteSplit = async (splitId: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Unauthorized: Please log in.");
+        return;
+      }
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/splits/${splitId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete split");
+      }
+      setSplits(splits.filter((split: any) => split.id !== splitId));
+      setSelectedSplit(null);
+    } catch (error) {
+      console.error("Error deleting split:", error);
+    }
+  };
+
   if (currentSplit)
     return (
       <>
@@ -67,9 +95,20 @@ export const Split = ({ setSelectedSplit, selectedSplit, currentSplit }: any) =>
           transition={{ duration: 0.6, ease: "easeInOut" }}
         >
           <div className="py-10">
-            <button onClick={() => setSelectedSplit(null)} className="bg-gray-300 px-4 py-2 rounded-full text-black">
-              {`< Splits`}
-            </button>
+            <div className="flex justify-between">
+              <button
+                onClick={() => setSelectedSplit(null)}
+                className="bg-[#b1b1b1] px-4 py-2 rounded-full text-black"
+              >
+                {`< Splits`}
+              </button>
+              <button
+                onClick={() => deleteSplit(currentSplit.id)}
+                className="bg-[#d14a3a] px-4 py-2 rounded-full text-white"
+              >
+                {`Delete x`}
+              </button>
+            </div>
             <h1 className="py-5 text-5xl text-center font-futura font-bold italic">{currentSplit.name}</h1>
             <div className="grid grid-cols-2 gap-6 mt-6">
               {currentSplit.muscles.map((muscle: MuscleType, index: number) => (
@@ -96,7 +135,7 @@ export const Split = ({ setSelectedSplit, selectedSplit, currentSplit }: any) =>
                           />
 
                           <div
-                            className={`w-4 h-4 rounded-full ${isCompleted ? "bg-[#5AB931]" : "bg-[#AF6659]"}`}
+                            className={`w-4 h-4 rounded-full ${isCompleted ? "bg-[#8FE792]" : "bg-[#AF6659]"}`}
                           ></div>
                         </div>
                       );

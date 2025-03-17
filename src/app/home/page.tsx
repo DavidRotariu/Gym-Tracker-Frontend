@@ -26,7 +26,7 @@ export default function Home() {
         return;
       }
       try {
-        const response = await fetch("/api/splits", {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/splits`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -80,7 +80,7 @@ export default function Home() {
           animate={{ y: showSplits ? "0%" : "100%" }}
           transition={{ duration: 0.6, ease: "easeInOut" }}
         >
-          <Splits error={error} splits={splits} setShowSplits={setShowSplits} />
+          <Splits error={error} splits={splits} setShowSplits={setShowSplits} setSplits={setSplits} />
         </motion.div>
       </div>
     );
