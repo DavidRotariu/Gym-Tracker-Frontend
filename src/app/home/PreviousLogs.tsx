@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { differenceInDays, parseISO } from "date-fns";
+import { addHours, differenceInDays, parseISO } from "date-fns";
 
 interface LogEntry {
   id: string;
@@ -19,7 +19,7 @@ export const PreviousLogs = ({ exerciseId }: { exerciseId: string }) => {
 
   useEffect(() => {
     const fetchLogs = async () => {
-      const token = localStorage.getItem("token"); // ✅ Retrieve token
+      const token = localStorage.getItem("token");
 
       if (!token) {
         setError("Unauthorized: Please log in.");
@@ -29,7 +29,7 @@ export const PreviousLogs = ({ exerciseId }: { exerciseId: string }) => {
 
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/workouts/last-three?exercise_id=${exerciseId}`,
+          `${process.env.NEXT_PUBLIC_BASE_URL}/workouts/by-exercise?exercise_id=${exerciseId}`,
           {
             method: "GET",
             headers: {
@@ -60,41 +60,26 @@ export const PreviousLogs = ({ exerciseId }: { exerciseId: string }) => {
   if (error) return <p className="text-center text-red-500">{error}</p>;
   if (logs.length === 0) return <p className="text-center text-gray-500">No previous logs found.</p>;
 
-  const logColumns: { date: string; log: LogEntry | null }[] = logs
-    .map((log) => {
-      const daysAgo = differenceInDays(new Date(), parseISO(log.date));
-      return {
-        date: `${daysAgo} days ago`,
-        log,
-      };
-    })
-    .slice(0, 3);
-
-  while (logColumns.length < 3) {
-    logColumns.push({ date: "No Data", log: null });
-  }
-
   return (
-    <div className="bg-[#D3442F] text-black px-8 py-4 rounded-2xl w-full my-2">
-      <div className="flex justify-between font-bold text-lg">
-        {logColumns.map((column, index) => (
-          <span key={index}>{column.date}</span>
-        ))}
-      </div>
-      <div className="border-b border-white mb-3 mt-2"></div>
-
-      <div className="flex justify-between text-black">
-        {logColumns.map((column, index) => (
-          <div key={index} className="flex flex-col items-center">
-            {column.log
-              ? column.log.reps.map((rep, idx) => (
-                  <p key={idx}>
-                    {rep}x{column.log!.weights[idx]} kg
-                  </p>
-                ))
-              : [1, 2, 3].map((idx) => <p key={idx}>-</p>)}
-          </div>
-        ))}
+    <div className="w-full">
+      <div className="overflow-x-auto flex space-x-4 p-1">
+        {logs.map((log, index) => {
+          const daysAgo = differenceInDays(addHours(new Date(), 2), parseISO(log.date));
+          return (
+            <div
+              key={index}
+              className="bg-[#D3442F] text-white px-1 py-1 rounded-2xl w-[120px] flex-shrink-0 shadow-xl"
+            >
+              <div className="font-bold text-md text-center italic">{daysAgo} days ago</div>
+              <div className="border-b border-white my-1 mx-4"></div>
+              <div className="flex flex-col items-center">
+                {log.reps.map((rep, idx) => (
+                  <p key={idx}>{`${rep}x ${log.weights[idx]} kg`}</p>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

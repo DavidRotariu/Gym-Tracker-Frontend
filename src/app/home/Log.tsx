@@ -24,8 +24,8 @@ export const Log = ({ exerciseId, currentMuscle, setSelectedExercise, setSelecte
 
   // ✅ Separate states for reps and weights
   const [logData, setLogData] = useState({
-    reps: [12, 12, 10], // Default reps
-    weights: [10, 12.5, 15], // Default weights
+    reps: [12, 12, 1], // Default reps
+    weights: [15, 15, 15], // Default weights
   });
 
   // ✅ Update reps and weights separately
