@@ -4,13 +4,12 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import Splits from "./Splits";
 import QRcode from "./QRcode";
 import { Loader } from "@/components/Loader";
 import { FaArrowDown } from "react-icons/fa";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
   const [showSplits, setShowSplits] = useState(false);
@@ -19,13 +18,11 @@ export default function Home() {
   const [error, setError] = useState("");
 
   const router = useRouter();
-  const [queryParams, setQueryParams] = useState<{ scroll?: string }>({});
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      setQueryParams(Object.fromEntries(params.entries()));
-      if (queryParams.scroll === "true") {
+      if (Object.fromEntries(params.entries()).scroll === "true") {
         setShowSplits(true);
       }
     }
@@ -65,7 +62,7 @@ export default function Home() {
 
   if (!loading)
     return (
-      <div className="relative h-screen overflow-hidden bg-[#EFEDEC]">
+      <div className="relative min-h-[660px] overflow-hidden bg-[#EFEDEC]">
         <motion.div
           className="absolute inset-0 w-full h-full flex flex-col items-center p-4 my-10"
           animate={{ y: showSplits ? "-100%" : "0%" }}
@@ -81,7 +78,7 @@ export default function Home() {
           </Card>
 
           <div
-            className="w-14 h-14 flex items-center justify-center bg-black rounded-full shadow-lg"
+            className="w-14 h-14 absolute bottom-20 right-10 flex items-center justify-center bg-black rounded-full shadow-lg"
             onClick={() => setShowSplits(true)}
           >
             <span className="text-white text-xl">
@@ -100,7 +97,7 @@ export default function Home() {
     );
   if (loading)
     return (
-      <div className="flex align-center justify-center">
+      <div className="min-h-[660px] flex align-center justify-center">
         <div className="loaderbody">
           <Loader />
         </div>

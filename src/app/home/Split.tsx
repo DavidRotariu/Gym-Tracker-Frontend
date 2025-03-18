@@ -32,13 +32,19 @@ export const Split = ({ setSelectedSplit, setSplits, splits, currentSplit }: any
 
   useEffect(() => {
     const fetchSplits = async () => {
+      setLoading(true);
       try {
+        const token = localStorage.getItem("token");
+        if (!token) {
+          return;
+        }
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_BASE_URL}/exercises/by-muscle/${selectedMuscle.id}`,
           {
             method: "GET",
             headers: {
               "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
             },
           },
         );
@@ -94,7 +100,7 @@ export const Split = ({ setSelectedSplit, setSplits, splits, currentSplit }: any
           animate={{ x: selectedMuscle ? "-100%" : "0%" }}
           transition={{ duration: 0.6, ease: "easeInOut" }}
         >
-          <div className="py-10">
+          <div className="pb-10">
             <div className="flex justify-between">
               <button
                 onClick={() => setSelectedSplit(null)}
@@ -109,8 +115,8 @@ export const Split = ({ setSelectedSplit, setSplits, splits, currentSplit }: any
                 {`Delete x`}
               </button>
             </div>
-            <h1 className="py-5 text-5xl text-center font-futura font-bold italic">{currentSplit.name}</h1>
-            <div className="grid grid-cols-2 gap-6 mt-6">
+            <h1 className="py-3 text-5xl text-center font-futura font-bold italic">{currentSplit.name}</h1>
+            <div className="grid grid-cols-2 gap-6 mt-2 pb-2 max-h-[540px] overflow-y-auto">
               {currentSplit.muscles.map((muscle: MuscleType, index: number) => (
                 <motion.div
                   key={muscle.id}

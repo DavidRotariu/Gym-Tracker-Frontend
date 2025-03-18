@@ -62,8 +62,16 @@ export default function Splits({ splits, error, setShowSplits, setSplits }: Spli
           animate={{ x: selectedSplit ? "-100%" : "0%" }}
           transition={{ duration: 0.6, ease: "easeInOut" }}
         >
-          <h1 className="text-5xl font-futura font-bold italic my-10">SPLITS</h1>
-          <div className="space-y-3 flex-row items-center my-10 max-h-[400px] overflow-y-auto">
+          <div
+            className="absolute top-0 right-10 w-14 h-14 flex items-center justify-center bg-white rounded-full shadow-lg my-6"
+            onClick={() => setShowSplits(false)}
+          >
+            <span className="text-black text-xl">
+              <FaArrowUp />
+            </span>
+          </div>
+          <h1 className="text-5xl font-futura font-bold italic mb-4 mt-4">SPLITS</h1>
+          <div className="space-y-3 flex-row items-center my-4 max-h-[420px] overflow-y-auto">
             {splits.map((split) => (
               <button
                 key={split.id}
@@ -89,14 +97,6 @@ export default function Splits({ splits, error, setShowSplits, setSplits }: Spli
           >
             New split
           </Button>
-          <div
-            className="w-14 h-14 flex items-center justify-center bg-white rounded-full shadow-lg my-6"
-            onClick={() => setShowSplits(false)}
-          >
-            <span className="text-black text-xl">
-              <FaArrowUp />
-            </span>
-          </div>
         </motion.div>
       </div>
 
