@@ -2,10 +2,12 @@ import { SignupForm } from "@/components/signup-form";
 
 export default function Page() {
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
-      <div className="w-full max-w-sm">
-        <SignupForm />
+    <div className="flex flex-col min-h-[660px] w-full items-center p-6">
+      <div className="text-center pt-5 pb-10">
+        <h1 className="text-6xl font-futura font-bold italic">GYM</h1>
+        <h1 className="text-6xl font-futura font-bold italic">TRACKER</h1>
       </div>
+      <SignupForm />
     </div>
   );
 }

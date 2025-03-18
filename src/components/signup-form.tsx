@@ -33,7 +33,7 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.detail || "Login failed");
+        throw new Error(data.detail || "Signup failed");
       }
       setErrorMessage("Please check your email");
       setName("");
@@ -46,69 +46,130 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
     }
   };
 
+  const handleLogin = () => {
+    router.push("/login");
+  };
+
   return (
-    <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card>
-        <CardHeader>
-          <CardTitle>Sign up</CardTitle>
-          <CardDescription>Enter your details so I can sell them later</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit}>
-            <div className="flex flex-col gap-6">
-              <div className="grid gap-3">
-                <Label htmlFor="email">Name</Label>
-                <Input
-                  id="name"
-                  type="name"
-                  placeholder="David"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="grid gap-3">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="gymbro@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="grid gap-3">
-                <div className="flex items-center">
-                  <Label htmlFor="password">Password</Label>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              {errorMessage && <p className="text-red-500 text-sm">{errorMessage}</p>}
-              <div className="flex flex-col gap-3">
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Logging in..." : "Signup"}
-                </Button>
-                {/* <Button variant="outline" className="w-full">
-                  Login with Google
-                </Button> */}
-              </div>
-            </div>
-            <div className="mt-4 text-center text-sm">
-              Already have an account?{" "}
-              <a href="/login" className="underline underline-offset-4">
-                Log in
-              </a>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+    <div className={cn("p-6 w-full max-w-md", className)} {...props}>
+      <div className="flex mb-6 border-b">
+        <div className="w-1/2 text-center pb-2 cursor-pointer" onClick={handleLogin}>
+          <span className="text-[#BCBBBB] font-fontura italic font-medium text-xl">Login</span>
+        </div>
+        <div className="w-1/2 text-center pb-2 border-b-2 border-[#D3442F]">
+          <span className="text-[#D3442F] font-fontura italic font-medium text-xl">Sign up</span>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <p className="text-gray-800 text-sm">Enter your details to create an account</p>
+
+        {errorMessage && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded">
+            {errorMessage}
+          </div>
+        )}
+
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+              />
+            </svg>
+          </div>
+          <input
+            type="text"
+            placeholder="Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 rounded-md bg-[#E5B4AC] border-0 text-white placeholder-[#EFEDEC]"
+            required
+          />
+        </div>
+
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+              />
+            </svg>
+          </div>
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 rounded-md bg-[#E5B4AC] border-0 text-white placeholder-[#EFEDEC]"
+            required
+          />
+        </div>
+
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+              />
+            </svg>
+          </div>
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 rounded-md bg-[#E5B4AC] border-0 text-white placeholder-[#EFEDEC]"
+            required
+          />
+        </div>
+
+        <div className="flex justify-end items-center text-sm">
+          <button type="submit" className="bg-red-500 text-white px-6 py-2 rounded-md" disabled={loading}>
+            {loading ? "Signing up..." : "Sign up"}
+          </button>
+        </div>
+
+        <div className="text-center mt-4">
+          <a
+            href="#"
+            className="text-red-500"
+            onClick={(e) => {
+              e.preventDefault();
+              handleLogin();
+            }}
+          >
+            Already have an account? Login
+          </a>
+        </div>
+      </form>
     </div>
   );
 }
