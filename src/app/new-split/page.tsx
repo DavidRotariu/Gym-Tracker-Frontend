@@ -19,6 +19,13 @@ export default function NewSplit() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      router.push("/login");
+    }
+  }, []);
+
+  useEffect(() => {
     const fetchMuscles = async () => {
       try {
         const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/muscles`);

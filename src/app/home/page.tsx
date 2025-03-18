@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import Splits from "./Splits";
 import QRcode from "./QRcode";
 import { Loader } from "@/components/Loader";
-import { FaArrowDown } from "react-icons/fa";
+import { FaArrowDown, FaArrowLeft } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 
 export default function Home() {
@@ -16,8 +16,19 @@ export default function Home() {
   const [splits, setSplits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
   const router = useRouter();
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      router.push("/login");
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token"); // Remove token
+    router.push("/login"); // Redirect to login page
+  };
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -83,6 +94,14 @@ export default function Home() {
           >
             <span className="text-white text-xl">
               <FaArrowDown />
+            </span>
+          </div>
+          <div
+            className="w-14 h-14 absolute bottom-20 left-10 flex items-center justify-center bg-black rounded-full shadow-lg"
+            onClick={handleLogout}
+          >
+            <span className="text-white text-xl">
+              <FaArrowLeft />
             </span>
           </div>
         </motion.div>
