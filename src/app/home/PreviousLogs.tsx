@@ -12,7 +12,15 @@ interface LogEntry {
   date: string;
 }
 
-export const PreviousLogs = ({ exerciseId }: { exerciseId: string }) => {
+export const PreviousLogs = ({
+  exerciseId,
+  setSelectedExercise,
+  setSelectedMuscle,
+}: {
+  exerciseId: string;
+  setSelectedExercise: any;
+  setSelectedMuscle: any;
+}) => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -60,6 +68,35 @@ export const PreviousLogs = ({ exerciseId }: { exerciseId: string }) => {
   if (error) return <p className="text-center text-red-500">{error}</p>;
   if (logs.length === 0) return <p className="text-center text-gray-500">No previous logs found.</p>;
 
+  const deleteWorkout = async (workoutId: string) => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      alert("Unauthorized: Please log in.");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/workouts?workout_id=${workoutId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) throw new Error("Unauthorized: Invalid token.");
+        if (response.status === 404) throw new Error("Workout not found.");
+        throw new Error("Failed to delete workout");
+      }
+      setSelectedExercise(null);
+      setSelectedMuscle(null);
+    } catch (error: any) {
+      alert(error.message);
+    }
+  };
+
   return (
     <div className="w-full">
       <div className="overflow-x-auto flex space-x-4 p-1">
@@ -68,8 +105,14 @@ export const PreviousLogs = ({ exerciseId }: { exerciseId: string }) => {
           return (
             <div
               key={index}
-              className="bg-[#D3442F] text-white px-1 py-1 rounded-2xl w-[120px] flex-shrink-0 shadow-xl"
+              className="relative bg-[#D3442F] text-white px-1 py-1 rounded-2xl w-[120px] flex-shrink-0 shadow-xl"
             >
+              <button
+                onClick={() => deleteWorkout(log.id)}
+                className="absolute top-0 right-2 text-white font-bold text-md cursor-pointer hover:text-gray-200"
+              >
+                x
+              </button>
               <div className="font-bold text-md text-center italic">{daysAgo} days ago</div>
               <div className="border-b border-white my-1 mx-4"></div>
               <div className="flex flex-col items-center">

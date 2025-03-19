@@ -60,7 +60,11 @@ export const Exercise = ({
               setSelectedExercise={setSelectedExercise}
               setSelectedMuscle={setSelectedMuscle}
             />
-            <PreviousLogs exerciseId={currentExercise.id} />
+            <PreviousLogs
+              exerciseId={currentExercise.id}
+              setSelectedExercise={setSelectedExercise}
+              setSelectedMuscle={setSelectedMuscle}
+            />
           </div>
         </motion.div>
       </>

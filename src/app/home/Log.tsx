@@ -22,22 +22,19 @@ export const Log = ({ exerciseId, currentMuscle, setSelectedExercise, setSelecte
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  // ✅ Separate states for reps and weights
   const [logData, setLogData] = useState({
-    reps: [12, 12, 1], // Default reps
-    weights: [15, 15, 15], // Default weights
+    reps: [12, 12, 1],
+    weights: [15, 15, 15],
   });
 
-  // ✅ Update reps and weights separately
   const handleChange = (index: number, type: "reps" | "weights", value: string) => {
     setLogData((prev) => {
       const updatedArray = [...prev[type]];
-      updatedArray[index] = parseFloat(value) || 0; // Ensure numerical input
+      updatedArray[index] = parseFloat(value);
       return { ...prev, [type]: updatedArray };
     });
   };
 
-  // ✅ Send Log Data to Backend in the Correct Format
   const handleLog = async () => {
     if (!token) {
       setError("Unauthorized: Please log in.");
