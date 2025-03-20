@@ -67,6 +67,8 @@ const ExerciseCard = ({ exercise, index, isVideo, selectedExercise, setSelectedE
     }
   };
 
+  const src = exercise.pic.replace(/^\/uploads\//, "");
+
   return (
     <motion.div
       key={exercise.id}
@@ -86,19 +88,9 @@ const ExerciseCard = ({ exercise, index, isVideo, selectedExercise, setSelectedE
       {/* Media Section (Video/Image) */}
       <div className="w-full h-30 bg-gray-200 flex items-center justify-center">
         {isVideo ? (
-          <video
-            src={`${process.env.NEXT_PUBLIC_BASE_URL}${exercise.pic}`}
-            className="w-full h-full object-cover"
-            autoPlay
-            loop
-            playsInline
-          />
+          <video src={src} className="w-full h-full object-cover" autoPlay loop playsInline />
         ) : (
-          <img
-            src={`${process.env.NEXT_PUBLIC_BASE_URL}${exercise.pic}`}
-            alt={exercise.name}
-            className="w-full h-full object-cover"
-          />
+          <img src={src} alt={exercise.name} className="w-full h-full object-cover" />
         )}
       </div>
 

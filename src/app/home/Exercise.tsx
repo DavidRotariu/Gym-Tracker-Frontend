@@ -19,6 +19,7 @@ export const Exercise = ({
 }: any) => {
   if (currentExercise) {
     const isVideo = currentExercise.pic.endsWith(".mp4");
+    const src = currentExercise.pic.replace(/^\/uploads\//, "");
     return (
       <>
         <motion.div
@@ -39,19 +40,9 @@ export const Exercise = ({
 
             <div className="h-[150px] w-full flex items-center justify-center my-2">
               {isVideo ? (
-                <video
-                  src={`${process.env.NEXT_PUBLIC_BASE_URL}${currentExercise.pic}`}
-                  className="w-full h-full object-cover"
-                  autoPlay
-                  loop
-                  playsInline
-                />
+                <video src={src} className="w-full h-full object-cover" autoPlay loop playsInline />
               ) : (
-                <img
-                  src={`${process.env.NEXT_PUBLIC_BASE_URL}${currentExercise.pic}`}
-                  alt={currentExercise.name}
-                  className="w-full h-full object-contain"
-                />
+                <img src={src} alt={currentExercise.name} className="w-full h-full object-contain" />
               )}
             </div>
             <Log

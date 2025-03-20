@@ -148,7 +148,7 @@ export const Split = ({ setSelectedSplit, setSplits, splits, currentSplit }: any
                     })}
                   </div>
                   <img
-                    src={`${process.env.NEXT_PUBLIC_BASE_URL}${muscle.pic}`}
+                    src={muscle.pic.replace(/^\/uploads\//, "")}
                     alt={muscle.name}
                     className="absolute object-contain"
                   />
