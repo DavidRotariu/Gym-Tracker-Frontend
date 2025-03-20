@@ -77,11 +77,6 @@ export default function NewSplit() {
   };
 
   const handleSaveSplit = async () => {
-    if (!splitName.trim()) {
-      alert("Please enter a split name.");
-      return;
-    }
-
     const splitData = {
       name: splitName,
       pic: "",
@@ -99,6 +94,7 @@ export default function NewSplit() {
       return;
     }
     try {
+      setLoading(true);
       const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/splits`, {
         method: "POST",
         headers: {

@@ -17,7 +17,15 @@ interface ExerciseType {
   secondary_muscles: string[];
 }
 
-export const Muscle = ({ currentSplit, setSelectedMuscle, currentMuscle, exercises, loading }: any) => {
+export const Muscle = ({
+  currentSplit,
+  setSelectedMuscle,
+  currentMuscle,
+  exercises,
+  loading,
+  setLoading,
+  setExercises,
+}: any) => {
   const [selectedExercise, setSelectedExercise] = useState<any>(null);
   const [currentExercise, setCurrentExercise] = useState<any>(null);
 
@@ -57,6 +65,8 @@ export const Muscle = ({ currentSplit, setSelectedMuscle, currentMuscle, exercis
                       isVideo={isVideo}
                       selectedExercise={selectedExercise}
                       setSelectedExercise={setSelectedExercise}
+                      setExercises={setExercises}
+                      setLoading={setLoading}
                     />
                   );
                 })}
