@@ -52,7 +52,6 @@ export const Split = ({ setSelectedSplit, setSplits, splits, currentSplit }: any
           throw new Error("Failed to fetch exercises");
         }
         const data = await response.json();
-        console.log(data);
         setExercises(data);
       } catch (error: any) {
         setError(error.message);

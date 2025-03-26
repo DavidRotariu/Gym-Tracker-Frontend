@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @next/next/no-img-element */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
@@ -89,7 +90,7 @@ export default function UploadQR() {
 
       // Refresh the display
       fetchQrCode();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Upload error:", error);
       setMessage(`Error uploading QR code: ${error.message}`);
     } finally {

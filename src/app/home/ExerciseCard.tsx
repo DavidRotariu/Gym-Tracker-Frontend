@@ -15,34 +15,6 @@ const ExerciseCard = ({
 }: any) => {
   const [isFavorite, setIsFavorite] = useState(false);
 
-  //   useEffect(() => {
-  //     // Fetch favorite status when component loads
-  //     const fetchFavoriteStatus = async () => {
-  //       try {
-  //         const token = localStorage.getItem("token");
-  //         if (!token) {
-  //           return;
-  //         }
-  //         const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/favorites`, {
-  //           method: "GET",
-  //           headers: {
-  //             "Content-Type": "application/json",
-  //             Authorization: `Bearer ${token}`,
-  //           },
-  //         });
-  //         const data = await response.json();
-
-  //         if (response.ok && data.favorite_exercises.includes(exercise.id)) {
-  //           setIsFavorite(true);
-  //         }
-  //       } catch (error) {
-  //         console.error("Error fetching favorite status:", error);
-  //       }
-  //     };
-
-  //     fetchFavoriteStatus();
-  //   }, [exercise.id]);
-
   const toggleFavorite = async (event: any) => {
     event.stopPropagation();
     try {
@@ -67,7 +39,6 @@ const ExerciseCard = ({
 
       if (response.ok) {
         const data = await response.json();
-        console.log(data);
         setExercises(data);
         setIsFavorite(!isFavorite);
       } else {

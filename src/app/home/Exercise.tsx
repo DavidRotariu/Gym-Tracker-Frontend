@@ -1,12 +1,15 @@
 /* eslint-disable @next/next/no-img-element */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Log } from "./Log";
 import { PreviousLogs } from "./PreviousLogs";
+
+interface LogEntry {
+  reps: number[];
+  weights: number[];
+}
 
 export const Exercise = ({
   setSelectedMuscle,
@@ -17,6 +20,13 @@ export const Exercise = ({
   loading,
   currentSplit,
 }: any) => {
+  const [lastWorkout, setLastWorkout] = useState<LogEntry>({
+    reps: [0, 0, 0],
+    weights: [0, 0, 0],
+  });
+
+
+
   if (currentExercise) {
     const isVideo = currentExercise.pic.endsWith(".mp4");
     const src = currentExercise.pic.replace(/^\/uploads\//, "");
@@ -50,11 +60,13 @@ export const Exercise = ({
               currentMuscle={currentMuscle}
               setSelectedExercise={setSelectedExercise}
               setSelectedMuscle={setSelectedMuscle}
+              lastWorkout={lastWorkout}
             />
             <PreviousLogs
               exerciseId={currentExercise.id}
               setSelectedExercise={setSelectedExercise}
               setSelectedMuscle={setSelectedMuscle}
+              setLastWorkout={setLastWorkout}
             />
           </div>
         </motion.div>

@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,19 +13,29 @@ interface LogProps {
   currentMuscle: any;
   setSelectedExercise: any;
   setSelectedMuscle: any;
+  lastWorkout: {
+    reps: number[];
+    weights: number[];
+  };
 }
 
-export const Log = ({ exerciseId, currentMuscle, setSelectedExercise, setSelectedMuscle }: LogProps) => {
+export const Log = ({
+  exerciseId,
+  currentMuscle,
+  setSelectedExercise,
+  setSelectedMuscle,
+  lastWorkout,
+}: LogProps) => {
   const router = useRouter();
-  const token = localStorage.getItem("token"); // Retrieve token from storage
+  const token = localStorage.getItem("token");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [logData, setLogData] = useState(lastWorkout);
 
-  const [logData, setLogData] = useState({
-    reps: [12, 12, 1],
-    weights: [15, 15, 15],
-  });
+  useEffect(() => {
+    setLogData(lastWorkout);
+  }, [lastWorkout]);
 
   const handleChange = (index: number, type: "reps" | "weights", value: string) => {
     setLogData((prev) => {
@@ -44,14 +54,6 @@ export const Log = ({ exerciseId, currentMuscle, setSelectedExercise, setSelecte
     setLoading(true);
     setError("");
     setSuccess(false);
-
-    console.log(
-      JSON.stringify({
-        exercise_id: exerciseId,
-        reps: logData.reps,
-        weights: logData.weights,
-      }),
-    );
 
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/log-workout`, {

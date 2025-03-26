@@ -16,10 +16,12 @@ export const PreviousLogs = ({
   exerciseId,
   setSelectedExercise,
   setSelectedMuscle,
+  setLastWorkout,
 }: {
   exerciseId: string;
   setSelectedExercise: any;
   setSelectedMuscle: any;
+  setLastWorkout: any;
 }) => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,6 +56,10 @@ export const PreviousLogs = ({
 
         const data = await response.json();
         setLogs(data);
+        setLastWorkout({
+          reps: data[0].reps,
+          weights: data[0].weights,
+        });
       } catch (error: any) {
         setError(error.message);
       } finally {
@@ -113,7 +119,9 @@ export const PreviousLogs = ({
               >
                 x
               </button>
-              <div className="font-bold text-md text-center italic">{daysAgo} days ago</div>
+              <div className="font-bold text-md text-center italic">
+                {daysAgo != 0 ? `${daysAgo} days ago` : "Today"}
+              </div>
               <div className="border-b border-white my-1 mx-4"></div>
               <div className="flex flex-col items-center">
                 {log.reps.map((rep, idx) => (
