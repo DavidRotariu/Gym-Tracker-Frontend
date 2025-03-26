@@ -26,11 +26,18 @@ export default function UploadQR() {
         },
       });
 
+      if (!response.ok) {
+        if (response.status !== 404) {
+          // Ignore 404 (no QR code found)
+          console.error("Error fetching QR code:", await response.text());
+        }
+        return;
+      }
+
       const data = await response.json();
-      if (data.qr_code) {
-        setQrCode(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/uploads/qrcodes/${data.qr_code}?t=${new Date().getTime()}`,
-        );
+      if (data.qr_code_url) {
+        // Use the full URL directly from the API response
+        setQrCode(data.qr_code_url);
       }
     } catch (error) {
       console.error("Error fetching QR code:", error);
@@ -67,16 +74,24 @@ export default function UploadQR() {
         },
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
+      }
+
       const data = await response.json();
       setMessage(data.message || "Upload successful");
 
-      if (data.qr_code) {
-        setQrCode(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/uploads/qrcodes/${data.qr_code}?t=${new Date().getTime()}`,
-        );
+      if (data.qr_code_url) {
+        // Use the full URL directly from the API response
+        setQrCode(data.qr_code_url);
       }
+
+      // Refresh the display
+      fetchQrCode();
     } catch (error) {
-      setMessage("Error uploading QR code");
+      console.error("Upload error:", error);
+      setMessage(`Error uploading QR code: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -85,7 +100,21 @@ export default function UploadQR() {
   return (
     <div className="relative flex flex-col items-center justify-center w-64 h-64">
       {qrCode ? (
-        <img src={qrCode} alt="QR Code" width={192} height={192} className="w-64 h-64 mt-4" />
+        <img
+          src={qrCode}
+          alt="QR Code"
+          width={192}
+          height={192}
+          className="w-64 h-64 mt-4"
+          // Add cache-busting parameter to force reload of the image
+          onError={(e) => {
+            // If image fails to load, try again with a timestamp parameter
+            const target = e.target as HTMLImageElement;
+            if (!target.src.includes("t=")) {
+              target.src = `${qrCode}?t=${new Date().getTime()}`;
+            }
+          }}
+        />
       ) : (
         <div className="w-64 h-64 flex items-center justify-center border-2 border-gray-300 rounded-md">
           <p className="text-gray-500">No QR uploaded</p>
@@ -103,6 +132,8 @@ export default function UploadQR() {
         )}
       </label>
       <input id="fileInput" type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+
+      {message && <div className="mt-4 text-sm text-center">{message}</div>}
     </div>
   );
 }
