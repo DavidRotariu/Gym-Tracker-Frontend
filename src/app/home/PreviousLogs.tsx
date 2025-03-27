@@ -56,11 +56,14 @@ export const PreviousLogs = ({
 
         const data = await response.json();
         setLogs(data);
-        setLastWorkout({
-          reps: data[0].reps,
-          weights: data[0].weights,
-        });
+        if (data[0]) {
+          setLastWorkout({
+            reps: data[0].reps,
+            weights: data[0].weights,
+          });
+        }
       } catch (error: any) {
+        console.error(error);
         setError(error.message);
       } finally {
         setLoading(false);
@@ -71,8 +74,8 @@ export const PreviousLogs = ({
   }, [exerciseId]);
 
   if (loading) return <p className="text-center text-lg">Loading...</p>;
-  if (error) return <p className="text-center text-red-500">{error}</p>;
   if (logs.length === 0) return <p className="text-center text-gray-500">No previous logs found.</p>;
+  if (error) return <p className="text-center text-red-500">{error}</p>;
 
   const deleteWorkout = async (workoutId: string) => {
     const token = localStorage.getItem("token");
