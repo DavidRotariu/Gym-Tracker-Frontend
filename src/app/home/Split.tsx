@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { motion } from "framer-motion";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Muscle } from "./Muscle";
 
 interface MuscleType {
@@ -23,6 +23,14 @@ interface ExerciseType {
   secondary_muscles: string[];
 }
 
+interface CacheEntry {
+  data: ExerciseType[];
+  timestamp: number;
+}
+
+// Cache configuration - adjust duration as needed
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+
 export const Split = ({ setSelectedSplit, setSplits, splits, currentSplit }: any) => {
   const [selectedMuscle, setSelectedMuscle] = useState<any>(null);
   const [currentMuscle, setCurrentMuscle] = useState<any>(null);
@@ -30,14 +38,38 @@ export const Split = ({ setSelectedSplit, setSplits, splits, currentSplit }: any
   const [error, setError] = useState("");
   const [exercises, setExercises] = useState<ExerciseType[]>([]);
 
+  // Use useRef to persist cache across renders without causing re-renders
+  const cacheRef = useRef<Map<string, CacheEntry>>(new Map());
+
   useEffect(() => {
     const fetchSplits = async () => {
+      if (!selectedMuscle) return;
+
+      const cacheKey = `muscle-${selectedMuscle.id}`;
+      const cachedData = cacheRef.current.get(cacheKey);
+      const now = Date.now();
+
+      // Check if cache exists and is still valid
+      if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
+        console.log(`Loading from cache: ${cacheKey}`);
+        setExercises(cachedData.data);
+        setLoading(false);
+        setError("");
+        return;
+      }
+
       setLoading(true);
+      setError("");
+
       try {
         const token = localStorage.getItem("token");
         if (!token) {
+          setError("No token found");
+          setLoading(false);
           return;
         }
+
+        console.log(`Fetching from API: ${cacheKey}`);
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_BASE_URL}/exercises/by-muscle/${selectedMuscle.id}`,
           {
@@ -48,14 +80,23 @@ export const Split = ({ setSelectedSplit, setSplits, splits, currentSplit }: any
             },
           },
         );
+
         if (!response.ok) {
           throw new Error("Failed to fetch exercises");
         }
+
         const data = await response.json();
+
+        // Store in cache with current timestamp
+        cacheRef.current.set(cacheKey, {
+          data,
+          timestamp: now,
+        });
+
         setExercises(data);
       } catch (error: any) {
         setError(error.message);
-        console.error(error);
+        console.error("Fetch error:", error);
       } finally {
         setLoading(false);
       }
@@ -90,6 +131,12 @@ export const Split = ({ setSelectedSplit, setSplits, splits, currentSplit }: any
     } catch (error) {
       console.error("Error deleting split:", error);
     }
+  };
+
+  // Optional: Utility function to manually clear cache when needed
+  const clearCache = () => {
+    cacheRef.current.clear();
+    console.log("Cache cleared");
   };
 
   if (currentSplit)
@@ -152,9 +199,9 @@ export const Split = ({ setSelectedSplit, setSplits, splits, currentSplit }: any
                     alt={muscle.name}
                     className="absolute object-contain"
                   />
-                  <div className="slanted-bottom rounded-b-xl  flex items-center justify-end pr-3">
+                  <div className="slanted-bottom rounded-b-xl flex items-center justify-end pr-3">
                     <p
-                      className="text-white "
+                      className="text-white"
                       style={{
                         fontFamily: "Futura",
                         fontWeight: 500,
