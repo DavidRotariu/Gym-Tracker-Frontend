@@ -28,7 +28,18 @@ export default function NewSplit() {
   useEffect(() => {
     const fetchMuscles = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/muscles`);
+        const token = localStorage.getItem("token");
+        if (!token) {
+          setError("Unauthorized. Please log in.");
+          setLoading(false);
+          return;
+        }
+
+        const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/muscles`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
         if (!response.ok) throw new Error("Failed to fetch muscles");
 
