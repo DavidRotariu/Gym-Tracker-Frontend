@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,10 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
   const [errorMessage, setErrorMessage] = useState("");
   const router = useRouter();
   const [forgotText, setForgotText] = useState("Forgot your password?");
+
+  useEffect(() => {
+    router.prefetch("/home");
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
