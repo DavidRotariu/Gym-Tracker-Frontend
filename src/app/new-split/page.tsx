@@ -6,6 +6,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { backendJson, backendJsonWithBody } from "@/lib/api-client";
+
+interface Muscle {
+  id: number;
+  name: string;
+  pic: string;
+}
 
 export default function NewSplit() {
   const [splitName, setSplitName] = useState("");
@@ -14,36 +21,14 @@ export default function NewSplit() {
   const [selectedMuscles, setSelectedMuscles] = useState<Record<number, number>>({}); // Track clicks per muscle
   const router = useRouter();
 
-  const [muscles, setMuscles] = useState([]);
+  const [muscles, setMuscles] = useState<Muscle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-    }
-  }, []);
-
-  useEffect(() => {
     const fetchMuscles = async () => {
       try {
-        const token = localStorage.getItem("token");
-        if (!token) {
-          setError("Unauthorized. Please log in.");
-          setLoading(false);
-          return;
-        }
-
-        const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/muscles`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) throw new Error("Failed to fetch muscles");
-
-        const data = await response.json();
+        const data = await backendJson<Muscle[]>("/muscles");
         setMuscles(data);
       } catch (error: any) {
         setError(error.message);
@@ -98,31 +83,15 @@ export default function NewSplit() {
           nr_of_exercises,
         })),
     };
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setError("Unauthorized. Please log in.");
-      setLoading(false);
-      return;
-    }
+
     try {
       setLoading(true);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/splits`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(splitData),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to save split");
-      }
-
-      const result = await response.json();
+      await backendJsonWithBody("/splits", "POST", splitData);
       router.push("/home?scroll=true");
     } catch (error: any) {
       alert("Error saving split: " + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -145,7 +114,7 @@ export default function NewSplit() {
 
       <div className="grid grid-cols-2 gap-6 mt-6">
         {showMuscles &&
-          muscles.map((muscle: { name: string; id: number; pic: string }, index) => (
+          muscles.map((muscle, index) => (
             <motion.div
               key={muscle.id}
               initial={{ opacity: 0, y: 10 }}

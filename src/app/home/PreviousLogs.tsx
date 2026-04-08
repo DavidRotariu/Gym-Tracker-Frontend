@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { addHours, differenceInDays, parseISO } from "date-fns";
+import { backendFetch, backendJson } from "@/lib/api-client";
 
 interface LogEntry {
   id: string;
@@ -29,32 +30,17 @@ export const PreviousLogs = ({
 
   useEffect(() => {
     const fetchLogs = async () => {
-      const token = localStorage.getItem("token");
-
-      if (!token) {
-        setError("Unauthorized: Please log in.");
-        setLoading(false);
-        return;
-      }
-
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/workouts/by-exercise?exercise_id=${exerciseId}`,
+        const data = await backendJson<LogEntry[]>(
+          `/workouts/by-exercise?exercise_id=${exerciseId}`,
           {
             method: "GET",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
             },
           },
         );
 
-        if (!response.ok) {
-          if (response.status === 401) throw new Error("Unauthorized: Invalid token.");
-          throw new Error("Failed to fetch logs");
-        }
-
-        const data = await response.json();
         setLogs(data);
         if (data[0]) {
           setLastWorkout({
@@ -78,19 +64,11 @@ export const PreviousLogs = ({
   if (error) return <p className="text-center text-red-500">{error}</p>;
 
   const deleteWorkout = async (workoutId: string) => {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      alert("Unauthorized: Please log in.");
-      return;
-    }
-
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/workouts?workout_id=${workoutId}`, {
+      const response = await backendFetch(`/workouts?workout_id=${workoutId}`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
       });
 

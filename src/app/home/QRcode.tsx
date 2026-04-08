@@ -4,6 +4,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { FaUpload } from "react-icons/fa";
+import { backendFetch } from "@/lib/api-client";
 
 export default function UploadQR() {
   const [file, setFile] = useState<File | null>(null);
@@ -16,15 +17,9 @@ export default function UploadQR() {
   }, []);
 
   const fetchQrCode = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/users/get-qr`, {
+      const response = await backendFetch(`/users/get-qr`, {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
       });
 
       if (!response.ok) {
@@ -59,20 +54,14 @@ export default function UploadQR() {
       return;
     }
 
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
     const formData = new FormData();
     formData.append("file", selectedFile);
     setLoading(true); // Show loading state
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/users/upload-qr`, {
+      const response = await backendFetch(`/users/upload-qr`, {
         method: "POST",
         body: formData,
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
       });
 
       if (!response.ok) {
