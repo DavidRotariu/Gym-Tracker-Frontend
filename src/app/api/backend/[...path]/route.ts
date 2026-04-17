@@ -35,7 +35,8 @@ async function forwardRequest(request: Request, context: RouteContext) {
       if (contentType) {
         headers.set("Content-Type", contentType);
       }
-      body = await request.text();
+      const textBody = await request.text();
+      body = textBody.length > 0 ? textBody : undefined;
     }
   }
 
@@ -51,6 +52,18 @@ async function forwardRequest(request: Request, context: RouteContext) {
 
   if (responseContentType) {
     responseHeaders.set("Content-Type", responseContentType);
+  }
+
+  // HTTP no-content statuses must not include a response body.
+  if (
+    backendResponse.status === 204 ||
+    backendResponse.status === 205 ||
+    backendResponse.status === 304
+  ) {
+    return new NextResponse(null, {
+      status: backendResponse.status,
+      headers: responseHeaders,
+    });
   }
 
   const payload = await backendResponse.arrayBuffer();
