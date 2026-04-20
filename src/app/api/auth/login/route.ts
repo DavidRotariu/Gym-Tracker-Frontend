@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
-import { AUTH_COOKIE_NAME } from "@/lib/auth";
+import { AUTH_COOKIE_NAME, shouldCookieBeSecure } from "@/lib/auth";
 import { getCookieMaxAgeFromJwt } from "@/lib/auth-server";
 import { getBackendBaseUrl } from "@/lib/backend-url";
 
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       name: AUTH_COOKIE_NAME,
       value: accessToken,
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: shouldCookieBeSecure(),
       sameSite: "lax",
       path: "/",
       maxAge: getCookieMaxAgeFromJwt(accessToken),

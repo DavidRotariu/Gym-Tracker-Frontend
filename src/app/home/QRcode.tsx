@@ -75,10 +75,11 @@ export default function UploadQR() {
       if (data.qr_code_url) {
         // Use the full URL directly from the API response
         setQrCode(data.qr_code_url);
+      } else {
+        // Wait a moment for backend to process, then fetch
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await fetchQrCode();
       }
-
-      // Refresh the display
-      fetchQrCode();
     } catch (error: any) {
       console.error("Upload error:", error);
       setMessage(`Error uploading QR code: ${error.message}`);

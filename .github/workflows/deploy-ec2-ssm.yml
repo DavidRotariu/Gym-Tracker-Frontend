@@ -38,6 +38,7 @@ jobs:
       BACKEND_BASE_URL: ${{ vars.BACKEND_BASE_URL }}
       NEXT_PUBLIC_BASE_URL: ${{ vars.NEXT_PUBLIC_BASE_URL }}
       AUTH_COOKIE_NAME: ${{ vars.AUTH_COOKIE_NAME }}
+      COOKIE_SECURE: ${{ vars.COOKIE_SECURE }}
 
     steps:
       - name: Checkout
@@ -117,15 +118,17 @@ jobs:
             BACKEND_BASE_URL=${{ env.BACKEND_BASE_URL }}
             NEXT_PUBLIC_BASE_URL=${{ env.NEXT_PUBLIC_BASE_URL }}
             AUTH_COOKIE_NAME=${{ env.AUTH_COOKIE_NAME }}
+            COOKIE_SECURE=${{ env.COOKIE_SECURE }}
 
       - name: Sync env vars to SSM Parameter Store
         shell: bash
         run: |
           set -euo pipefail
-          ENV_CONTENT=$(printf 'BACKEND_BASE_URL=%s\nNEXT_PUBLIC_BASE_URL=%s\nAUTH_COOKIE_NAME=%s\n' \
+          ENV_CONTENT=$(printf 'BACKEND_BASE_URL=%s\nNEXT_PUBLIC_BASE_URL=%s\nAUTH_COOKIE_NAME=%s\nCOOKIE_SECURE=%s\n' \
             "${{ env.BACKEND_BASE_URL }}" \
             "${{ env.NEXT_PUBLIC_BASE_URL }}" \
-            "${{ env.AUTH_COOKIE_NAME }}")
+            "${{ env.AUTH_COOKIE_NAME }}" \
+            "${{ env.COOKIE_SECURE }}")
 
           aws ssm put-parameter \
             --name "${{ env.FRONTEND_ENV_SSM_PARAM }}" \

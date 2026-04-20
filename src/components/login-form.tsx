@@ -30,10 +30,10 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
 
     try {
       await loginRequest(email, password);
-      router.push("/home");
+      // Use hard navigation to ensure cookie is included in the request
+      window.location.href = "/home";
     } catch (error: any) {
       setErrorMessage(error.message);
-    } finally {
       setLoading(false);
     }
   };

@@ -23,6 +23,7 @@ export default function NewSplit() {
 
   const [muscles, setMuscles] = useState<Muscle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -73,6 +74,8 @@ export default function NewSplit() {
   };
 
   const handleSaveSplit = async () => {
+    if (saving) return; // Prevent double-click
+    
     const splitData = {
       name: splitName,
       pic: "",
@@ -85,13 +88,12 @@ export default function NewSplit() {
     };
 
     try {
-      setLoading(true);
+      setSaving(true);
       await backendJsonWithBody("/splits", "POST", splitData);
-      router.push("/home?scroll=true");
+      window.location.href = "/home?scroll=true";
     } catch (error: any) {
       alert("Error saving split: " + error.message);
-    } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
@@ -184,11 +186,11 @@ export default function NewSplit() {
       </div>
 
       <button
-        className="mt-6 bg-black text-white px-6 py-3 rounded-full text-lg"
+        className="mt-6 bg-black text-white px-6 py-3 rounded-full text-lg disabled:opacity-50"
         onClick={handleSaveSplit}
-        disabled={Object.keys(selectedMuscles).length === 0}
+        disabled={Object.keys(selectedMuscles).length === 0 || saving}
       >
-        Save Split
+        {saving ? "Saving..." : "Save Split"}
       </button>
 
       <button onClick={() => router.push("/home")} className="mt-3 text-gray-500 underline">
