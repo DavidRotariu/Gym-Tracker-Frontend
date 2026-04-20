@@ -28,7 +28,6 @@ jobs:
     name: Build and Deploy via SSM
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: production
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
@@ -206,17 +205,12 @@ jobs:
             --instance-id "${EC2_INSTANCE_ID}"
 
       - name: Print SSM command output
-        if: always()
+        if: always() && steps.ssm-deploy.outputs.command_id != ''
         shell: bash
         run: |
           set -euo pipefail
 
           COMMAND_ID="${{ steps.ssm-deploy.outputs.command_id }}"
-
-          if [ -z "${COMMAND_ID}" ]; then
-            echo "No command id found."
-            exit 1
-          fi
 
           STATUS=$(aws ssm get-command-invocation \
             --command-id "${COMMAND_ID}" \
