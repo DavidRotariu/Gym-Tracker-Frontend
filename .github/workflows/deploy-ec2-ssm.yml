@@ -118,6 +118,21 @@ jobs:
             NEXT_PUBLIC_BASE_URL=${{ env.NEXT_PUBLIC_BASE_URL }}
             AUTH_COOKIE_NAME=${{ env.AUTH_COOKIE_NAME }}
 
+      - name: Sync env vars to SSM Parameter Store
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENV_CONTENT=$(printf 'BACKEND_BASE_URL=%s\nNEXT_PUBLIC_BASE_URL=%s\nAUTH_COOKIE_NAME=%s\n' \
+            "${{ env.BACKEND_BASE_URL }}" \
+            "${{ env.NEXT_PUBLIC_BASE_URL }}" \
+            "${{ env.AUTH_COOKIE_NAME }}")
+
+          aws ssm put-parameter \
+            --name "${{ env.FRONTEND_ENV_SSM_PARAM }}" \
+            --value "${ENV_CONTENT}" \
+            --type "SecureString" \
+            --overwrite
+
       - name: Deploy on EC2 via SSM
         id: ssm-deploy
         shell: bash
