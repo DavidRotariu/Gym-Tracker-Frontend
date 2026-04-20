@@ -95,6 +95,28 @@ export default function NewSplit() {
     }
   };
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6">
+        <p className="text-lg text-red-500 mb-4">Error: {error}</p>
+        <button
+          onClick={() => router.push("/home")}
+          className="bg-black text-white px-6 py-3 rounded-full"
+        >
+          Back to Home
+        </button>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6">
+        <p className="text-lg text-gray-500">Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6">
       <motion.div
