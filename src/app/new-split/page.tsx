@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { backendJson, backendJsonWithBody } from "@/lib/api-client";
+import { backendJson, backendJsonWithBody, resolveBackendMediaUrl } from "@/lib/api-client";
 
 interface Muscle {
   id: number;
@@ -75,13 +75,25 @@ export default function NewSplit() {
 
   const handleSaveSplit = async () => {
     if (saving) return; // Prevent double-click
-    
+
+    const selectedExercises = Object.entries(selectedMuscles).filter(
+      ([_, nr_of_exercises]) => nr_of_exercises > 0,
+    );
+
+    if (!splitName.trim()) {
+      alert("Please enter a split name.");
+      return;
+    }
+
+    if (selectedExercises.length === 0) {
+      alert("Please select at least one exercise.");
+      return;
+    }
+
     const splitData = {
-      name: splitName,
+      name: splitName.trim(),
       pic: "",
-      muscles: Object.entries(selectedMuscles)
-        .filter(([_, nr_of_exercises]) => nr_of_exercises !== 0) // Filter out exercises with 0 reps
-        .map(([muscleId, nr_of_exercises]) => ({
+      muscles: selectedExercises.map(([muscleId, nr_of_exercises]) => ({
           muscle_id: muscleId,
           nr_of_exercises,
         })),
@@ -165,7 +177,7 @@ export default function NewSplit() {
                 ))}
               </div>
               <img
-                src={`${process.env.NEXT_PUBLIC_BASE_URL}${muscle.pic}`}
+                src={resolveBackendMediaUrl(muscle.pic) || ""}
                 alt={muscle.name}
                 className="absolute object-contain"
               />
@@ -188,7 +200,7 @@ export default function NewSplit() {
       <button
         className="mt-6 bg-black text-white px-6 py-3 rounded-full text-lg disabled:opacity-50"
         onClick={handleSaveSplit}
-        disabled={Object.keys(selectedMuscles).length === 0 || saving}
+        disabled={saving}
       >
         {saving ? "Saving..." : "Save Split"}
       </button>

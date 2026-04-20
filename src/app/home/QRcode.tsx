@@ -4,7 +4,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { FaUpload } from "react-icons/fa";
-import { backendFetch } from "@/lib/api-client";
+import { backendFetch, resolveBackendMediaUrl } from "@/lib/api-client";
 
 export default function UploadQR() {
   const [file, setFile] = useState<File | null>(null);
@@ -32,8 +32,7 @@ export default function UploadQR() {
 
       const data = await response.json();
       if (data.qr_code_url) {
-        // Use the full URL directly from the API response
-        setQrCode(data.qr_code_url);
+        setQrCode(resolveBackendMediaUrl(data.qr_code_url));
       }
     } catch (error) {
       console.error("Error fetching QR code:", error);
@@ -73,11 +72,10 @@ export default function UploadQR() {
       setMessage(data.message || "Upload successful");
 
       if (data.qr_code_url) {
-        // Use the full URL directly from the API response
-        setQrCode(data.qr_code_url);
+        setQrCode(resolveBackendMediaUrl(data.qr_code_url));
       } else {
         // Wait a moment for backend to process, then fetch
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
         await fetchQrCode();
       }
     } catch (error: any) {

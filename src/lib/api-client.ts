@@ -4,6 +4,18 @@ function normalizePath(path: string) {
   return path.startsWith("/") ? path : `/${path}`;
 }
 
+export function resolveBackendMediaUrl(url: string | null | undefined) {
+  if (!url) {
+    return null;
+  }
+
+  if (/^https?:\/\//i.test(url)) {
+    return url;
+  }
+
+  return `/api/backend${normalizePath(url)}`;
+}
+
 async function parseError(response: Response) {
   const contentType = response.headers.get("content-type") || "";
   let message = `Request failed with status ${response.status}`;
