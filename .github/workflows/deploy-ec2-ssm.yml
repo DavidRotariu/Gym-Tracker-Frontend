@@ -129,7 +129,7 @@ jobs:
           IMAGE_URI="${{ steps.image-meta.outputs.image_uri }}"
           ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
 
-          DEPLOY_SCRIPT=$(cat <<EOF
+          DEPLOY_SCRIPT=$(cat <<'EOF'
           set -euo pipefail
 
           AWS_REGION="${AWS_REGION}"
