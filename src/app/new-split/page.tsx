@@ -14,10 +14,30 @@ interface Muscle {
   pic: string;
 }
 
+type MusclesResponse = Muscle[] | { muscles?: Muscle[]; items?: Muscle[]; data?: Muscle[] };
+
+function extractMuscles(payload: MusclesResponse): Muscle[] {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload.muscles)) {
+    return payload.muscles;
+  }
+
+  if (Array.isArray(payload.items)) {
+    return payload.items;
+  }
+
+  if (Array.isArray(payload.data)) {
+    return payload.data;
+  }
+
+  return [];
+}
+
 export default function NewSplit() {
   const [splitName, setSplitName] = useState("");
-  const [shouldAnimate, setShouldAnimate] = useState(false);
-  const [showMuscles, setShowMuscles] = useState(false);
   const [selectedMuscles, setSelectedMuscles] = useState<Record<number, number>>({}); // Track clicks per muscle
   const router = useRouter();
 
@@ -29,8 +49,8 @@ export default function NewSplit() {
   useEffect(() => {
     const fetchMuscles = async () => {
       try {
-        const data = await backendJson<Muscle[]>("/muscles");
-        setMuscles(data);
+        const data = await backendJson<MusclesResponse>("/muscles");
+        setMuscles(extractMuscles(data));
       } catch (error: any) {
         setError(error.message);
       } finally {
@@ -40,24 +60,6 @@ export default function NewSplit() {
 
     fetchMuscles();
   }, []);
-
-  useEffect(() => {
-    if (!splitName.trim()) return;
-
-    const timer = setTimeout(() => {
-      setShouldAnimate(true);
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [splitName]);
-
-  useEffect(() => {
-    if (!splitName.trim()) return;
-    const muscleTimer = setTimeout(() => {
-      setShowMuscles(true);
-    }, 2000);
-    return () => clearTimeout(muscleTimer);
-  }, [splitName]);
 
   const handleMuscleClick = (muscleId: number) => {
     setSelectedMuscles((prev) => ({
@@ -149,8 +151,7 @@ export default function NewSplit() {
       </motion.div>
 
       <div className="grid grid-cols-2 gap-6 mt-6">
-        {showMuscles &&
-          muscles.map((muscle, index) => (
+        {muscles.map((muscle, index) => (
             <motion.div
               key={muscle.id}
               initial={{ opacity: 0, y: 10 }}
@@ -196,6 +197,10 @@ export default function NewSplit() {
             </motion.div>
           ))}
       </div>
+
+      {!loading && muscles.length === 0 && (
+        <p className="mt-6 text-gray-500">No muscles available right now.</p>
+      )}
 
       <button
         className="mt-6 bg-black text-white px-6 py-3 rounded-full text-lg disabled:opacity-50"
