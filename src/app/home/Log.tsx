@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { backendJsonWithBody } from "@/lib/api-client";
 
 interface LogProps {
   exerciseId: string; // Pass the exercise ID to associate logs
@@ -27,7 +28,6 @@ export const Log = ({
   lastWorkout,
 }: LogProps) => {
   const router = useRouter();
-  const token = localStorage.getItem("token");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -46,30 +46,16 @@ export const Log = ({
   };
 
   const handleLog = async () => {
-    if (!token) {
-      setError("Unauthorized: Please log in.");
-      return;
-    }
-
     setLoading(true);
     setError("");
     setSuccess(false);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/log-workout`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          exercise_id: exerciseId,
-          reps: logData.reps,
-          weights: logData.weights,
-        }),
+      await backendJsonWithBody("/log-workout", "POST", {
+        exercise_id: exerciseId,
+        reps: logData.reps,
+        weights: logData.weights,
       });
-
-      if (!response.ok) throw new Error("Failed to log exercise");
 
       setSuccess(true);
       currentMuscle.nr_of_exercises_done_today++;

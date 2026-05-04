@@ -4,6 +4,7 @@
 import { motion } from "framer-motion";
 import React, { useEffect, useState, useRef } from "react";
 import { Muscle } from "./Muscle";
+import { backendFetch } from "@/lib/api-client";
 
 interface MuscleType {
   name: string;
@@ -62,21 +63,13 @@ export const Split = ({ setSelectedSplit, setSplits, splits, currentSplit }: any
       setError("");
 
       try {
-        const token = localStorage.getItem("token");
-        if (!token) {
-          setError("No token found");
-          setLoading(false);
-          return;
-        }
-
         console.log(`Fetching from API: ${cacheKey}`);
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/exercises/by-muscle/${selectedMuscle.id}`,
+        const response = await backendFetch(
+          `/exercises/by-muscle/${selectedMuscle.id}`,
           {
             method: "GET",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
             },
           },
         );
@@ -110,16 +103,10 @@ export const Split = ({ setSelectedSplit, setSplits, splits, currentSplit }: any
 
   const deleteSplit = async (splitId: string) => {
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setError("Unauthorized: Please log in.");
-        return;
-      }
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/splits/${splitId}`, {
+      const response = await backendFetch(`/splits/${splitId}`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
       });
 

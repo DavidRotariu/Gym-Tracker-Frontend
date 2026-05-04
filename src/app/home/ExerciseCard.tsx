@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { FaHeart, FaRegHeart } from "react-icons/fa"; // Import heart icons
+import { backendFetch } from "@/lib/api-client";
 
 const ExerciseCard = ({
   exercise,
@@ -19,21 +20,16 @@ const ExerciseCard = ({
     event.stopPropagation();
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
-      if (!token) {
-        return;
-      }
       const url = exercise.favourite
-        ? `${process.env.NEXT_PUBLIC_BASE_URL}/favorites/remove?exercise_id=${exercise.id}`
-        : `${process.env.NEXT_PUBLIC_BASE_URL}/favorites/add?exercise_id=${exercise.id}`;
+        ? `/favorites/remove?exercise_id=${exercise.id}`
+        : `/favorites/add?exercise_id=${exercise.id}`;
 
       const method = exercise.favourite ? "DELETE" : "POST";
 
-      const response = await fetch(url, {
+      const response = await backendFetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
       });
 

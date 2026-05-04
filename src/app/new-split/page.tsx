@@ -6,34 +6,51 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { backendJson, backendJsonWithBody, resolveBackendMediaUrl } from "@/lib/api-client";
+
+interface Muscle {
+  id: number;
+  name: string;
+  pic: string;
+}
+
+type MusclesResponse = Muscle[] | { muscles?: Muscle[]; items?: Muscle[]; data?: Muscle[] };
+
+function extractMuscles(payload: MusclesResponse): Muscle[] {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload.muscles)) {
+    return payload.muscles;
+  }
+
+  if (Array.isArray(payload.items)) {
+    return payload.items;
+  }
+
+  if (Array.isArray(payload.data)) {
+    return payload.data;
+  }
+
+  return [];
+}
 
 export default function NewSplit() {
   const [splitName, setSplitName] = useState("");
-  const [shouldAnimate, setShouldAnimate] = useState(false);
-  const [showMuscles, setShowMuscles] = useState(false);
   const [selectedMuscles, setSelectedMuscles] = useState<Record<number, number>>({}); // Track clicks per muscle
   const router = useRouter();
 
-  const [muscles, setMuscles] = useState([]);
+  const [muscles, setMuscles] = useState<Muscle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-    }
-  }, []);
 
   useEffect(() => {
     const fetchMuscles = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/muscles`);
-
-        if (!response.ok) throw new Error("Failed to fetch muscles");
-
-        const data = await response.json();
-        setMuscles(data);
+        const data = await backendJson<MusclesResponse>("/muscles");
+        setMuscles(extractMuscles(data));
       } catch (error: any) {
         setError(error.message);
       } finally {
@@ -43,24 +60,6 @@ export default function NewSplit() {
 
     fetchMuscles();
   }, []);
-
-  useEffect(() => {
-    if (!splitName.trim()) return;
-
-    const timer = setTimeout(() => {
-      setShouldAnimate(true);
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [splitName]);
-
-  useEffect(() => {
-    if (!splitName.trim()) return;
-    const muscleTimer = setTimeout(() => {
-      setShowMuscles(true);
-    }, 2000);
-    return () => clearTimeout(muscleTimer);
-  }, [splitName]);
 
   const handleMuscleClick = (muscleId: number) => {
     setSelectedMuscles((prev) => ({
@@ -77,43 +76,62 @@ export default function NewSplit() {
   };
 
   const handleSaveSplit = async () => {
+    if (saving) return; // Prevent double-click
+
+    const selectedExercises = Object.entries(selectedMuscles).filter(
+      ([_, nr_of_exercises]) => nr_of_exercises > 0,
+    );
+
+    if (!splitName.trim()) {
+      alert("Please enter a split name.");
+      return;
+    }
+
+    if (selectedExercises.length === 0) {
+      alert("Please select at least one exercise.");
+      return;
+    }
+
     const splitData = {
-      name: splitName,
+      name: splitName.trim(),
       pic: "",
-      muscles: Object.entries(selectedMuscles)
-        .filter(([_, nr_of_exercises]) => nr_of_exercises !== 0) // Filter out exercises with 0 reps
-        .map(([muscleId, nr_of_exercises]) => ({
+      muscles: selectedExercises.map(([muscleId, nr_of_exercises]) => ({
           muscle_id: muscleId,
           nr_of_exercises,
         })),
     };
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setError("Unauthorized. Please log in.");
-      setLoading(false);
-      return;
-    }
+
     try {
-      setLoading(true);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/splits`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(splitData),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to save split");
-      }
-
-      const result = await response.json();
-      router.push("/home?scroll=true");
+      setSaving(true);
+      await backendJsonWithBody("/splits", "POST", splitData);
+      window.location.href = "/home?scroll=true";
     } catch (error: any) {
       alert("Error saving split: " + error.message);
+      setSaving(false);
     }
   };
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6">
+        <p className="text-lg text-red-500 mb-4">Error: {error}</p>
+        <button
+          onClick={() => router.push("/home")}
+          className="bg-black text-white px-6 py-3 rounded-full"
+        >
+          Back to Home
+        </button>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6">
+        <p className="text-lg text-gray-500">Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6">
@@ -133,8 +151,7 @@ export default function NewSplit() {
       </motion.div>
 
       <div className="grid grid-cols-2 gap-6 mt-6">
-        {showMuscles &&
-          muscles.map((muscle: { name: string; id: number; pic: string }, index) => (
+        {muscles.map((muscle, index) => (
             <motion.div
               key={muscle.id}
               initial={{ opacity: 0, y: 10 }}
@@ -161,7 +178,7 @@ export default function NewSplit() {
                 ))}
               </div>
               <img
-                src={`${process.env.NEXT_PUBLIC_BASE_URL}${muscle.pic}`}
+                src={resolveBackendMediaUrl(muscle.pic) || ""}
                 alt={muscle.name}
                 className="absolute object-contain"
               />
@@ -181,12 +198,16 @@ export default function NewSplit() {
           ))}
       </div>
 
+      {!loading && muscles.length === 0 && (
+        <p className="mt-6 text-gray-500">No muscles available right now.</p>
+      )}
+
       <button
-        className="mt-6 bg-black text-white px-6 py-3 rounded-full text-lg"
+        className="mt-6 bg-black text-white px-6 py-3 rounded-full text-lg disabled:opacity-50"
         onClick={handleSaveSplit}
-        disabled={Object.keys(selectedMuscles).length === 0}
+        disabled={saving}
       >
-        Save Split
+        {saving ? "Saving..." : "Save Split"}
       </button>
 
       <button onClick={() => router.push("/home")} className="mt-3 text-gray-500 underline">

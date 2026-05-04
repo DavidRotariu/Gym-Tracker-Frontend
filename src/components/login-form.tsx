@@ -2,9 +2,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { loginRequest } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,29 +19,21 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
   const router = useRouter();
   const [forgotText, setForgotText] = useState("Forgot your password?");
 
+  useEffect(() => {
+    router.prefetch("/home");
+  }, [router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setErrorMessage("");
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Login failed");
-      }
-
-      localStorage.setItem("token", data.access_token);
-      router.push("/home");
+      await loginRequest(email, password);
+      // Use hard navigation to ensure cookie is included in the request
+      window.location.href = "/home";
     } catch (error: any) {
       setErrorMessage(error.message);
-    } finally {
       setLoading(false);
     }
   };
