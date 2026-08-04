@@ -13,6 +13,17 @@ interface SplitCardProps {
 }
 
 /**
+ * Hand-drawn icons for the three default splits — swapped in ahead of the
+ * muscle-thumbnail stack for any split whose name matches. Everything else
+ * (custom user splits) still falls back to the muscle stack.
+ */
+const SPLIT_ICONS: { match: RegExp; src: string }[] = [
+  { match: /push/i, src: "/split-icons/push.png" },
+  { match: /pull/i, src: "/split-icons/pull.png" },
+  { match: /leg/i, src: "/split-icons/legs.png" },
+];
+
+/**
  * Row content only — the list wraps this in a SwipeRow, which supplies the
  * card surface and the edit/delete actions.
  */
@@ -22,6 +33,8 @@ export function SplitCard({ split, muscles, onStart, pending }: SplitCardProps) 
     0,
   );
 
+  const splitIcon = SPLIT_ICONS.find((s) => s.match.test(split.name))?.src;
+
   const targetMuscles = split.muscles
     .map((m) => muscles?.find((muscle) => muscle.id === m.muscle_id))
     .filter((m): m is Muscle => m !== undefined)
@@ -29,7 +42,20 @@ export function SplitCard({ split, muscles, onStart, pending }: SplitCardProps) 
 
   return (
     <div className="flex items-center gap-4 p-4">
-      {targetMuscles.length > 0 &&
+      {splitIcon ? (
+        <MediaThumb
+          src={splitIcon}
+          alt=""
+          static
+          fallback={
+            <span className="text-caption font-bold text-label-tertiary">
+              {split.name.slice(0, 1)}
+            </span>
+          }
+          className="size-11 shrink-0 rounded-control object-contain"
+        />
+      ) : (
+        targetMuscles.length > 0 &&
         (targetMuscles.length === 1 ? (
           <MediaThumb
             src={targetMuscles[0].image_url}
@@ -59,7 +85,8 @@ export function SplitCard({ split, muscles, onStart, pending }: SplitCardProps) 
               />
             ))}
           </div>
-        ))}
+        ))
+      )}
 
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-body font-semibold text-label">
