@@ -24,9 +24,9 @@ const twMerge = extendTailwindMerge({
           ],
         },
       ],
-      "font-family": [{ font: ["text", "display"] }],
+      "font-family": [{ font: ["text", "display", "stat"] }],
       rounded: [{ rounded: ["control", "button", "card", "sheet", "pill"] }],
-      shadow: [{ shadow: ["sheet", "raised"] }],
+      shadow: [{ shadow: ["sheet"] }],
     },
   },
 });

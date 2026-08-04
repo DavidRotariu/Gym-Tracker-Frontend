@@ -4,22 +4,18 @@ import { HTMLAttributes } from "react";
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
   /** Remove default padding for full-bleed content (lists, images). */
   flush?: boolean;
-  /** Lifts the card off the page — the one screen-level card that should
-   *  read as "the important one" (e.g. today's suggested workout). */
-  raised?: boolean;
 }
 
 /**
- * Flat resting state by default: a grouped-background fill with no shadow.
- * `raised` is the one elevation step above it; sheets/modals are the step
- * above that (`shadow-sheet`).
+ * Flat resting state, always: a grouped-background fill, hairline
+ * separators for internal dividers, no shadow. Shadow is reserved for
+ * sheets and the floating rest timer (`shadow-sheet`) — nothing else lifts.
  */
-export function Card({ className, flush, raised, ...props }: CardProps) {
+export function Card({ className, flush, ...props }: CardProps) {
   return (
     <div
       className={cn(
         "rounded-card bg-background-secondary",
-        raised && "shadow-raised",
         !flush && "p-4",
         className,
       )}

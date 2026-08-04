@@ -55,47 +55,43 @@ export default function ExerciseDetailPage() {
 
   return (
     <>
-      <LargeTitle
-        title={exercise?.name ?? "Exercise"}
-        eyebrow={muscleName}
-        back
-        action={
-          <button
-            onClick={toggle}
-            disabled={pending}
-            aria-pressed={favorited}
-            aria-label={
-              favorited ? "Remove from favourites" : "Add to favourites"
-            }
-            className={cn(
-              "flex size-9 cursor-pointer items-center justify-center rounded-pill",
-              "transition-colors duration-150 active:bg-accent-muted disabled:opacity-40",
-              favorited ? "text-accent" : "text-label-tertiary",
-            )}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M12 4.6c1.6-2 4-2.2 5.7-.8 1.8 1.5 2 4.2.4 6L12 16.5 5.9 9.8c-1.6-1.8-1.4-4.5.4-6 1.7-1.4 4.1-1.2 5.7.8z"
-                fill={favorited ? "currentColor" : "none"}
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-        }
-      />
+      <LargeTitle title={exercise?.name ?? "Exercise"} eyebrow={muscleName} back />
 
-      <MediaThumb
-        src={exercise?.image_url}
-        alt={exercise ? `${exercise.name} demonstration` : ""}
-        fallback={
-          <span className="text-stat text-label-tertiary">
-            {(exercise?.name ?? "?").slice(0, 1)}
-          </span>
-        }
-        className="mb-4 h-48 w-full rounded-card"
-      />
+      <div className="relative mb-4">
+        <MediaThumb
+          src={exercise?.image_url}
+          alt={exercise ? `${exercise.name} demonstration` : ""}
+          fallback={
+            <span className="text-stat text-label-tertiary">
+              {(exercise?.name ?? "?").slice(0, 1)}
+            </span>
+          }
+          className="h-48 w-full rounded-card"
+        />
+
+        <button
+          onClick={toggle}
+          disabled={pending}
+          aria-pressed={favorited}
+          aria-label={favorited ? "Remove from favourites" : "Add to favourites"}
+          className={cn(
+            "absolute top-3 right-3 flex size-11 cursor-pointer items-center justify-center rounded-pill",
+            "bg-black/40 backdrop-blur-md transition-colors duration-150",
+            "active:bg-black/55 disabled:opacity-40",
+            favorited ? "text-accent-ink" : "text-white",
+          )}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M12 4.6c1.6-2 4-2.2 5.7-.8 1.8 1.5 2 4.2.4 6L12 16.5 5.9 9.8c-1.6-1.8-1.4-4.5.4-6 1.7-1.4 4.1-1.2 5.7.8z"
+              fill={favorited ? "currentColor" : "none"}
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
 
       {isLoading && (
         <div className="flex flex-col gap-3">
@@ -118,7 +114,7 @@ export default function ExerciseDetailPage() {
           <Card className="flex flex-col gap-4">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="text-kicker text-accent uppercase">
+                <p className="text-kicker text-accent-ink uppercase">
                   Personal record
                 </p>
                 <p className="tabular text-stat text-label">
@@ -127,7 +123,7 @@ export default function ExerciseDetailPage() {
                 </p>
               </div>
               {stats.bestReps > 0 && (
-                <p className="tabular pb-1.5 text-caption text-label-secondary">
+                <p className="tabular pb-2 text-caption text-label-secondary">
                   × {stats.bestReps} reps
                 </p>
               )}
@@ -150,26 +146,26 @@ export default function ExerciseDetailPage() {
             <h2 className="px-1 text-body font-semibold text-label">History</h2>
 
             {history?.map((entry) => (
-              <Card key={entry.workout_session_id} className="flex flex-col gap-2.5">
+              <Card key={entry.workout_session_id} className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <p className="text-caption font-semibold text-label-secondary">
                     {formatDay(entry.date)}
                   </p>
                   <Link
                     href={`/history/${entry.workout_session_id}`}
-                    className="text-caption font-semibold text-accent active:opacity-60"
+                    className="text-caption font-semibold text-accent-ink active:opacity-60"
                   >
                     Session
                   </Link>
                 </div>
 
-                <ul className="flex flex-col gap-1.5">
+                <ul className="flex flex-col gap-2">
                   {entry.sets.map((set) => (
                     <li
                       key={set.set_number}
-                      className="flex flex-col gap-1.5 rounded-control bg-fill p-2.5"
+                      className="flex flex-col gap-2 rounded-control bg-fill p-3"
                     >
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-3">
                         <span className="tabular w-5 shrink-0 text-center text-caption font-bold text-label-tertiary">
                           {set.set_number}
                         </span>

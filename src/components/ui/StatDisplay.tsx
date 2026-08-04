@@ -33,9 +33,9 @@ export function StatDisplay({
     <div className={cn("flex flex-col gap-2", className)}>
       <p
         className={cn(
-          "tabular font-display",
+          "tabular font-stat",
           size === "hero" ? "text-stat" : "text-stat-sm",
-          onAccent ? "text-accent-foreground" : highlight ? "text-accent" : "text-label",
+          onAccent ? "text-accent-foreground" : highlight ? "text-accent-ink" : "text-label",
         )}
       >
         {value}

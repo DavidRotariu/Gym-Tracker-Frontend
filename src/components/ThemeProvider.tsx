@@ -16,7 +16,7 @@ const STORAGE_KEY = "overload_theme";
 const ACCENT_STORAGE_KEY = "overload_accent";
 
 /** The built-in default (set in globals.css) — shown as "Default" in the picker. */
-export const DEFAULT_ACCENT = "#fa5400";
+export const DEFAULT_ACCENT = "#ff7a2f";
 
 export const ACCENT_OPTIONS = [
   "#F45D22",
@@ -42,18 +42,17 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 /**
  * Inlined in <head> before paint so the correct theme class (and any custom
- * accent) is on <html> on first frame — otherwise a dark-mode user gets a
+ * accent) is on <html> on first frame — otherwise a light-mode user gets a
  * white flash, or an accent-color user briefly sees the default orange.
- * Light is the default whenever there is no stored override and the OS
- * expresses no dark preference.
+ * Dark is the default whenever there is no stored override — an unset
+ * preference no longer follows the OS, it resolves straight to dark, the
+ * app's primary design target. Only an explicit "light" choice opts out.
  */
-export const themeInitScript = `(function(){try{var p=localStorage.getItem("${STORAGE_KEY}")||"system";var d=p==="dark"||(p==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);var a=localStorage.getItem("${ACCENT_STORAGE_KEY}");if(a)document.documentElement.style.setProperty("--accent",a);}catch(e){}})();`;
+export const themeInitScript = `(function(){try{var p=localStorage.getItem("${STORAGE_KEY}")||"system";var d=p!=="light";document.documentElement.classList.toggle("dark",d);var a=localStorage.getItem("${ACCENT_STORAGE_KEY}");if(a)document.documentElement.style.setProperty("--accent",a);}catch(e){}})();`;
 
-function systemTheme(): ResolvedTheme {
-  if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+/** "system"/unset resolves to dark by default now — see themeInitScript. */
+function defaultTheme(): ResolvedTheme {
+  return "dark";
 }
 
 function apply(theme: ResolvedTheme) {
@@ -62,7 +61,7 @@ function apply(theme: ResolvedTheme) {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [preference, setPreferenceState] = useState<ThemePreference>("system");
-  const [theme, setTheme] = useState<ResolvedTheme>("light");
+  const [theme, setTheme] = useState<ResolvedTheme>("dark");
   const [accent, setAccentState] = useState<string | null>(null);
 
   // Adopt whatever the pre-paint script already decided.
@@ -70,22 +69,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const stored = localStorage.getItem(STORAGE_KEY) as ThemePreference | null;
     const pref = stored ?? "system";
     setPreferenceState(pref);
-    setTheme(pref === "system" ? systemTheme() : pref);
+    setTheme(pref === "system" ? defaultTheme() : pref);
     setAccentState(localStorage.getItem(ACCENT_STORAGE_KEY));
   }, []);
-
-  // Follow the OS while the preference is "system".
-  useEffect(() => {
-    if (preference !== "system") return;
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => {
-      const next = media.matches ? "dark" : "light";
-      setTheme(next);
-      apply(next);
-    };
-    media.addEventListener("change", onChange);
-    return () => media.removeEventListener("change", onChange);
-  }, [preference]);
 
   const setPreference = useCallback((next: ThemePreference) => {
     setPreferenceState(next);
@@ -94,7 +80,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } else {
       localStorage.setItem(STORAGE_KEY, next);
     }
-    const resolved = next === "system" ? systemTheme() : next;
+    const resolved = next === "system" ? defaultTheme() : next;
     setTheme(resolved);
     apply(resolved);
   }, []);

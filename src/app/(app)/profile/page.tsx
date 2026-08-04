@@ -71,7 +71,7 @@ export default function ProfilePage() {
     <>
       <LargeTitle title="Profile" />
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-8">
         {/* Account -------------------------------------------------------- */}
         <Card className="flex items-center gap-4">
           <div className="flex size-14 shrink-0 items-center justify-center rounded-pill bg-accent font-display text-large-title text-accent-foreground">

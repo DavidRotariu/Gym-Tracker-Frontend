@@ -210,7 +210,7 @@ export default function WorkoutSessionPage() {
 
           <div className="min-w-0 flex-1">
             <p className="truncate text-body font-semibold text-label">{title}</p>
-            <p className="tabular text-caption text-accent">
+            <p className="tabular text-caption text-accent-ink">
               {formatElapsed(session.started_at, now)}
             </p>
           </div>
@@ -278,7 +278,7 @@ export default function WorkoutSessionPage() {
               className={cn(
                 "h-14 cursor-pointer rounded-card border border-dashed border-separator",
                 "text-body font-semibold text-label-secondary",
-                "active:border-accent active:text-accent",
+                "active:border-accent-ink active:text-accent-ink",
               )}
             >
               Add exercise

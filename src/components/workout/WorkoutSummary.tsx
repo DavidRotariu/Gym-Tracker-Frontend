@@ -104,7 +104,7 @@ export function WorkoutSummary({
           <p className="text-kicker text-accent-foreground/70 uppercase">
             Workout complete
           </p>
-          <h1 className="mt-2 font-display text-stat-sm text-accent-foreground uppercase">
+          <h1 className="mt-2 font-stat text-stat-sm text-accent-foreground uppercase">
             {title}
           </h1>
         </motion.div>
@@ -177,7 +177,7 @@ export function WorkoutSummary({
                     Previous best {pr.previous} kg
                   </p>
                 </div>
-                <p className="tabular shrink-0 font-display text-stat-sm text-accent">
+                <p className="tabular shrink-0 font-stat text-stat-sm text-accent">
                   {pr.weight}
                   <span className="text-caption"> kg</span>
                 </p>

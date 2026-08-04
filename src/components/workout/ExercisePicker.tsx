@@ -189,7 +189,7 @@ export function ExercisePicker({
                 className={cn(
                   "flex min-h-14 cursor-pointer items-center gap-3 rounded-control",
                   "bg-background-secondary py-2 pr-4 pl-2 text-left active:opacity-70",
-                  isLast && "outline-2 outline-accent",
+                  isLast && "outline-2 outline-accent-ink",
                 )}
               >
                 <MediaThumb
@@ -206,7 +206,7 @@ export function ExercisePicker({
                   {exercise.name}
                 </span>
                 {isLast && (
-                  <span className="shrink-0 rounded-pill bg-accent-muted px-2 py-1 text-tab font-bold text-accent uppercase">
+                  <span className="shrink-0 rounded-pill bg-accent-muted px-2 py-1 text-tab font-bold text-accent-ink uppercase">
                     Last time
                   </span>
                 )}

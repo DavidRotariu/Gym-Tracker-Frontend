@@ -83,7 +83,6 @@ export default function HistoryPage() {
               {sessions.map((session) => (
                 <SwipeRow
                   key={session.id}
-                  className="shadow-raised"
                   actions={[
                     {
                       label: "Delete",

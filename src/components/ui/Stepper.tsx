@@ -87,7 +87,7 @@ export function Stepper({
 
   const valueClasses = cn(
     "tabular h-11 min-w-0 flex-1 rounded-control bg-background px-1 text-center text-label",
-    hideLabel ? "text-body font-semibold" : "font-display text-stat-sm",
+    hideLabel ? "text-body font-semibold" : "font-stat text-stat-sm",
   );
 
   return (

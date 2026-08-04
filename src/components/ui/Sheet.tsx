@@ -73,7 +73,7 @@ export function Sheet({
             className={cn(
               "relative flex max-h-[88vh] w-full max-w-[480px] flex-col",
               /* 24px top corners; the one place elevation is used. */
-              "rounded-t-sheet bg-background shadow-sheet",
+              "rounded-t-sheet bg-background-elevated shadow-sheet",
               className,
             )}
             initial={{ y: "100%" }}
@@ -100,7 +100,7 @@ export function Sheet({
 
             {(title || action) && (
               <div className="flex shrink-0 items-center justify-between gap-4 px-4 pt-2 pb-3">
-                <h2 className="font-display text-stat-sm text-label">{title}</h2>
+                <h2 className="font-stat text-stat-sm text-label">{title}</h2>
                 {action ?? (
                   <button
                     onClick={onClose}

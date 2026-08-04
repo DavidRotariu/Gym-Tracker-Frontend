@@ -1,5 +1,6 @@
 "use client";
 
+import { MediaThumb } from "@/components/ui/MediaThumb";
 import { MuscleChips } from "@/components/ui/MuscleChips";
 import { cn } from "@/lib/utils";
 import type { Muscle, Split } from "@/types";
@@ -21,8 +22,45 @@ export function SplitCard({ split, muscles, onStart, pending }: SplitCardProps) 
     0,
   );
 
+  const targetMuscles = split.muscles
+    .map((m) => muscles?.find((muscle) => muscle.id === m.muscle_id))
+    .filter((m): m is Muscle => m !== undefined)
+    .slice(0, 3);
+
   return (
     <div className="flex items-center gap-4 p-4">
+      {targetMuscles.length > 0 &&
+        (targetMuscles.length === 1 ? (
+          <MediaThumb
+            src={targetMuscles[0].image_url}
+            alt=""
+            static
+            fallback={
+              <span className="text-caption font-bold text-label-tertiary">
+                {targetMuscles[0].name.slice(0, 1)}
+              </span>
+            }
+            className="size-11 shrink-0 rounded-control"
+          />
+        ) : (
+          <div className="flex shrink-0 -space-x-3">
+            {targetMuscles.map((m) => (
+              <MediaThumb
+                key={m.id}
+                src={m.image_url}
+                alt=""
+                static
+                fallback={
+                  <span className="text-tab font-bold text-label-tertiary">
+                    {m.name.slice(0, 1)}
+                  </span>
+                }
+                className="size-9 shrink-0 rounded-pill ring-2 ring-background-secondary"
+              />
+            ))}
+          </div>
+        ))}
+
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-body font-semibold text-label">
           {split.name}

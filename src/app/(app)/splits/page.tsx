@@ -36,7 +36,7 @@ export default function SplitsPage() {
           <button
             onClick={() => setCreateOpen(true)}
             aria-label="New split"
-            className="flex size-9 cursor-pointer items-center justify-center rounded-pill text-accent active:bg-accent-muted"
+            className="flex size-9 cursor-pointer items-center justify-center rounded-pill text-accent-ink active:bg-accent-muted"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path
@@ -77,7 +77,6 @@ export default function SplitsPage() {
         {splits?.map((split) => (
           <SwipeRow
             key={split.id}
-            className="shadow-raised"
             actions={[
               {
                 label: "Edit",

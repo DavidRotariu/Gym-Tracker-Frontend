@@ -32,32 +32,34 @@ export function TabBar() {
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className="flex min-h-[56px] cursor-pointer flex-col items-center justify-center gap-1 py-2"
+                className="flex min-h-[56px] cursor-pointer items-center justify-center py-2"
               >
                 {/*
-                  Volt marks the active tab as a fill with black ink. Volt text
-                  on a white bar would sit around 1.3:1 contrast — unreadable —
-                  so the accent goes behind the glyph instead of on it.
+                  NRC-style: the active tab gets a neutral rounded-rect pill
+                  behind icon+label together, both at full label contrast.
+                  Orange stays reserved for CTAs and progress, not nav chrome.
                 */}
                 <span
                   className={cn(
-                    "flex h-7 w-12 items-center justify-center rounded-pill transition-colors duration-150",
-                    active
-                      ? "bg-accent text-accent-foreground"
-                      : "text-label-secondary",
+                    "flex flex-col items-center gap-1 rounded-control px-3 py-2 transition-colors duration-150",
+                    active ? "bg-fill" : "bg-transparent",
                   )}
                 >
-                  <Icon active={active} />
-                </span>
-                <span
-                  className={cn(
-                    "text-tab",
-                    active
-                      ? "font-semibold text-label"
-                      : "font-medium text-label-secondary",
-                  )}
-                >
-                  {label}
+                  <span
+                    className={cn(
+                      active ? "text-label" : "text-label-secondary",
+                    )}
+                  >
+                    <Icon active={active} />
+                  </span>
+                  <span
+                    className={cn(
+                      "text-tab font-semibold",
+                      active ? "text-label" : "font-medium text-label-secondary",
+                    )}
+                  >
+                    {label}
+                  </span>
                 </span>
               </Link>
             </li>

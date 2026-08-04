@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Archivo, Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { themeInitScript } from "@/components/ThemeProvider";
@@ -10,6 +10,15 @@ const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
+});
+
+/* The condensed brand face — hero numbers and uppercase kickers only (see
+   .text-stat / .text-stat-sm / .text-kicker in globals.css). Variable, so
+   weight and width are tuned per-use with font-weight / font-stretch. */
+const archivo = Archivo({
+  variable: "--font-archivo",
+  subsets: ["latin"],
+  axes: ["wdth"],
 });
 
 export const metadata: Metadata = {
@@ -23,9 +32,12 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
+  // Dark is the app's default and primary target regardless of OS
+  // preference (see ThemeProvider), so it's the unconditional fallback;
+  // light only wins when the OS explicitly asks for it.
   themeColor: [
+    { color: "#000000" },
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#000000" },
   ],
 };
 
@@ -38,7 +50,11 @@ export default function RootLayout({
     // --font-inter must live on :root — `--font-text`/`--font-display` in
     // globals.css refer to it, and a var() that isn't defined on the same
     // element makes the whole custom property compute to empty.
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`${inter.variable} ${archivo.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>

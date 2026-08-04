@@ -25,6 +25,8 @@
   --background: #ffffff;
   --background-secondary: #f2f2f7;
   --background-grouped: #f2f2f7;
+  /* Sheets, the rest-timer bar, anything floating above the card layer. */
+  --background-elevated: #ffffff;
 
   /* Fills for controls sitting on a background */
   --fill: #e5e5ea;
@@ -39,13 +41,16 @@
   --separator: #c6c6c8;
 
   /* The one loud color — Nike signature orange. A fill color: black ink
-     always sits on it (contrast checked: ~5.4:1 against #111). User-
-     selectable in Profile > Accent color; overridden via an inline
+     always sits on it (black-on-orange ~7:1; white-on-orange ~2.9:1 fails).
+     User-selectable in Profile > Accent color; overridden via an inline
      custom-property on <html> when they pick one, so accent-muted below
      (derived from it) always recomputes automatically. */
-  --accent: #fa5400;
+  --accent: #ff7a2f;
   --accent-foreground: #111111;
-  --accent-muted: color-mix(in srgb, var(--accent) 16%, var(--background));
+  --accent-muted: color-mix(in srgb, var(--accent) 12%, var(--background));
+  /* Accent as TEXT or an ICON on a plain background — never --accent itself,
+     which is calibrated to be a fill, not ink (~2.9:1 as text on white). */
+  --accent-ink: #c2510a;
 
   /* iOS system colors, used semantically */
   --blue: #007aff;
@@ -64,8 +69,8 @@
   --chrome: rgba(255, 255, 255, 0.94);
   --scrim: rgba(0, 0, 0, 0.28);
 
-  /* Elevation — two real levels above the flat resting card. */
-  --shadow-raised: 0 1px 2px rgba(17, 17, 17, 0.04), 0 6px 16px rgba(17, 17, 17, 0.08);
+  /* Elevation is reserved for sheets and the floating rest timer — every
+     resting card stays flat, divided by hairlines instead. */
   --shadow-sheet: 0 -1px 24px rgba(0, 0, 0, 0.14);
 }
 
@@ -75,21 +80,26 @@
 .dark {
   color-scheme: dark;
 
+  /* Premium near-black: pure-black page, visibly lifted cards. */
   --background: #000000;
-  --background-secondary: #1c1c1e;
+  --background-secondary: #121214;
   --background-grouped: #000000;
+  /* Sheets, the rest-timer bar, anything floating above the card layer. */
+  --background-elevated: #1c1c1e;
 
-  --fill: #2c2c2e;
-  --fill-strong: #3a3a3c;
+  --fill: #1f1f22;
+  --fill-strong: #2c2c2e;
 
   --label: #ffffff;
   --label-secondary: #98989e;
   --label-tertiary: #5c5c61;
 
-  --separator: #38383a;
+  --separator: #2a2a2c;
 
-  --accent: #ff6a2e;
+  --accent: #ff8a45;
   --accent-foreground: #111111;
+  --accent-muted: color-mix(in srgb, var(--accent) 20%, var(--background));
+  --accent-ink: #ff9f5a;
 
   --blue: #0a84ff;
   --green: #30d158;
@@ -107,9 +117,8 @@
   --chrome: rgba(28, 28, 30, 0.96);
   --scrim: rgba(0, 0, 0, 0.6);
 
-  /* Shadows don't read on true black — a hairline highlight plus a deep
-     glow stands in for elevation instead. */
-  --shadow-raised: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 6px 20px rgba(0, 0, 0, 0.6);
+  /* Shadows don't read on true black — a deep glow stands in for the one
+     elevation step that still applies (sheets, the rest timer). */
   --shadow-sheet: 0 -1px 28px rgba(0, 0, 0, 0.6);
 }
 
@@ -119,11 +128,13 @@
 @theme inline {
   --font-text: var(--font-text);
   --font-display: var(--font-display);
+  --font-stat: var(--font-archivo), var(--font-display);
   --font-sans: var(--font-text);
 
   --color-background: var(--background);
   --color-background-secondary: var(--background-secondary);
   --color-background-grouped: var(--background-grouped);
+  --color-background-elevated: var(--background-elevated);
   --color-fill: var(--fill);
   --color-fill-strong: var(--fill-strong);
 
@@ -135,6 +146,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent-muted: var(--accent-muted);
+  --color-accent-ink: var(--accent-ink);
 
   --color-blue: var(--blue);
   --color-green: var(--green);
@@ -158,7 +170,6 @@
   --radius-sheet: 1.5rem; /* 24px — sheet top corners */
   --radius-pill: 9999px;
 
-  --shadow-raised: var(--shadow-raised);
   --shadow-sheet: var(--shadow-sheet);
 
   /* -------------------------------------------------------------------------
@@ -211,7 +222,7 @@
   --text-kicker: 0.8125rem;
   --text-kicker--line-height: 1.2;
   --text-kicker--letter-spacing: 1px;
-  --text-kicker--font-weight: 700;
+  --text-kicker--font-weight: 800;
 }
 
 /* ===========================================================================
@@ -236,12 +247,21 @@ body {
   overscroll-behavior-y: none;
 }
 
-/* SF Pro Display for anything 20px and up. */
+/* SF Pro Display for anything 20px and up — the native iOS shell. */
 .font-display,
-.text-large-title,
-.text-stat,
-.text-stat-sm {
+.text-large-title {
   font-family: var(--font-display);
+}
+
+/* Archivo — the condensed brand face, reserved for hero numbers and
+   uppercase kickers only. Never the iOS large title. Narrowed width (~85%)
+   is what gives the Nike-style numbers their density; weight is carried by
+   each text style's own --text-*--font-weight token. */
+.text-stat,
+.text-stat-sm,
+.text-kicker {
+  font-family: var(--font-stat);
+  font-stretch: 85%;
 }
 
 /* Numbers in stats and logs must not jitter as they change. */

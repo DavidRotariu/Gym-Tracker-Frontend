@@ -57,10 +57,10 @@ export function RestTimer({ startSignal }: RestTimerProps) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 12 }}
           transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
-          className="overflow-hidden rounded-card bg-background shadow-sheet"
+          className="overflow-hidden rounded-card bg-background-elevated shadow-sheet"
         >
           <div className="flex items-center gap-3 p-3">
-            <span className="tabular font-display text-stat-sm text-label">
+            <span className="tabular font-stat text-stat-sm text-label">
               {mm}:{ss}
             </span>
 

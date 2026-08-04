@@ -57,6 +57,7 @@ export function ExerciseCard({
           <MediaThumb
             src={imageUrl}
             alt=""
+            static
             fallback={
               <span className="text-caption font-bold text-label-tertiary">
                 {name.slice(0, 1)}
@@ -91,7 +92,7 @@ export function ExerciseCard({
                 type="button"
                 onClick={onSwap}
                 aria-label={`Swap ${name}`}
-                className="flex size-11 cursor-pointer items-center justify-center rounded-pill text-label-tertiary active:text-accent"
+                className="flex size-11 cursor-pointer items-center justify-center rounded-pill text-label-tertiary active:text-accent-ink"
               >
                 <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
                   <path
@@ -124,7 +125,7 @@ export function ExerciseCard({
       </div>
 
       {we.sets.length > 0 && (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           {!readOnly && (
             <div className="grid grid-cols-[32px_1fr_64px_56px_44px] gap-2 px-2">
               <span />

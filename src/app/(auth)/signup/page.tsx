@@ -67,7 +67,7 @@ export default function SignupPage() {
 
       <p className="text-center text-caption text-label-secondary">
         Already have an account?{" "}
-        <Link href="/login" className="text-accent">
+        <Link href="/login" className="text-accent-ink">
           Sign in
         </Link>
       </p>

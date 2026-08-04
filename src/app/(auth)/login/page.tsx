@@ -73,7 +73,7 @@ export default function LoginPage() {
 
       <p className="text-center text-caption text-label-secondary">
         No account?{" "}
-        <Link href="/signup" className="text-accent">
+        <Link href="/signup" className="text-accent-ink">
           Create one
         </Link>
       </p>

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LargeTitle } from "@/components/ui/LargeTitle";
+import { MediaThumb } from "@/components/ui/MediaThumb";
 import { MuscleChips } from "@/components/ui/MuscleChips";
 import { Sheet } from "@/components/ui/Sheet";
 import { useMuscles } from "@/hooks/use-muscles";
@@ -59,6 +60,15 @@ export default function HomePage() {
 
   const streak = useMemo(() => currentStreak(history), [history]);
 
+  /** The muscle this split calls for most — the card's hero image. */
+  const suggestedImage = useMemo(() => {
+    if (!suggested?.muscles.length) return null;
+    const primary = [...suggested.muscles].sort(
+      (a, b) => b.nr_of_exercises - a.nr_of_exercises,
+    )[0];
+    return muscles?.find((m) => m.id === primary.muscle_id)?.image_url ?? null;
+  }, [suggested, muscles]);
+
   async function start(splitId: number | null) {
     const session = await startWorkout.mutateAsync(splitId);
     setPickerOpen(false);
@@ -78,27 +88,49 @@ export default function HomePage() {
         {suggested ? (
           <section className="flex flex-col gap-3">
             <p className="text-kicker text-label-tertiary uppercase">Up next</p>
-            <Card raised className="flex flex-col gap-4">
-              <div className="flex items-start justify-between gap-4">
-                <h2 className="min-w-0 truncate font-display text-stat-sm text-label">
+            <Card flush className="relative h-64 overflow-hidden">
+              <MediaThumb
+                src={suggestedImage}
+                alt=""
+                static
+                fallback={<div className="size-full bg-fill" />}
+                className="absolute inset-0 size-full"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+
+              <button
+                onClick={() => start(suggested.id)}
+                disabled={startWorkout.isPending}
+                aria-label={`Start ${suggested.name}`}
+                className={cn(
+                  "absolute top-4 right-4 flex size-12 cursor-pointer items-center justify-center rounded-pill",
+                  "bg-accent text-accent-foreground",
+                  "transition-transform duration-150 active:scale-95 disabled:opacity-40",
+                )}
+              >
+                <svg width="17" height="19" viewBox="0 0 18 20" fill="none">
+                  <path d="M3 2.5 15.5 10 3 17.5z" fill="currentColor" />
+                </svg>
+              </button>
+
+              <div className="absolute inset-x-0 bottom-0 flex flex-col gap-3 p-4">
+                <h2 className="min-w-0 truncate font-stat text-stat-sm text-white">
                   {suggested.name}
                 </h2>
-                <button
-                  onClick={() => start(suggested.id)}
-                  disabled={startWorkout.isPending}
-                  aria-label={`Start ${suggested.name}`}
-                  className={cn(
-                    "flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-pill",
-                    "bg-accent text-accent-foreground",
-                    "transition-transform duration-150 active:scale-95 disabled:opacity-40",
-                  )}
-                >
-                  <svg width="17" height="19" viewBox="0 0 18 20" fill="none">
-                    <path d="M3 2.5 15.5 10 3 17.5z" fill="currentColor" />
-                  </svg>
-                </button>
+                <ul className="flex flex-wrap gap-2">
+                  {suggested.muscles.map((m) => (
+                    <li
+                      key={m.muscle_id}
+                      className="rounded-pill bg-white/15 px-3 py-1 text-caption font-medium text-white backdrop-blur-sm"
+                    >
+                      {muscleLookup.get(m.muscle_id) ?? `#${m.muscle_id}`}
+                      <span className="tabular ml-1 text-white/70">
+                        ×{m.nr_of_exercises}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <MuscleChips muscles={suggested.muscles} lookup={muscleLookup} />
             </Card>
           </section>
         ) : splitsLoading ? (
@@ -228,7 +260,7 @@ function StartSheet({
             className={cn(
               "flex w-full cursor-pointer flex-col gap-3 rounded-card bg-background-secondary p-4 text-left",
               "active:opacity-70 disabled:opacity-40",
-              split.id === suggestedId && "outline-2 outline-accent",
+              split.id === suggestedId && "outline-2 outline-accent-ink",
             )}
           >
             <div className="flex items-center gap-3">
@@ -266,7 +298,7 @@ function StreakBadge({ streak }: { streak: number }) {
 
   return (
     <div
-      className="flex items-center gap-1 rounded-pill bg-fill py-1 pr-2.5 pl-2"
+      className="flex items-center gap-1 rounded-pill bg-fill py-1 pr-3 pl-2"
       aria-label={`${streak} day streak`}
     >
       <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
