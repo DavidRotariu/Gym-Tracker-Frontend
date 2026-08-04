@@ -234,7 +234,7 @@ export default function HomePage() {
       <div
         className={cn(
           "fixed inset-x-0 z-30 mx-auto w-full max-w-[480px] px-4",
-          "bottom-[calc(env(safe-area-inset-bottom)+64px)]",
+          "bottom-[calc(env(safe-area-inset-bottom)+88px)]",
           "pointer-events-none pt-8",
           "bg-gradient-to-t from-background via-background to-transparent",
         )}
@@ -336,7 +336,7 @@ function StartSheet({
             className={cn(
               "flex w-full cursor-pointer flex-col gap-3 rounded-card bg-background-secondary p-4 text-left",
               "active:opacity-70 disabled:opacity-40",
-              split.id === suggestedId && "outline-2 outline-accent-ink",
+              split.id === suggestedId && "ring-1 ring-inset ring-accent-ink/60",
             )}
           >
             <div className="flex items-center gap-3">

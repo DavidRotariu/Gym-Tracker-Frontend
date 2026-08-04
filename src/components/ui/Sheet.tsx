@@ -6,6 +6,7 @@ import {
   motion,
   useDragControls,
   useReducedMotion,
+  type Variants,
 } from "framer-motion";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -22,6 +23,27 @@ interface SheetProps {
 
 const SPRING = { type: "spring" as const, damping: 34, stiffness: 380, mass: 0.9 };
 
+/**
+ * `exit` carries its own transition as a function of `custom` (the release
+ * velocity from a drag-to-dismiss) instead of reading a ref during render —
+ * refs are for effects/handlers, not values the render output depends on.
+ * `hidden` doubles as both the pre-mount `initial` state (no transition
+ * needed there) and the `exit` target, so the entrance spring never
+ * inherits a stale velocity left over from a previous dismiss.
+ */
+function sheetVariants(reduceMotion: boolean | null): Variants {
+  return {
+    hidden: (velocity: number) => ({
+      y: "100%",
+      transition: reduceMotion ? { duration: 0.15 } : { ...SPRING, velocity },
+    }),
+    visible: {
+      y: 0,
+      transition: reduceMotion ? { duration: 0.15 } : SPRING,
+    },
+  };
+}
+
 export function Sheet({
   open,
   onClose,
@@ -33,6 +55,13 @@ export function Sheet({
   const [mounted, setMounted] = useState(false);
   const dragControls = useDragControls();
   const reduceMotion = useReducedMotion();
+  // Release velocity from a drag-to-dismiss, handed off to the exit spring
+  // so the sheet keeps travelling at the finger's speed instead of the drag
+  // cutting to a fresh fixed-velocity animation (apple-design §5 — that cut
+  // is the "seam" that makes a dismiss feel like two separate motions).
+  // Plain state, not a ref: it's read during render (via `custom`), and the
+  // whole subtree unmounts on close — a fresh 0 every time the sheet reopens.
+  const [dismissVelocity, setDismissVelocity] = useState(0);
 
   useEffect(() => setMounted(true), []);
 
@@ -76,17 +105,21 @@ export function Sheet({
               "rounded-t-sheet bg-background-elevated shadow-sheet",
               className,
             )}
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={reduceMotion ? { duration: 0.15 } : SPRING}
+            custom={dismissVelocity}
+            variants={sheetVariants(reduceMotion)}
+            initial="hidden"
+            animate="visible"
+            exit="hidden"
             drag="y"
             dragListener={false}
             dragControls={dragControls}
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0, bottom: 0.7 }}
             onDragEnd={(_, info) => {
-              if (info.offset.y > 120 || info.velocity.y > 600) onClose();
+              if (info.offset.y > 120 || info.velocity.y > 600) {
+                setDismissVelocity(info.velocity.y);
+                onClose();
+              }
             }}
           >
             {/* Drag handle — the only region that starts a drag, so inner

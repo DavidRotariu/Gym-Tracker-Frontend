@@ -148,7 +148,12 @@ export function ExercisePicker({
                     className={cn(
                       "relative flex h-24 cursor-pointer flex-col justify-end overflow-hidden rounded-card bg-background-secondary p-3 text-left",
                       "active:opacity-70",
-                      inSplit && "outline-2 outline-accent-ink",
+                      // A thin *inset* ring (box-shadow) instead of an
+                      // outline — outline draws outside the box and doesn't
+                      // clip to the radius the same way everywhere, so it
+                      // reads as a hard rectangle poking past the rounded
+                      // corners. ring-inset always follows the radius.
+                      inSplit && "ring-1 ring-inset ring-accent-ink/60",
                     )}
                   >
                     <MediaThumb
@@ -196,7 +201,7 @@ export function ExercisePicker({
                 className={cn(
                   "flex min-h-14 cursor-pointer items-center gap-3 rounded-control",
                   "bg-background-secondary py-2 pr-4 pl-2 text-left active:opacity-70",
-                  isLast && "outline-2 outline-accent-ink",
+                  isLast && "ring-1 ring-inset ring-accent-ink/60",
                 )}
               >
                 <MediaThumb

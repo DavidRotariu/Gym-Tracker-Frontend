@@ -16,65 +16,75 @@ export function TabBar() {
   const pathname = usePathname();
 
   return (
-    <nav
-      aria-label="Primary"
+    // Outer wrapper only positions + reserves the safe-area gap; it's not
+    // the material itself, so it can stay full-width without forcing the
+    // pill to stretch edge to edge like the old docked bar did.
+    <div
       className={cn(
-        "fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-[480px]",
-        "rounded-t-sheet bg-chrome shadow-sheet",
-        "[backdrop-filter:blur(20px)]",
-        "pb-[env(safe-area-inset-bottom)]",
+        "pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-[480px] px-4",
+        "pb-[max(1rem,env(safe-area-inset-bottom))]",
       )}
     >
-      {/* Hairline highlight instead of a hard edge — the "lifted glass"
-          touch that reads as premium on true black. */}
-      <div className="h-px bg-gradient-to-r from-transparent via-label/15 to-transparent" />
-
-      <ul className="flex px-2">
-        {TABS.map(({ href, label, Icon }) => {
-          const active = pathname === href || pathname.startsWith(`${href}/`);
-          return (
-            <li key={href} className="flex-1 py-1.5">
-              <Link
-                href={href}
-                aria-current={active ? "page" : undefined}
-                className="relative flex min-h-[52px] cursor-pointer flex-col items-center justify-center gap-1"
-              >
-                {/*
-                  A single shared-layout pill slides between tabs instead of
-                  popping in fresh each time — the sliding motion is what
-                  sells "premium" over a static highlight.
-                */}
-                {active && (
+      <nav
+        aria-label="Primary"
+        className={cn(
+          "pointer-events-auto mx-auto flex h-16 w-full max-w-[420px] items-stretch",
+          "rounded-full bg-chrome shadow-sheet",
+          "[backdrop-filter:blur(20px)_saturate(180%)]",
+          // Faint full-perimeter edge instead of the old top-only hairline —
+          // a pill's rounding has no single "top" to catch light on, so the
+          // material reads as glass via a subtle ring all the way round.
+          "ring-1 ring-black/[0.04] dark:ring-white/[0.08]",
+        )}
+      >
+        <ul className="flex w-full px-1.5 py-1.5">
+          {TABS.map(({ href, label, Icon }) => {
+            const active = pathname === href || pathname.startsWith(`${href}/`);
+            return (
+              <li key={href} className="flex-1">
+                <Link
+                  href={href}
+                  aria-current={active ? "page" : undefined}
+                  className="relative flex h-full cursor-pointer flex-col items-center justify-center gap-0.5"
+                >
+                  {/*
+                    A single shared-layout pill slides between tabs instead of
+                    popping in fresh each time — the sliding motion is what
+                    sells "premium" over a static highlight. Rounded-full to
+                    match the outer pill, not the old squared control radius.
+                  */}
+                  {active && (
+                    <motion.span
+                      layoutId="tab-active-pill"
+                      className="absolute inset-1 rounded-full bg-fill"
+                      transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                    />
+                  )}
                   <motion.span
-                    layoutId="tab-active-pill"
-                    className="absolute inset-x-1 inset-y-0 rounded-control bg-fill"
-                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                  />
-                )}
-                <motion.span
-                  animate={{ scale: active ? 1.08 : 1, y: active ? -1 : 0 }}
-                  transition={{ type: "spring", stiffness: 500, damping: 24 }}
-                  className={cn(
-                    "relative",
-                    active ? "text-label" : "text-label-secondary",
-                  )}
-                >
-                  <Icon active={active} />
-                </motion.span>
-                <span
-                  className={cn(
-                    "relative text-tab font-semibold",
-                    active ? "text-label" : "font-medium text-label-secondary",
-                  )}
-                >
-                  {label}
-                </span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+                    animate={{ scale: active ? 1.08 : 1, y: active ? -1 : 0 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 24 }}
+                    className={cn(
+                      "relative",
+                      active ? "text-label" : "text-label-secondary",
+                    )}
+                  >
+                    <Icon active={active} />
+                  </motion.span>
+                  <span
+                    className={cn(
+                      "relative text-tab font-semibold",
+                      active ? "text-label" : "font-medium text-label-secondary",
+                    )}
+                  >
+                    {label}
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+    </div>
   );
 }
 

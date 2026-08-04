@@ -1,7 +1,8 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { useEffect, useRef, useState } from "react";
+import { animate, motion, useMotionValue } from "framer-motion";
+import { useEffect, useRef } from "react";
 import { useSwipeable } from "react-swipeable";
 
 export interface SwipeAction {
@@ -29,35 +30,49 @@ const actionStyles: Record<NonNullable<SwipeAction["variant"]>, string> = {
 };
 
 /**
- * iOS swipe-to-reveal row. Gesture detection comes from react-swipeable; we
- * only translate the row and snap it open or closed. The action still has to
- * be tapped, so a stray swipe never destroys anything.
+ * iOS swipe-to-reveal row. Gesture detection comes from react-swipeable —
+ * during the drag we write straight to a motion value (1:1 tracking, no
+ * animation in the loop), then hand off the release velocity to a spring on
+ * release so the settle continues at the finger's speed instead of cutting
+ * to a fixed-duration CSS transition (apple-design §3/§5: a velocity-blind
+ * settle is exactly the "brick wall" seam that breaks interruptibility).
+ * The action still has to be tapped, so a stray swipe never destroys
+ * anything.
  */
 export function SwipeRow({ actions, children, className, bare }: SwipeRowProps) {
-  const [offset, setOffset] = useState(0);
-  const [dragging, setDragging] = useState(false);
+  const x = useMotionValue(0);
   const openRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const width = actions.length * ACTION_WIDTH;
 
+  // Critically damped (no overshoot) — this is a snap-to-position, not a
+  // momentum throw, so bounce would read as sloppy rather than physical.
+  const settle = (target: number, velocity = 0) =>
+    animate(x, target, {
+      type: "spring",
+      velocity,
+      damping: 40,
+      stiffness: 420,
+      mass: 0.8,
+    });
+
   const close = () => {
     openRef.current = false;
-    setOffset(0);
+    settle(0);
   };
 
   const handlers = useSwipeable({
-    onSwipeStart: () => setDragging(true),
     onSwiping: (e) => {
       // e.deltaX is negative when swiping left.
       const base = openRef.current ? -width : 0;
-      setOffset(Math.min(0, Math.max(base + e.deltaX, -width - 16)));
+      x.set(Math.min(0, Math.max(base + e.deltaX, -width - 16)));
     },
     onSwiped: (e) => {
-      setDragging(false);
       const shouldOpen =
         e.deltaX < -width / 2 || (e.dir === "Left" && e.velocity > 0.4);
       openRef.current = shouldOpen;
-      setOffset(shouldOpen ? -width : 0);
+      // vxvy is px/ms — scale to px/s, the unit Motion's spring expects.
+      settle(shouldOpen ? -width : 0, e.vxvy[0] * 1000);
     },
     trackMouse: true,
     preventScrollOnSwipe: false,
@@ -73,6 +88,7 @@ export function SwipeRow({ actions, children, className, bare }: SwipeRowProps) 
     };
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -107,16 +123,13 @@ export function SwipeRow({ actions, children, className, bare }: SwipeRowProps) 
         ))}
       </div>
 
-      <div
+      <motion.div
         {...handlers}
-        style={{
-          transform: `translateX(${offset}px)`,
-          transition: dragging ? "none" : "transform 260ms cubic-bezier(0.32,0.72,0,1)",
-        }}
+        style={{ x }}
         className="relative bg-background-secondary"
       >
         {children}
-      </div>
+      </motion.div>
     </div>
   );
 }

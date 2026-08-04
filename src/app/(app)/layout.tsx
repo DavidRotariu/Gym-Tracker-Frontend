@@ -25,7 +25,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         className={
           immersive
             ? "flex-1 px-4 pb-[calc(env(safe-area-inset-bottom)+96px)]"
-            : "flex-1 px-4 pb-[calc(env(safe-area-inset-bottom)+92px)]"
+            // The tab bar now floats (h-16 pill + 1rem gap above the safe
+            // area) instead of docking flush to the bottom edge — content
+            // needs to clear that extra air, not just the bar's own height.
+            : "flex-1 px-4 pb-[calc(env(safe-area-inset-bottom)+104px)]"
         }
       >
         {children}

@@ -6,8 +6,9 @@ import { SetRow } from "@/components/workout/SetRow";
 import { useExerciseHistory } from "@/hooks/use-exercises";
 import { cn } from "@/lib/utils";
 import type { Set, WorkoutExercise } from "@/types";
+import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 interface ExerciseCardProps {
   workoutExercise: WorkoutExercise;
@@ -141,36 +142,103 @@ export function ExerciseCard({
               <span />
             </div>
           )}
-          {we.sets
-            .slice()
-            .sort((a, b) => a.set_number - b.set_number)
-            .map((set) => (
-              <SetRow
-                key={set.id}
-                set={set}
-                previous={previousBySetNumber.get(set.set_number)}
-                readOnly={readOnly}
-                onChange={(patch) => onChangeSet(set.id, patch)}
-                onDelete={() => onDeleteSet(set.id)}
-              />
-            ))}
+          <AnimatePresence initial={false}>
+            {we.sets
+              .slice()
+              .sort((a, b) => a.set_number - b.set_number)
+              .map((set) => (
+                // A newly-added row grows into place instead of just
+                // appearing — the visible half of "press Add set, see
+                // something happen" (apple-design §1: feedback should be
+                // continuous with the action, not a dead pop-in).
+                <motion.div
+                  key={set.id}
+                  layout="position"
+                  initial={{ opacity: 0, scale: 0.94, height: 0 }}
+                  animate={{ opacity: 1, scale: 1, height: "auto" }}
+                  exit={{ opacity: 0, scale: 0.94, height: 0 }}
+                  transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                >
+                  <SetRow
+                    set={set}
+                    previous={previousBySetNumber.get(set.set_number)}
+                    readOnly={readOnly}
+                    onChange={(patch) => onChangeSet(set.id, patch)}
+                    onDelete={() => onDeleteSet(set.id)}
+                  />
+                </motion.div>
+              ))}
+          </AnimatePresence>
         </div>
       )}
 
       {!readOnly && (
-        <button
-          type="button"
-          onClick={onAddSet}
-          disabled={addPending}
-          className={cn(
-            "h-11 cursor-pointer rounded-button bg-fill",
-            "text-body font-semibold text-label",
-            "active:opacity-70 disabled:opacity-40",
-          )}
-        >
-          {we.sets.length === 0 ? "Log first set" : "Add set"}
-        </button>
+        <AddSetButton
+          label={we.sets.length === 0 ? "Log first set" : "Add set"}
+          onAdd={onAddSet}
+          pending={addPending}
+        />
       )}
     </Card>
+  );
+}
+
+/**
+ * whileTap fires on pointer-*down*, not click — the press-in feedback is
+ * instant, same beat as every other control in the app (apple-design §1).
+ * The "+" glyph replaces itself with a fresh instance on every confirmed
+ * add, springing in from a quarter-turn — a small stamp of causality so the
+ * button visibly did something, not just the row list changing underneath.
+ */
+function AddSetButton({
+  label,
+  onAdd,
+  pending,
+}: {
+  label: string;
+  onAdd: () => void;
+  pending?: boolean;
+}) {
+  const [pulse, setPulse] = useState(0);
+
+  return (
+    <motion.button
+      type="button"
+      onClick={() => {
+        setPulse((n) => n + 1);
+        onAdd();
+      }}
+      disabled={pending}
+      whileTap={{ scale: 0.96 }}
+      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+      className={cn(
+        "flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-button bg-fill",
+        "text-body font-semibold text-label",
+        "disabled:opacity-40",
+      )}
+    >
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.svg
+          key={pulse}
+          width="15"
+          height="15"
+          viewBox="0 0 14 14"
+          fill="none"
+          aria-hidden
+          initial={{ opacity: 0, scale: 0.4, rotate: -60 }}
+          animate={{ opacity: 1, scale: 1, rotate: 0 }}
+          exit={{ opacity: 0, scale: 0.6 }}
+          transition={{ type: "spring", stiffness: 480, damping: 22 }}
+        >
+          <path
+            d="M7 1.5v11M1.5 7h11"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+        </motion.svg>
+      </AnimatePresence>
+      {label}
+    </motion.button>
   );
 }
