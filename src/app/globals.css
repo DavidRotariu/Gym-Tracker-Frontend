@@ -13,12 +13,18 @@
 :root {
   color-scheme: light;
 
-  /* Apple splits the family by optical size: SF Pro Text ≤19pt, Display ≥20pt. */
+  /* Apple splits the family by optical size: SF Pro Text ≤19pt, Display ≥20pt.
+     Off-Apple, the fallback is Manrope rather than Inter/Roboto — Inter is
+     the default of every templated site and disappears the "chosen, not
+     defaulted" typographic point of view on the ~half of visitors who never
+     see SF Pro. Manrope's tighter apertures and slightly geometric forms
+     sit closer to SF Pro's personality than Inter's neutral grotesk does,
+     and it still pairs cleanly with Archivo's condensed brand moments. */
   --font-text:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-inter),
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-manrope),
     system-ui, sans-serif;
   --font-display:
-    -apple-system, BlinkMacSystemFont, "SF Pro Display", var(--font-inter),
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", var(--font-manrope),
     system-ui, sans-serif;
 
   /* Backgrounds — systemBackground / secondarySystemBackground */
@@ -32,10 +38,13 @@
   --fill: #e5e5ea;
   --fill-strong: #d4d4d4;
 
-  /* Labels — primary / secondary / tertiary */
+  /* Labels — primary / secondary / tertiary.
+     Tertiary was #a3a3a8 — ~2.5:1 on white, well under the 4.5:1 AA floor
+     for the 13px kickers/captions it's actually set in. #76767b keeps it
+     visibly lighter than secondary (5.1:1) while landing at ~4.5:1 itself. */
   --label: #111111;
   --label-secondary: #6e6e73;
-  --label-tertiary: #a3a3a8;
+  --label-tertiary: #76767b;
 
   /* Hairline separator (opaque separator) */
   --separator: #c6c6c8;
@@ -96,7 +105,9 @@
 
   --label: #ffffff;
   --label-secondary: #98989e;
-  --label-tertiary: #5c5c61;
+  /* Was #5c5c61 — ~3.2:1 on true black, under AA. #747479 lands at ~4.5:1
+     while staying dimmer than secondary's 7.3:1. */
+  --label-tertiary: #747479;
 
   --separator: #2a2a2c;
 

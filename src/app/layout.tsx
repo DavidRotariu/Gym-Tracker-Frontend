@@ -1,13 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Archivo, Inter } from "next/font/google";
+import { Archivo, Manrope } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { themeInitScript } from "@/components/ThemeProvider";
 
 /* Web fallback only — the stack in globals.css prefers SF Pro on Apple
-   platforms so the app reads as a first-party iOS app. */
-const inter = Inter({
-  variable: "--font-inter",
+   platforms so the app reads as a first-party iOS app. Manrope, not
+   Inter: tighter apertures and a slightly geometric personality read
+   closer to SF Pro than Inter's neutral grotesk, and off-Apple visitors
+   (the majority on the web) shouldn't get the same face as every
+   templated SaaS site. */
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
 });
@@ -47,12 +51,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // --font-inter must live on :root — `--font-text`/`--font-display` in
+    // --font-manrope must live on :root — `--font-text`/`--font-display` in
     // globals.css refer to it, and a var() that isn't defined on the same
     // element makes the whole custom property compute to empty.
     <html
       lang="en"
-      className={`${inter.variable} ${archivo.variable}`}
+      className={`${manrope.variable} ${archivo.variable}`}
       suppressHydrationWarning
     >
       <head>
