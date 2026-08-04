@@ -7,7 +7,9 @@ import { SwipeRow } from "@/components/ui/SwipeRow";
 import { useSplits } from "@/hooks/use-splits";
 import { useDeleteWorkout, useWorkoutHistory } from "@/hooks/use-workouts";
 import { formatDay, formatDuration, formatTime } from "@/lib/format";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 import type { WorkoutSessionSummary } from "@/types";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { useMemo } from "react";
 
@@ -72,7 +74,12 @@ export default function HistoryPage() {
         </Card>
       )}
 
-      <div className="flex flex-col gap-6">
+      <motion.div
+        variants={staggerContainer}
+        initial="hidden"
+        animate="show"
+        className="flex flex-col gap-6"
+      >
         {months.map(([month, sessions]) => (
           <section key={month} className="flex flex-col gap-2">
             <h2 className="px-1 text-kicker text-label-tertiary uppercase">
@@ -81,41 +88,42 @@ export default function HistoryPage() {
 
             <div className="flex flex-col gap-2">
               {sessions.map((session) => (
-                <SwipeRow
-                  key={session.id}
-                  actions={[
-                    {
-                      label: "Delete",
-                      variant: "destructive",
-                      onAction: () => deleteWorkout.mutate(session.id),
-                    },
-                  ]}
-                >
-                  <Link
-                    href={`/history/${session.id}`}
-                    className="flex min-h-[72px] items-center gap-3 px-4 py-3 active:opacity-70"
+                <motion.div key={session.id} variants={staggerItem}>
+                  <SwipeRow
+                    actions={[
+                      {
+                        label: "Delete",
+                        variant: "destructive",
+                        onAction: () => deleteWorkout.mutate(session.id),
+                      },
+                    ]}
                   >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-body font-medium text-label">
-                        {session.split_id
-                          ? (splitNames.get(session.split_id) ?? "Workout")
-                          : "Ad-hoc workout"}
-                      </p>
-                      <p className="text-caption text-label-secondary">
-                        {formatDay(session.started_at)} ·{" "}
-                        {formatTime(session.started_at)}
-                      </p>
-                    </div>
-                    <span className="tabular shrink-0 text-caption font-semibold text-label-tertiary">
-                      {formatDuration(session.started_at, session.completed_at)}
-                    </span>
-                  </Link>
-                </SwipeRow>
+                    <Link
+                      href={`/history/${session.id}`}
+                      className="flex min-h-[72px] items-center gap-3 px-4 py-3 active:opacity-70"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-body font-medium text-label">
+                          {session.split_id
+                            ? (splitNames.get(session.split_id) ?? "Workout")
+                            : "Ad-hoc workout"}
+                        </p>
+                        <p className="text-caption text-label-secondary">
+                          {formatDay(session.started_at)} ·{" "}
+                          {formatTime(session.started_at)}
+                        </p>
+                      </div>
+                      <span className="tabular shrink-0 text-caption font-semibold text-label-tertiary">
+                        {formatDuration(session.started_at, session.completed_at)}
+                      </span>
+                    </Link>
+                  </SwipeRow>
+                </motion.div>
               ))}
             </div>
           </section>
         ))}
-      </div>
+      </motion.div>
     </>
   );
 }

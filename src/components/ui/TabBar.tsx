@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -19,47 +20,54 @@ export function TabBar() {
       aria-label="Primary"
       className={cn(
         "fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-[480px]",
-        "border-t border-separator bg-chrome",
+        "rounded-t-sheet bg-chrome shadow-sheet",
         "[backdrop-filter:blur(20px)]",
         "pb-[env(safe-area-inset-bottom)]",
       )}
     >
-      <ul className="flex">
+      {/* Hairline highlight instead of a hard edge — the "lifted glass"
+          touch that reads as premium on true black. */}
+      <div className="h-px bg-gradient-to-r from-transparent via-label/15 to-transparent" />
+
+      <ul className="flex px-2">
         {TABS.map(({ href, label, Icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
-            <li key={href} className="flex-1">
+            <li key={href} className="flex-1 py-1.5">
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className="flex min-h-[56px] cursor-pointer items-center justify-center py-2"
+                className="relative flex min-h-[52px] cursor-pointer flex-col items-center justify-center gap-1"
               >
                 {/*
-                  NRC-style: the active tab gets a neutral rounded-rect pill
-                  behind icon+label together, both at full label contrast.
-                  Orange stays reserved for CTAs and progress, not nav chrome.
+                  A single shared-layout pill slides between tabs instead of
+                  popping in fresh each time — the sliding motion is what
+                  sells "premium" over a static highlight.
                 */}
-                <span
+                {active && (
+                  <motion.span
+                    layoutId="tab-active-pill"
+                    className="absolute inset-x-1 inset-y-0 rounded-control bg-fill"
+                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                  />
+                )}
+                <motion.span
+                  animate={{ scale: active ? 1.08 : 1, y: active ? -1 : 0 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 24 }}
                   className={cn(
-                    "flex flex-col items-center gap-1 rounded-control px-3 py-2 transition-colors duration-150",
-                    active ? "bg-fill" : "bg-transparent",
+                    "relative",
+                    active ? "text-label" : "text-label-secondary",
                   )}
                 >
-                  <span
-                    className={cn(
-                      active ? "text-label" : "text-label-secondary",
-                    )}
-                  >
-                    <Icon active={active} />
-                  </span>
-                  <span
-                    className={cn(
-                      "text-tab font-semibold",
-                      active ? "text-label" : "font-medium text-label-secondary",
-                    )}
-                  >
-                    {label}
-                  </span>
+                  <Icon active={active} />
+                </motion.span>
+                <span
+                  className={cn(
+                    "relative text-tab font-semibold",
+                    active ? "text-label" : "font-medium text-label-secondary",
+                  )}
+                >
+                  {label}
                 </span>
               </Link>
             </li>

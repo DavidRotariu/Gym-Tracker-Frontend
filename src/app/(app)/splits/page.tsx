@@ -11,6 +11,8 @@ import { SwipeRow } from "@/components/ui/SwipeRow";
 import { useMuscles } from "@/hooks/use-muscles";
 import { useCreateSplit, useDeleteSplit, useSplits } from "@/hooks/use-splits";
 import { useStartWorkout } from "@/hooks/use-workouts";
+import { staggerContainer, staggerItem } from "@/lib/motion";
+import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -73,32 +75,38 @@ export default function SplitsPage() {
         </Card>
       )}
 
-      <div className="flex flex-col gap-2">
+      <motion.div
+        variants={staggerContainer}
+        initial="hidden"
+        animate="show"
+        className="flex flex-col gap-2"
+      >
         {splits?.map((split) => (
-          <SwipeRow
-            key={split.id}
-            actions={[
-              {
-                label: "Edit",
-                variant: "neutral",
-                onAction: () => router.push(`/splits/${split.id}/edit`),
-              },
-              {
-                label: "Delete",
-                variant: "destructive",
-                onAction: () => deleteSplit.mutate(split.id),
-              },
-            ]}
-          >
-            <SplitCard
-              split={split}
-              muscles={muscles}
-              onStart={() => start(split.id)}
-              pending={startWorkout.isPending}
-            />
-          </SwipeRow>
+          <motion.div key={split.id} variants={staggerItem}>
+            <SwipeRow
+              actions={[
+                {
+                  label: "Edit",
+                  variant: "neutral",
+                  onAction: () => router.push(`/splits/${split.id}/edit`),
+                },
+                {
+                  label: "Delete",
+                  variant: "destructive",
+                  onAction: () => deleteSplit.mutate(split.id),
+                },
+              ]}
+            >
+              <SplitCard
+                split={split}
+                muscles={muscles}
+                onStart={() => start(split.id)}
+                pending={startWorkout.isPending}
+              />
+            </SwipeRow>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
 
       {splits && splits.length > 0 && (
         <p className="px-1 pt-3 text-caption text-label-tertiary">

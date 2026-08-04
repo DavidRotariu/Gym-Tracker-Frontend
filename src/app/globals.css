@@ -70,8 +70,12 @@
   --scrim: rgba(0, 0, 0, 0.28);
 
   /* Elevation is reserved for sheets and the floating rest timer — every
-     resting card stays flat, divided by hairlines instead. */
-  --shadow-sheet: 0 -1px 24px rgba(0, 0, 0, 0.14);
+     resting card stays flat, divided by hairlines instead. Named distinctly
+     from the `--shadow-sheet` token below: `@theme inline` can't resolve a
+     same-named self-reference (`--shadow-sheet: var(--shadow-sheet)`) —
+     every other token in this file avoids that by prefixing the Tailwind-
+     facing alias (`--color-x: var(--x)`); shadows need the same split. */
+  --shadow-sheet-value: 0 -1px 24px rgba(0, 0, 0, 0.14);
 }
 
 /* ===========================================================================
@@ -119,7 +123,7 @@
 
   /* Shadows don't read on true black — a deep glow stands in for the one
      elevation step that still applies (sheets, the rest timer). */
-  --shadow-sheet: 0 -1px 28px rgba(0, 0, 0, 0.6);
+  --shadow-sheet-value: 0 -1px 28px rgba(0, 0, 0, 0.6);
 }
 
 /* ===========================================================================
@@ -170,7 +174,7 @@
   --radius-sheet: 1.5rem; /* 24px — sheet top corners */
   --radius-pill: 9999px;
 
-  --shadow-sheet: var(--shadow-sheet);
+  --shadow-sheet: var(--shadow-sheet-value);
 
   /* -------------------------------------------------------------------------
      iOS text styles. Sizes are 1:1 pt→px; letter-spacing is Apple's actual

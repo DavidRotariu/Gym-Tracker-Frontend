@@ -25,6 +25,7 @@ import { getLastSet } from "@/lib/api/exercises";
 import { formatElapsed } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Set, WorkoutExercise, WorkoutSession } from "@/types";
+import { AnimatePresence, motion } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -243,35 +244,50 @@ export default function WorkoutSessionPage() {
           </Card>
         ) : (
           <div className="flex flex-col gap-3">
-            {groups.map((group) => {
-              const cards = group.map((we) => (
-                <ExerciseCard
-                  key={we.id}
-                  workoutExercise={we}
-                  name={exerciseNames.get(we.exercise_id) ?? "Exercise"}
-                  muscle={exerciseMuscle.get(we.exercise_id)}
-                  imageUrl={exerciseImages.get(we.exercise_id)}
-                  onChangeSet={handleChangeSet}
-                  onDeleteSet={(setId) => deleteSet.mutate(setId)}
-                  onAddSet={() => handleAddSet(we)}
-                  onRemove={() => removeExercise.mutate(we.id)}
-                  onSwap={() => setSwapTarget(we)}
-                  addPending={logSet.isPending}
-                />
-              ));
+            <AnimatePresence initial={false}>
+              {groups.map((group) => {
+                const cards = group.map((we) => (
+                  <ExerciseCard
+                    key={we.id}
+                    workoutExercise={we}
+                    name={exerciseNames.get(we.exercise_id) ?? "Exercise"}
+                    muscle={exerciseMuscle.get(we.exercise_id)}
+                    imageUrl={exerciseImages.get(we.exercise_id)}
+                    onChangeSet={handleChangeSet}
+                    onDeleteSet={(setId) => deleteSet.mutate(setId)}
+                    onAddSet={() => handleAddSet(we)}
+                    onRemove={() => removeExercise.mutate(we.id)}
+                    onSwap={() => setSwapTarget(we)}
+                    addPending={logSet.isPending}
+                  />
+                ));
 
-              const groupId = group[0].superset_group_id;
-              return group.length > 1 && groupId !== null ? (
-                <SupersetGroup
-                  key={`ss-${groupId}`}
-                  onUngroup={() => removeSuperset.mutate(groupId)}
-                >
-                  {cards}
-                </SupersetGroup>
-              ) : (
-                <div key={group[0].id}>{cards}</div>
-              );
-            })}
+                const groupId = group[0].superset_group_id;
+                const key =
+                  group.length > 1 && groupId !== null
+                    ? `ss-${groupId}`
+                    : String(group[0].id);
+
+                return (
+                  <motion.div
+                    key={key}
+                    layout
+                    initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    transition={{ type: "spring", stiffness: 380, damping: 32 }}
+                  >
+                    {group.length > 1 && groupId !== null ? (
+                      <SupersetGroup onUngroup={() => removeSuperset.mutate(groupId)}>
+                        {cards}
+                      </SupersetGroup>
+                    ) : (
+                      cards
+                    )}
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
 
             <button
               onClick={() => setPickerOpen(true)}

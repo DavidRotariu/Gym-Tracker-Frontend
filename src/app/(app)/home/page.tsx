@@ -17,7 +17,9 @@ import {
   formatDuration,
   suggestSplit,
 } from "@/lib/format";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
@@ -104,50 +106,56 @@ export default function HomePage() {
         {suggested ? (
           <section className="flex flex-col gap-3">
             <p className="text-kicker text-label-tertiary uppercase">Up next</p>
-            <Card flush className="relative h-64 overflow-hidden">
-              <MediaThumb
-                src={suggestedImage}
-                alt=""
-                static
-                fallback={<div className="size-full bg-fill" />}
-                className="absolute inset-0 size-full"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ type: "spring", stiffness: 260, damping: 26 }}
+            >
+              <Card flush className="relative h-64 overflow-hidden">
+                <MediaThumb
+                  src={suggestedImage}
+                  alt=""
+                  static
+                  fallback={<div className="size-full bg-fill" />}
+                  className="absolute inset-0 size-full"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
 
-              <button
-                onClick={() => start(suggested.id)}
-                disabled={startWorkout.isPending}
-                aria-label={`Start ${suggested.name}`}
-                className={cn(
-                  "absolute top-4 right-4 flex size-12 cursor-pointer items-center justify-center rounded-pill",
-                  "bg-accent text-accent-foreground",
-                  "transition-transform duration-150 active:scale-95 disabled:opacity-40",
-                )}
-              >
-                <svg width="17" height="19" viewBox="0 0 18 20" fill="none">
-                  <path d="M3 2.5 15.5 10 3 17.5z" fill="currentColor" />
-                </svg>
-              </button>
+                <button
+                  onClick={() => start(suggested.id)}
+                  disabled={startWorkout.isPending}
+                  aria-label={`Start ${suggested.name}`}
+                  className={cn(
+                    "absolute top-4 right-4 flex size-12 cursor-pointer items-center justify-center rounded-pill",
+                    "bg-accent text-accent-foreground",
+                    "transition-transform duration-150 active:scale-95 disabled:opacity-40",
+                  )}
+                >
+                  <svg width="17" height="19" viewBox="0 0 18 20" fill="none">
+                    <path d="M3 2.5 15.5 10 3 17.5z" fill="currentColor" />
+                  </svg>
+                </button>
 
-              <div className="absolute inset-x-0 bottom-0 flex flex-col gap-3 p-4">
-                <h2 className="min-w-0 truncate font-stat text-stat-sm text-white">
-                  {suggested.name}
-                </h2>
-                <ul className="flex flex-wrap gap-2">
-                  {suggested.muscles.map((m) => (
-                    <li
-                      key={m.muscle_id}
-                      className="rounded-pill bg-white/15 px-3 py-1 text-caption font-medium text-white backdrop-blur-sm"
-                    >
-                      {muscleLookup.get(m.muscle_id) ?? `#${m.muscle_id}`}
-                      <span className="tabular ml-1 text-white/70">
-                        ×{m.nr_of_exercises}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </Card>
+                <div className="absolute inset-x-0 bottom-0 flex flex-col gap-3 p-4">
+                  <h2 className="min-w-0 truncate font-stat text-stat-sm text-white">
+                    {suggested.name}
+                  </h2>
+                  <ul className="flex flex-wrap gap-2">
+                    {suggested.muscles.map((m) => (
+                      <li
+                        key={m.muscle_id}
+                        className="rounded-pill bg-white/15 px-3 py-1 text-caption font-medium text-white backdrop-blur-sm"
+                      >
+                        {muscleLookup.get(m.muscle_id) ?? `#${m.muscle_id}`}
+                        <span className="tabular ml-1 text-white/70">
+                          ×{m.nr_of_exercises}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </Card>
+            </motion.div>
           </section>
         ) : splitsLoading ? (
           <div className="h-32 animate-pulse rounded-card bg-fill" />
@@ -187,26 +195,33 @@ export default function HomePage() {
               />
             </Card>
           ) : (
-            <div className="flex flex-col gap-2">
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              animate="show"
+              className="flex flex-col gap-2"
+            >
               {completed.slice(0, 3).map((session) => (
-                <Link key={session.id} href={`/history/${session.id}`}>
-                  <Card className="flex min-h-11 items-center justify-between gap-4 active:opacity-70">
-                    <div className="min-w-0">
-                      <p className="truncate text-body font-medium text-label">
-                        {session.split_id
-                          ? (splitNames.get(session.split_id) ?? "Workout")
-                          : "Ad-hoc workout"}
-                      </p>
-                      <p className="text-subhead text-label-secondary">
-                        {formatDay(session.started_at)} ·{" "}
-                        {formatDuration(session.started_at, session.completed_at)}
-                      </p>
-                    </div>
-                    <Chevron />
-                  </Card>
-                </Link>
+                <motion.div key={session.id} variants={staggerItem}>
+                  <Link href={`/history/${session.id}`}>
+                    <Card className="flex min-h-11 items-center justify-between gap-4 active:opacity-70">
+                      <div className="min-w-0">
+                        <p className="truncate text-body font-medium text-label">
+                          {session.split_id
+                            ? (splitNames.get(session.split_id) ?? "Workout")
+                            : "Ad-hoc workout"}
+                        </p>
+                        <p className="text-subhead text-label-secondary">
+                          {formatDay(session.started_at)} ·{" "}
+                          {formatDuration(session.started_at, session.completed_at)}
+                        </p>
+                      </div>
+                      <Chevron />
+                    </Card>
+                  </Link>
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
           )}
         </section>
       </div>
@@ -353,17 +368,35 @@ function StartSheet({
 function StreakBadge({ streak }: { streak: number }) {
   return (
     <div
-      className="flex items-center gap-1 rounded-pill bg-fill py-1 pr-3 pl-2"
+      className="flex items-center gap-1 overflow-hidden rounded-pill bg-fill py-1 pr-3 pl-2"
       aria-label={`${streak} day streak`}
     >
-      <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+      <motion.svg
+        width="16"
+        height="16"
+        viewBox="0 0 20 20"
+        fill="none"
+        animate={{ scale: [1, 1.08, 1] }}
+        transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+      >
         <path
           d="M10 1.5c.6 2.4-.4 3.9-1.7 5.3C7 8 5.8 9.3 5.8 11.4a4.2 4.2 0 0 0 8.4 0c0-1.3-.5-2.2-1-3 .9.3 2.3 1.5 2.3 4a5.5 5.5 0 1 1-11 0c0-4.6 3.2-6.6 5.5-10.9Z"
           fill="var(--color-orange)"
         />
-      </svg>
-      <span className="tabular text-caption font-bold text-label">
-        {streak}
+      </motion.svg>
+      <span className="tabular relative inline-grid text-caption font-bold text-label">
+        <AnimatePresence mode="popLayout" initial={false}>
+          <motion.span
+            key={streak}
+            initial={{ y: 10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -10, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            className="col-start-1 row-start-1"
+          >
+            {streak}
+          </motion.span>
+        </AnimatePresence>
       </span>
     </div>
   );

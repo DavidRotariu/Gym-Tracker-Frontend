@@ -5,8 +5,10 @@ import { MediaThumb } from "@/components/ui/MediaThumb";
 import { Sheet } from "@/components/ui/Sheet";
 import { useExercises } from "@/hooks/use-exercises";
 import { useMuscles } from "@/hooks/use-muscles";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { Muscle } from "@/types";
+import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 
 interface ExercisePickerProps {
@@ -50,7 +52,6 @@ export function ExercisePicker({
 }: ExercisePickerProps) {
   const { data: muscles } = useMuscles();
   const { data: exercises, isLoading } = useExercises();
-  const [showAll, setShowAll] = useState(false);
   const [activeMuscle, setActiveMuscle] = useState<Muscle | null>(null);
   const [lastByMuscle, setLastByMuscle] = useState<Record<number, number>>({});
 
@@ -59,19 +60,21 @@ export function ExercisePicker({
   }, [open]);
 
   useEffect(() => {
-    if (!open) {
-      setActiveMuscle(null);
-      setShowAll(false);
-    }
+    if (!open) setActiveMuscle(null);
   }, [open]);
 
-  const restricted = allowedMuscleIds !== undefined && !showAll;
-
+  /** Every muscle is browsable; the split's own muscles just float to the
+   *  top and get an accent highlight, instead of hiding the rest. */
   const visibleMuscles = useMemo(() => {
     if (!muscles) return [];
-    if (!restricted) return muscles;
-    return muscles.filter((m) => allowedMuscleIds!.includes(m.id));
-  }, [muscles, restricted, allowedMuscleIds]);
+    if (!allowedMuscleIds) return muscles;
+    const allowed = new Set(allowedMuscleIds);
+    return [...muscles].sort((a, b) => {
+      const aIn = allowed.has(a.id) ? 0 : 1;
+      const bIn = allowed.has(b.id) ? 0 : 1;
+      return aIn - bIn;
+    });
+  }, [muscles, allowedMuscleIds]);
 
   const exercisesByMuscle = useMemo(() => {
     const map = new Map<number, typeof exercises>();
@@ -117,16 +120,6 @@ export function ExercisePicker({
     >
       {!activeMuscle ? (
         <div className="flex flex-col gap-4 pb-2">
-          {allowedMuscleIds !== undefined && (
-            <button
-              type="button"
-              onClick={() => setShowAll((v) => !v)}
-              className="min-h-11 cursor-pointer self-start text-body font-semibold text-blue active:opacity-60"
-            >
-              {showAll ? "Only this split's muscles" : "Show all muscles"}
-            </button>
-          )}
-
           {isLoading ? (
             <div className="grid grid-cols-2 gap-3">
               {Array.from({ length: 4 }).map((_, i) => (
@@ -136,17 +129,26 @@ export function ExercisePicker({
           ) : visibleMuscles.length === 0 ? (
             <EmptyState title="No muscles" description="No muscle groups to pick from." />
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              animate="show"
+              className="grid grid-cols-2 gap-3"
+            >
               {visibleMuscles.map((m) => {
                 const count = exercisesByMuscle.get(m.id)?.length ?? 0;
+                const inSplit = allowedMuscleIds?.includes(m.id) ?? false;
                 return (
-                  <button
+                  <motion.button
                     key={m.id}
+                    variants={staggerItem}
                     type="button"
                     onClick={() => setActiveMuscle(m)}
+                    whileTap={{ scale: 0.96 }}
                     className={cn(
                       "relative flex h-24 cursor-pointer flex-col justify-end overflow-hidden rounded-card bg-background-secondary p-3 text-left",
                       "active:opacity-70",
+                      inSplit && "outline-2 outline-accent-ink",
                     )}
                   >
                     <MediaThumb
@@ -165,10 +167,15 @@ export function ExercisePicker({
                         {count} exercise{count === 1 ? "" : "s"}
                       </p>
                     </div>
-                  </button>
+                    {inSplit && (
+                      <span className="absolute top-2 right-2 rounded-pill bg-accent px-2 py-1 text-tab font-bold text-accent-foreground uppercase">
+                        In split
+                      </span>
+                    )}
+                  </motion.button>
                 );
               })}
-            </div>
+            </motion.div>
           )}
         </div>
       ) : (
