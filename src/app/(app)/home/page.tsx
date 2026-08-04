@@ -9,6 +9,7 @@ import { MuscleChips } from "@/components/ui/MuscleChips";
 import { Sheet } from "@/components/ui/Sheet";
 import { useMuscles } from "@/hooks/use-muscles";
 import { useSplits } from "@/hooks/use-splits";
+import { useQr, useUploadQr } from "@/hooks/use-users";
 import { useStartWorkout, useWorkoutHistory } from "@/hooks/use-workouts";
 import {
   currentStreak,
@@ -19,15 +20,19 @@ import {
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 export default function HomePage() {
   const router = useRouter();
   const { data: splits, isLoading: splitsLoading } = useSplits();
   const { data: history } = useWorkoutHistory();
   const { data: muscles } = useMuscles();
+  const { data: qr } = useQr();
+  const uploadQr = useUploadQr();
   const startWorkout = useStartWorkout();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
 
   const today = useMemo(
     () =>
@@ -80,7 +85,18 @@ export default function HomePage() {
       <LargeTitle
         title="Today"
         eyebrow={today}
-        action={<StreakBadge streak={streak} />}
+        action={
+          <div className="flex items-center gap-2">
+            <StreakBadge streak={streak} />
+            <button
+              onClick={() => setQrOpen(true)}
+              aria-label="Show gym QR code"
+              className="flex size-9 cursor-pointer items-center justify-center rounded-pill text-label-secondary active:bg-fill"
+            >
+              <QrIcon />
+            </button>
+          </div>
+        }
       />
 
       <div className="flex flex-col gap-8">
@@ -228,6 +244,47 @@ export default function HomePage() {
         onStart={start}
         pending={startWorkout.isPending}
       />
+
+      {/* Gym QR — scan this at the door. */}
+      <Sheet open={qrOpen} onClose={() => setQrOpen(false)} title="Gym QR code">
+        <div className="flex flex-col items-center gap-4 pt-2 pb-2">
+          {qr?.qr_code_url ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={qr.qr_code_url}
+              alt="Your gym QR code"
+              className="size-56 rounded-card bg-white object-contain p-3 shadow-sm"
+            />
+          ) : (
+            <div className="flex size-56 items-center justify-center rounded-card border border-dashed border-separator text-center text-caption text-label-tertiary">
+              No QR code uploaded yet
+            </div>
+          )}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) uploadQr.mutate(file);
+            }}
+          />
+          <Button
+            variant="secondary"
+            block
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadQr.isPending}
+          >
+            {uploadQr.isPending
+              ? "Uploading…"
+              : qr?.qr_code_url
+                ? "Replace QR code"
+                : "Upload QR code"}
+          </Button>
+        </div>
+      </Sheet>
     </>
   );
 }
@@ -294,8 +351,6 @@ function StartSheet({
 }
 
 function StreakBadge({ streak }: { streak: number }) {
-  if (streak <= 0) return null;
-
   return (
     <div
       className="flex items-center gap-1 rounded-pill bg-fill py-1 pr-3 pl-2"
@@ -311,6 +366,20 @@ function StreakBadge({ streak }: { streak: number }) {
         {streak}
       </span>
     </div>
+  );
+}
+
+function QrIcon() {
+  return (
+    <svg width="19" height="19" viewBox="0 0 20 20" fill="none" aria-hidden>
+      <rect x="2.5" y="2.5" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="11.5" y="2.5" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="2.5" y="11.5" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="12.5" y="12.5" width="1.8" height="1.8" fill="currentColor" />
+      <rect x="16.2" y="12.5" width="1.3" height="1.3" fill="currentColor" />
+      <rect x="12.5" y="16.2" width="1.3" height="1.3" fill="currentColor" />
+      <rect x="15" y="15" width="2.5" height="2.5" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
   );
 }
 

@@ -9,15 +9,12 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Card, CardList } from "@/components/ui/Card";
 import { LargeTitle } from "@/components/ui/LargeTitle";
-import { Sheet } from "@/components/ui/Sheet";
-import { SET_TYPE_LABEL, SetTypeBadge } from "@/components/ui/SetTypeBadge";
+import { SET_TYPE_LABEL, SetTypeDot } from "@/components/ui/SetTypeBadge";
 import type { SetType } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
-import { useQr, useUploadQr } from "@/hooks/use-users";
 import { resetDemoData } from "@/lib/mock/reset";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
 
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
 
@@ -50,10 +47,6 @@ export default function ProfilePage() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const { preference, setPreference, accent, setAccent } = useTheme();
-  const { data: qr } = useQr();
-  const uploadQr = useUploadQr();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [qrOpen, setQrOpen] = useState(false);
 
   function handleLogout() {
     logout();
@@ -178,7 +171,7 @@ export default function ProfilePage() {
                 key={type}
                 className="flex min-h-[60px] items-center gap-3 px-4 py-3"
               >
-                <SetTypeBadge type={type} />
+                <SetTypeDot type={type} />
                 <div className="min-w-0">
                   <p className="text-body text-label">{SET_TYPE_LABEL[type]}</p>
                   <p className="text-caption text-label-secondary">
@@ -187,27 +180,6 @@ export default function ProfilePage() {
                 </div>
               </div>
             ))}
-          </CardList>
-        </section>
-
-        {/* Gym QR --------------------------------------------------------- */}
-        <section className="flex flex-col gap-2">
-          <h2 className="px-1 text-kicker text-label-tertiary uppercase">
-            Gym access
-          </h2>
-          <CardList>
-            <button
-              onClick={() => setQrOpen(true)}
-              className="flex w-full min-h-[60px] cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left active:bg-fill"
-            >
-              <div>
-                <p className="text-body text-label">QR code</p>
-                <p className="text-caption text-label-secondary">
-                  {qr?.qr_code_url ? "Tap to show at the door" : "Not uploaded yet"}
-                </p>
-              </div>
-              <Chevron />
-            </button>
           </CardList>
         </section>
 
@@ -236,68 +208,6 @@ export default function ProfilePage() {
           Log out
         </Button>
       </div>
-
-      {/* QR sheet --------------------------------------------------------- */}
-      <Sheet open={qrOpen} onClose={() => setQrOpen(false)} title="Gym QR code">
-        <div className="flex flex-col items-center gap-4 pt-2 pb-2">
-          {qr?.qr_code_url ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={qr.qr_code_url}
-              alt="Your gym QR code"
-              className="size-56 rounded-card bg-white object-contain p-3 shadow-sm"
-            />
-          ) : (
-            <div className="flex size-56 items-center justify-center rounded-card border border-dashed border-separator text-center text-caption text-label-tertiary">
-              No QR code uploaded yet
-            </div>
-          )}
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) uploadQr.mutate(file);
-            }}
-          />
-          <Button
-            variant="secondary"
-            block
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadQr.isPending}
-          >
-            {uploadQr.isPending
-              ? "Uploading…"
-              : qr?.qr_code_url
-                ? "Replace QR code"
-                : "Upload QR code"}
-          </Button>
-        </div>
-      </Sheet>
     </>
-  );
-}
-
-function Chevron() {
-  return (
-    <svg
-      width="8"
-      height="14"
-      viewBox="0 0 8 14"
-      fill="none"
-      className="shrink-0 text-label-tertiary"
-      aria-hidden
-    >
-      <path
-        d="M1.5 1 6.5 7l-5 6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }

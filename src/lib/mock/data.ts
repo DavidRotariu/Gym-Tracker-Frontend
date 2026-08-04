@@ -42,6 +42,9 @@ const MUSCLE_FILES: Record<string, string> = {
   Biceps: "Biceps.png",
   Triceps: "Triceps.png",
   Core: "Abs.png",
+  Calves: "Calves.png",
+  Forearms: "Forearms.png",
+  Glutes: "Glutes.png",
 };
 
 const MUSCLES: Muscle[] = Object.keys(MUSCLE_FILES).map((name, i) => ({
@@ -51,51 +54,153 @@ const MUSCLES: Muscle[] = Object.keys(MUSCLE_FILES).map((name, i) => ({
 }));
 
 const EXERCISE_FILES: Record<number, string> = {
+  // Chest (1)
   10: "00251201-Barbell-Bench-Press_Chest.mp4",
   11: "03141201-Dumbbell-Incline-Bench-Press_Chest.mp4",
   12: "01791201-Cable-Low-Fly_Chest.mp4",
+  13: "06621201-Push-up-m_Chest.mp4",
+  14: "03081201-Dumbbell-Fly_Chest.mp4",
+  15: "07481201-Smith-Bench-Press_Chest.mp4",
+  16: "05771201-Lever-Chest-Press_Chest.mp4",
+  17: "10301201-Lever-Pec-Deck-Fly_Chest.mp4",
+  // Back (2)
   20: "00321201-Barbell-Deadlift_Hips-FIX.mp4",
   21: "08411101-Weighted-Pull-Up_back_small.jpg",
   22: "00271201-Barbell-Bent-Over-Row_Back.mp4",
   23: "01501201-Cable-Bar-Lateral-Pulldown_Back.mp4",
+  24: "01801201-Cable-Low-Seated-Row_Back.mp4",
+  25: "06061201-Lever-T-bar-Row-(plate-loaded)_Back.mp4",
+  26: "00951201-Barbell-Shrug_Back.mp4",
+  27: "02381201-Cable-Straight-Arm-Pulldown_Back.mp4",
+  // Shoulders (3)
   30: "04261201-Dumbbell-Standing-Overhead-Press_shoulder.mp4",
   31: "03341201-Dumbbell-Lateral-Raise_shoulder.mp4",
   32: "06021201-Lever-Seated-Reverse-Fly_Shoulders.mp4",
+  33: "02871201-Dumbbell-Arnold-Press-II_Shoulders.mp4",
+  34: "03101201-Dumbbell-Front-Raise_Shoulders.mp4",
+  35: "01211201-Barbell-Upright-Row_Shoulders.mp4",
+  36: "08961101-Band-face-pull_Shoulders_small.jpg",
+  // Quads (4)
   40: "00431201-Barbell-Full-Squat_Thighs.mp4",
   41: "22671201-Lever-Seated-Leg-Press_Thighs.mp4",
   42: "15571201-Dumbbell-Walking-Lunges_Thighs_.mp4",
+  43: "05851201-Lever-Leg-Extension_Thighs.mp4",
+  44: "07501201-Smith-Chair-Squat_Thighs.mp4",
+  45: "22811201-Dumbbell-Goblet-Squat-(female)_Thighs.mp4",
+  46: "22901101-Dumbbell-Bulgarian-Split-Squat-(female)_Thighs_small.jpg",
+  // Hamstrings (5)
   50: "14591201-Dumbbell-Romanian-Deadlift_Hips.mp4",
   51: "05861201-Lever-Lying-Leg-Curl_Thighs.mp4",
+  52: "05991201-Lever-Seated-Leg-Curl_Thighs.mp4",
+  53: "31931101-Glute-Ham-Raise_Thighs_small.jpg",
+  // Biceps (6)
   60: "00311201-Barbell-Curl_Upper-Arms.mp4",
   61: "03121201-Dumbbell-Hammer-Curl-(version-2)_Upper-Arms.mp4",
+  62: "02971201-Dumbbell-Concentration-Curl_Upper-Arms.mp4",
+  63: "00701201-Barbell-Preacher-Curl_Upper-Arms.mp4",
+  64: "01561201-Cable-Curl_Upper-Arms.mp4",
+  65: "04471201-EZ-Barbell-Curl_Upper-Arms.mp4",
+  // Triceps (7)
   70: "02011201-Cable-Pushdown_Upper-Arms.mp4",
   71: "03511101-Dumbbell-Lying-Triceps-Extension_Upper-Arms_small.jpg",
+  72: "02831101-Diamond-Push-up_Upper-Arms_small.jpg",
+  73: "00921201-Barbell-Seated-Overhead-Triceps-Extension_Upper-Arms.mp4",
+  74: "00301201-Barbell-Close-Grip-Bench-Press_Upper-Arms.mp4",
+  75: "14511201-Lever-Seated-Dip_Upper-Arms.mp4",
+  // Core (8)
   80: "17641201-Hanging-Leg-Hip-Raise_Waist.mp4",
   81: "01751201-Cable-Kneeling-Crunch_Waist.mp4",
+  82: "04631201-Front-Plank-m_waist.mp4",
+  83: "11631201-Lying-Leg-Raise_Waist.mp4",
+  84: "23711201-Weighted-Russian-Twist_Waist.mp4",
+  85: "14021201-L-sit_Waist.mp4",
+  // Calves (9)
+  90: "04171201-Dumbbell-Standing-Calf-Raise_Calves.mp4",
+  91: "06051201-Lever-Standing-Calf-Raise_Calves.mp4",
+  92: "11641201-Smith-Calf-Raise-(version-2)_Calves.mp4",
+  // Forearms (10)
+  100: "00791201-Barbell-Revers-Wrist-Curl-II_Forearms.mp4",
+  101: "01661201-Cable-Hammer-Curl_Forearm.mp4",
+  102: "00801201-Barbell-Reverse-Curl_Forearm.mp4",
+  // Glutes (11)
+  110: "10601101-Barbell-Hip-Thrust_Hips_small.jpg",
+  111: "21461201-Lever-Hip-Thrust_Hips.mp4",
+  112: "18601201-Hyperextension-(VERSION-2)_Hips.mp4",
 };
 
 const EXERCISE_NAMES: { id: number; name: string; muscle_id: number }[] = [
+  // Chest
   { id: 10, name: "Barbell Bench Press", muscle_id: 1 },
   { id: 11, name: "Incline Dumbbell Press", muscle_id: 1 },
   { id: 12, name: "Cable Fly", muscle_id: 1 },
+  { id: 13, name: "Push-Up", muscle_id: 1 },
+  { id: 14, name: "Dumbbell Fly", muscle_id: 1 },
+  { id: 15, name: "Smith Machine Bench Press", muscle_id: 1 },
+  { id: 16, name: "Lever Chest Press", muscle_id: 1 },
+  { id: 17, name: "Pec Deck Fly", muscle_id: 1 },
+  // Back
   { id: 20, name: "Deadlift", muscle_id: 2 },
   { id: 21, name: "Pull-Up", muscle_id: 2 },
   { id: 22, name: "Barbell Row", muscle_id: 2 },
   { id: 23, name: "Lat Pulldown", muscle_id: 2 },
+  { id: 24, name: "Seated Cable Row", muscle_id: 2 },
+  { id: 25, name: "T-Bar Row", muscle_id: 2 },
+  { id: 26, name: "Barbell Shrug", muscle_id: 2 },
+  { id: 27, name: "Straight-Arm Pulldown", muscle_id: 2 },
+  // Shoulders
   { id: 30, name: "Overhead Press", muscle_id: 3 },
   { id: 31, name: "Lateral Raise", muscle_id: 3 },
   { id: 32, name: "Rear Delt Fly", muscle_id: 3 },
+  { id: 33, name: "Arnold Press", muscle_id: 3 },
+  { id: 34, name: "Front Raise", muscle_id: 3 },
+  { id: 35, name: "Upright Row", muscle_id: 3 },
+  { id: 36, name: "Band Face Pull", muscle_id: 3 },
+  // Quads
   { id: 40, name: "Back Squat", muscle_id: 4 },
   { id: 41, name: "Leg Press", muscle_id: 4 },
   { id: 42, name: "Walking Lunge", muscle_id: 4 },
+  { id: 43, name: "Leg Extension", muscle_id: 4 },
+  { id: 44, name: "Smith Machine Squat", muscle_id: 4 },
+  { id: 45, name: "Goblet Squat", muscle_id: 4 },
+  { id: 46, name: "Bulgarian Split Squat", muscle_id: 4 },
+  // Hamstrings
   { id: 50, name: "Romanian Deadlift", muscle_id: 5 },
-  { id: 51, name: "Leg Curl", muscle_id: 5 },
+  { id: 51, name: "Lying Leg Curl", muscle_id: 5 },
+  { id: 52, name: "Seated Leg Curl", muscle_id: 5 },
+  { id: 53, name: "Glute Ham Raise", muscle_id: 5 },
+  // Biceps
   { id: 60, name: "Barbell Curl", muscle_id: 6 },
   { id: 61, name: "Hammer Curl", muscle_id: 6 },
+  { id: 62, name: "Concentration Curl", muscle_id: 6 },
+  { id: 63, name: "Preacher Curl", muscle_id: 6 },
+  { id: 64, name: "Cable Curl", muscle_id: 6 },
+  { id: 65, name: "EZ-Bar Curl", muscle_id: 6 },
+  // Triceps
   { id: 70, name: "Triceps Pushdown", muscle_id: 7 },
   { id: 71, name: "Skull Crusher", muscle_id: 7 },
+  { id: 72, name: "Diamond Push-Up", muscle_id: 7 },
+  { id: 73, name: "Overhead Triceps Extension", muscle_id: 7 },
+  { id: 74, name: "Close-Grip Bench Press", muscle_id: 7 },
+  { id: 75, name: "Seated Dip", muscle_id: 7 },
+  // Core
   { id: 80, name: "Hanging Leg Raise", muscle_id: 8 },
   { id: 81, name: "Cable Crunch", muscle_id: 8 },
+  { id: 82, name: "Plank", muscle_id: 8 },
+  { id: 83, name: "Lying Leg Raise", muscle_id: 8 },
+  { id: 84, name: "Russian Twist", muscle_id: 8 },
+  { id: 85, name: "L-Sit", muscle_id: 8 },
+  // Calves
+  { id: 90, name: "Standing Calf Raise", muscle_id: 9 },
+  { id: 91, name: "Lever Standing Calf Raise", muscle_id: 9 },
+  { id: 92, name: "Smith Machine Calf Raise", muscle_id: 9 },
+  // Forearms
+  { id: 100, name: "Barbell Reverse Wrist Curl", muscle_id: 10 },
+  { id: 101, name: "Cable Hammer Curl", muscle_id: 10 },
+  { id: 102, name: "Barbell Reverse Curl", muscle_id: 10 },
+  // Glutes
+  { id: 110, name: "Barbell Hip Thrust", muscle_id: 11 },
+  { id: 111, name: "Lever Hip Thrust", muscle_id: 11 },
+  { id: 112, name: "Hyperextension", muscle_id: 11 },
 ];
 
 const EXERCISES: Exercise[] = EXERCISE_NAMES.map((e) => ({

@@ -32,6 +32,31 @@ const styles: Record<SetType, string> = {
   failure: "bg-red-soft text-red",
 };
 
+/**
+ * The circular set-type chip used in the active-logging table (see
+ * SetRow.tsx) — shown here elsewhere so the same glyph explains itself
+ * outside that context (e.g. Profile's set-type legend).
+ */
+export function SetTypeDot({
+  type,
+  className,
+}: {
+  type: SetType;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "flex size-8 shrink-0 items-center justify-center rounded-pill text-caption font-bold",
+        styles[type],
+        className,
+      )}
+    >
+      {SET_TYPE_SHORT[type]}
+    </span>
+  );
+}
+
 interface SetTypeBadgeProps {
   type: SetType;
   short?: boolean;
