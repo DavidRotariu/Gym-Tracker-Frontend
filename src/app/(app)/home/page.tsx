@@ -18,6 +18,7 @@ import {
   suggestSplit,
 } from "@/lib/format";
 import { staggerContainer, staggerItem } from "@/lib/motion";
+import { getSplitIcon } from "@/lib/splitIcon";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
@@ -67,14 +68,17 @@ export default function HomePage() {
 
   const streak = useMemo(() => currentStreak(history), [history]);
 
-  /** The muscle this split calls for most — the card's hero image. */
+  /** The split's own icon takes priority; otherwise fall back to the muscle
+   *  this split calls for most, so the card always has some art. */
+  const suggestedIcon = suggested ? getSplitIcon(suggested.name) : undefined;
   const suggestedImage = useMemo(() => {
+    if (suggestedIcon) return suggestedIcon;
     if (!suggested?.muscles.length) return null;
     const primary = [...suggested.muscles].sort(
       (a, b) => b.nr_of_exercises - a.nr_of_exercises,
     )[0];
     return muscles?.find((m) => m.id === primary.muscle_id)?.image_url ?? null;
-  }, [suggested, muscles]);
+  }, [suggested, suggestedIcon, muscles]);
 
   async function start(splitId: number | null) {
     const session = await startWorkout.mutateAsync(splitId);
@@ -111,13 +115,16 @@ export default function HomePage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               transition={{ type: "spring", stiffness: 260, damping: 26 }}
             >
-              <Card flush className="relative h-64 overflow-hidden">
+              <Card flush className="relative h-64 overflow-hidden bg-fill">
                 <MediaThumb
                   src={suggestedImage}
                   alt=""
                   static
                   fallback={<div className="size-full bg-fill" />}
-                  className="absolute inset-0 size-full"
+                  className={cn(
+                    "absolute inset-0 size-full",
+                    suggestedIcon ? "object-contain p-8" : "object-cover",
+                  )}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
 

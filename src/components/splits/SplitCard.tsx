@@ -2,6 +2,7 @@
 
 import { MediaThumb } from "@/components/ui/MediaThumb";
 import { MuscleChips } from "@/components/ui/MuscleChips";
+import { getSplitIcon } from "@/lib/splitIcon";
 import { cn } from "@/lib/utils";
 import type { Muscle, Split } from "@/types";
 
@@ -13,17 +14,6 @@ interface SplitCardProps {
 }
 
 /**
- * Hand-drawn icons for the three default splits — swapped in ahead of the
- * muscle-thumbnail stack for any split whose name matches. Everything else
- * (custom user splits) still falls back to the muscle stack.
- */
-const SPLIT_ICONS: { match: RegExp; src: string }[] = [
-  { match: /push/i, src: "/split-icons/push.png" },
-  { match: /pull/i, src: "/split-icons/pull.png" },
-  { match: /leg/i, src: "/split-icons/legs.png" },
-];
-
-/**
  * Row content only — the list wraps this in a SwipeRow, which supplies the
  * card surface and the edit/delete actions.
  */
@@ -33,7 +23,7 @@ export function SplitCard({ split, muscles, onStart, pending }: SplitCardProps) 
     0,
   );
 
-  const splitIcon = SPLIT_ICONS.find((s) => s.match.test(split.name))?.src;
+  const splitIcon = getSplitIcon(split.name);
 
   const targetMuscles = split.muscles
     .map((m) => muscles?.find((muscle) => muscle.id === m.muscle_id))
