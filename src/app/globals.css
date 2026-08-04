@@ -1,407 +1,277 @@
 @import "tailwindcss";
 
-@plugin "tailwindcss-animate";
+/* Tailwind v4 equivalent of `darkMode: 'class'` — theming is driven by a
+   `.dark` class on <html>, set from system preference with room for a
+   manual override (see ThemeProvider). */
+@custom-variant dark (&:where(.dark, .dark *));
 
-/* @custom-variant dark (&:is(.dark *)); */
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-}
-
+/* ===========================================================================
+   LIGHT (default)
+   iOS system colors, with Nike Run Club's black/white/gray restraint and a
+   single Nike-orange accent.
+   =========================================================================== */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  color-scheme: light;
+
+  /* Apple splits the family by optical size: SF Pro Text ≤19pt, Display ≥20pt. */
+  --font-text:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-inter),
+    system-ui, sans-serif;
+  --font-display:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", var(--font-inter),
+    system-ui, sans-serif;
+
+  /* Backgrounds — systemBackground / secondarySystemBackground */
+  --background: #ffffff;
+  --background-secondary: #f2f2f7;
+  --background-grouped: #f2f2f7;
+
+  /* Fills for controls sitting on a background */
+  --fill: #e5e5ea;
+  --fill-strong: #d4d4d4;
+
+  /* Labels — primary / secondary / tertiary */
+  --label: #111111;
+  --label-secondary: #6e6e73;
+  --label-tertiary: #a3a3a8;
+
+  /* Hairline separator (opaque separator) */
+  --separator: #c6c6c8;
+
+  /* The one loud color — Nike signature orange. A fill color: black ink
+     always sits on it (contrast checked: ~5.4:1 against #111). User-
+     selectable in Profile > Accent color; overridden via an inline
+     custom-property on <html> when they pick one, so accent-muted below
+     (derived from it) always recomputes automatically. */
+  --accent: #fa5400;
+  --accent-foreground: #111111;
+  --accent-muted: color-mix(in srgb, var(--accent) 16%, var(--background));
+
+  /* iOS system colors, used semantically */
+  --blue: #007aff;
+  --green: #34c759;
+  --red: #ff3b30;
+  --orange: #ff9500;
+  --yellow: #ffcc00;
+  --purple: #af52de;
+
+  --green-soft: #e3f8e9;
+  --red-soft: #ffe9e7;
+  --orange-soft: #fff1de;
+  --purple-soft: #f6ecfd;
+
+  /* Translucent nav/tab chrome */
+  --chrome: rgba(255, 255, 255, 0.94);
+  --scrim: rgba(0, 0, 0, 0.28);
+
+  /* Elevation — two real levels above the flat resting card. */
+  --shadow-raised: 0 1px 2px rgba(17, 17, 17, 0.04), 0 6px 16px rgba(17, 17, 17, 0.08);
+  --shadow-sheet: 0 -1px 24px rgba(0, 0, 0, 0.14);
 }
 
+/* ===========================================================================
+   DARK — true black, per iOS
+   =========================================================================== */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  color-scheme: dark;
+
+  --background: #000000;
+  --background-secondary: #1c1c1e;
+  --background-grouped: #000000;
+
+  --fill: #2c2c2e;
+  --fill-strong: #3a3a3c;
+
+  --label: #ffffff;
+  --label-secondary: #98989e;
+  --label-tertiary: #5c5c61;
+
+  --separator: #38383a;
+
+  --accent: #ff6a2e;
+  --accent-foreground: #111111;
+
+  --blue: #0a84ff;
+  --green: #30d158;
+  --red: #ff453a;
+  --orange: #ff9f0a;
+  --yellow: #ffd60a;
+  --purple: #bf5af2;
+
+  --green-soft: #102a17;
+  --red-soft: #34100d;
+  --orange-soft: #33230a;
+  --purple-soft: #26173a;
+
+  /* Less translucency in dark, per the spec. */
+  --chrome: rgba(28, 28, 30, 0.96);
+  --scrim: rgba(0, 0, 0, 0.6);
+
+  /* Shadows don't read on true black — a hairline highlight plus a deep
+     glow stands in for elevation instead. */
+  --shadow-raised: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 6px 20px rgba(0, 0, 0, 0.6);
+  --shadow-sheet: 0 -1px 28px rgba(0, 0, 0, 0.6);
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
+/* ===========================================================================
+   Token → Tailwind
+   =========================================================================== */
+@theme inline {
+  --font-text: var(--font-text);
+  --font-display: var(--font-display);
+  --font-sans: var(--font-text);
+
+  --color-background: var(--background);
+  --color-background-secondary: var(--background-secondary);
+  --color-background-grouped: var(--background-grouped);
+  --color-fill: var(--fill);
+  --color-fill-strong: var(--fill-strong);
+
+  --color-label: var(--label);
+  --color-label-secondary: var(--label-secondary);
+  --color-label-tertiary: var(--label-tertiary);
+  --color-separator: var(--separator);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-muted: var(--accent-muted);
+
+  --color-blue: var(--blue);
+  --color-green: var(--green);
+  --color-red: var(--red);
+  --color-orange: var(--orange);
+  --color-yellow: var(--yellow);
+  --color-purple: var(--purple);
+
+  --color-green-soft: var(--green-soft);
+  --color-red-soft: var(--red-soft);
+  --color-orange-soft: var(--orange-soft);
+  --color-purple-soft: var(--purple-soft);
+
+  --color-chrome: var(--chrome);
+  --color-scrim: var(--scrim);
+
+  /* Radii — continuous-ish rounding */
+  --radius-control: 0.625rem; /* 10px — inputs, small controls */
+  --radius-button: 0.75rem; /* 12px — buttons */
+  --radius-card: 1.125rem; /* 18px — cards */
+  --radius-sheet: 1.5rem; /* 24px — sheet top corners */
+  --radius-pill: 9999px;
+
+  --shadow-raised: var(--shadow-raised);
+  --shadow-sheet: var(--shadow-sheet);
+
+  /* -------------------------------------------------------------------------
+     iOS text styles. Sizes are 1:1 pt→px; letter-spacing is Apple's actual
+     tracking per size, which is most of why iOS type reads as iOS type.
+     ------------------------------------------------------------------------- */
+
+  /* Large title — 34 Bold, +0.4 */
+  --text-large-title: 2.125rem;
+  --text-large-title--line-height: 1.2;
+  --text-large-title--letter-spacing: 0.4px;
+  --text-large-title--font-weight: 700;
+
+  /* Body / title / buttons / list primary — 17 Regular, −0.43 */
+  --text-body: 1.0625rem;
+  --text-body--line-height: 1.294;
+  --text-body--letter-spacing: -0.43px;
+
+  /* Secondary — 15, −0.24 */
+  --text-subhead: 0.9375rem;
+  --text-subhead--line-height: 1.333;
+  --text-subhead--letter-spacing: -0.24px;
+
+  /* Tertiary / caption / section headers — 13, −0.08 */
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.385;
+  --text-caption--letter-spacing: -0.08px;
+
+  /* Tab bar label — 10 Medium, +0.12. Never smaller. */
+  --text-tab: 0.625rem;
+  --text-tab--line-height: 1.2;
+  --text-tab--letter-spacing: 0.12px;
+  --text-tab--font-weight: 500;
+
+  /* ---- Nike brand moments: deliberately off the iOS scale ---------------- */
+
+  /* Hero stat — 56 Black, tight */
+  --text-stat: 3.5rem;
+  --text-stat--line-height: 0.92;
+  --text-stat--letter-spacing: -2px;
+  --text-stat--font-weight: 800;
+
+  /* Supporting stat — 28 Black */
+  --text-stat-sm: 1.75rem;
+  --text-stat-sm--line-height: 1;
+  --text-stat-sm--letter-spacing: -0.6px;
+  --text-stat-sm--font-weight: 800;
+
+  /* Uppercase kicker — "NEW PR", "WORKOUT COMPLETE" */
+  --text-kicker: 0.8125rem;
+  --text-kicker--line-height: 1.2;
+  --text-kicker--letter-spacing: 1px;
+  --text-kicker--font-weight: 700;
 }
 
-@font-face {
-  font-family: "Futura";
-  src: url("/fonts/Futura Light font.ttf") format("truetype");
-  font-weight: 300;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: "Futura";
-  src: url("/fonts/futura medium bt.ttf") format("truetype");
-  font-weight: 500;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: "Futura";
-  src: url("/fonts/Futura Bold font.ttf") format("truetype");
-  font-weight: 700;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: "Futura";
-  src: url("/fonts/Futura Heavy font.ttf") format("truetype");
-  font-weight: 900;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: "Futura";
-  src: url("/fonts/Futura Bold Italic font.ttf") format("truetype");
-  font-weight: 700;
-  font-style: italic;
-}
-
-body {
-  font-family: "Futura", sans-serif;
-}
-
-.running {
-  --color: #d3442f;
-  --duration: 0.6s;
-  .outer {
-    animation: outer var(--duration) linear infinite;
-    .body {
-      background: var(--color);
-      height: 15px;
-      width: 8px;
-      border-radius: 4px;
-      transform-origin: 4px 11px;
-      position: relative;
-      transform: rotate(32deg);
-      animation: body var(--duration) linear infinite;
-      &:before {
-        content: "";
-        width: 8px;
-        height: 8px;
-        border-radius: 4px;
-        bottom: 16px;
-        left: 0;
-        position: absolute;
-        background: var(--color);
-      }
-      .arm,
-      .arm:before,
-      .leg,
-      .leg:before {
-        content: "";
-        width: var(--w, 11px);
-        height: 4px;
-        top: var(--t, 0);
-        left: var(--l, 2px);
-        border-radius: 2px;
-        transform-origin: 2px 2px;
-        position: absolute;
-        background: var(--c, var(--color));
-        transform: rotate(var(--r, 0deg));
-        animation: var(--name, arm-leg) var(--duration) linear infinite;
-      }
-      .arm {
-        &:before {
-          --l: 7px;
-          --name: arm-b;
-        }
-        &.front {
-          --r: 24deg;
-          --r-to: 164deg;
-          &:before {
-            --r: -48deg;
-            --r-to: -36deg;
-          }
-        }
-        &.behind {
-          --r: 164deg;
-          --r-to: 24deg;
-          &:before {
-            --r: -36deg;
-            --r-to: -48deg;
-          }
-        }
-      }
-      .leg {
-        --w: 12px;
-        --t: 11px;
-        &:before {
-          --t: 0;
-          --l: 8px;
-        }
-        &.front {
-          --r: 10deg;
-          --r-to: 108deg;
-          &:before {
-            --r: 18deg;
-            --r-to: 76deg;
-          }
-        }
-        &.behind {
-          --r: 108deg;
-          --r-to: 10deg;
-          --c: none;
-          &:before {
-            --c: var(--color);
-            --r: 76deg;
-            --r-to: 18deg;
-          }
-          &:after {
-            content: "";
-            top: 0;
-            right: 0;
-            height: 4px;
-            width: 6px;
-            clip-path: polygon(2px 0, 6px 0, 6px 4px, 0 4px);
-            border-radius: 0 2px 2px 0;
-            position: absolute;
-            background: var(--color);
-          }
-        }
-      }
-    }
-  }
-}
-
-@keyframes outer {
-  50% {
-    transform: translateY(0);
-  }
-  25%,
-  75% {
-    transform: translateY(4px);
-  }
-}
-
-@keyframes body {
-  50% {
-    transform: rotate(16deg);
-  }
-  25%,
-  75% {
-    transform: rotate(24deg);
-  }
-}
-
-@keyframes arm-leg {
-  50% {
-    transform: rotate(var(--r-to));
-  }
-}
-
-@keyframes arm-b {
-  30%,
-  70% {
-    transform: rotate(var(--r-to));
-  }
-}
-
-.buttons {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 40px;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  button {
-    border: 0;
-    background: 0;
-    padding: 8px 16px;
-    margin: 0;
-    font-weight: 500;
-    font-size: 16px;
-    cursor: pointer;
-    outline: none;
-    -webkit-appearance: none;
-    color: var(--c, #8a91b4);
-    transition:
-      color 0.3s,
-      transform 0.3s;
-    transform: scale(var(--s, 1));
-    &:hover {
-      --c: #d1d6ee;
-    }
-    &:active {
-      --s: 0.9;
-    }
-  }
-}
-
+/* ===========================================================================
+   Base
+   =========================================================================== */
 html {
   box-sizing: border-box;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: inherit;
-  &:before,
-  &:after {
-    box-sizing: inherit;
-  }
 }
 
-.loaderbody {
-  min-height: 100vh;
-  display: flex;
-  font-family: "Roboto", Arial;
-  justify-content: center;
-  align-items: center;
-  flex-direction: column;
-  .running {
-    zoom: 4;
-    margin-top: -32px;
-  }
-  .dribbble {
-    position: fixed;
-    display: block;
-    right: 20px;
-    bottom: 20px;
-    img {
-      display: block;
-      height: 28px;
-    }
-  }
-  .twitter {
-    position: fixed;
-    display: block;
-    right: 64px;
-    bottom: 14px;
-    svg {
-      width: 32px;
-      height: 32px;
-      fill: #1da1f2;
-    }
-  }
+body {
+  background: var(--background);
+  color: var(--label);
+  font-family: var(--font-text);
+  overscroll-behavior-y: none;
 }
 
-.slanted-bottom {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 40px;
-  background-color: #d14a3a;
-  clip-path: polygon(0% 25%, 100% 0%, 100% 100%, 0% 100%);
+/* SF Pro Display for anything 20px and up. */
+.font-display,
+.text-large-title,
+.text-stat,
+.text-stat-sm {
+  font-family: var(--font-display);
 }
 
-.ex-slanted-bottom {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 40px;
-  background-color: #d14a3a;
-  clip-path: polygon(0% 25%, 100% 0%, 100% 100%, 0% 100%);
+/* Numbers in stats and logs must not jitter as they change. */
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
 
-.ex-slanted-top {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 40px;
-  background-color: black; /* Red section */
-  clip-path: polygon(0% 0%, 100% 00%, 100% 75%, 0% 100%);
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Every interactive element gets a visible keyboard focus ring — not just
+   the ones that remembered to add one. systemBlue stays the universal focus
+   color so it never competes with the accent. */
+:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
