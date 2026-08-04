@@ -100,7 +100,20 @@ export function SwipeRow({ actions, children, className, bare }: SwipeRowProps) 
         className,
       )}
     >
-      <div className="absolute inset-y-0 right-0 flex">
+      {/* The revealed row sits behind a transform-driven sibling (the
+          motion.div below), which some browsers promote to its own
+          compositing layer — the parent's overflow-hidden/border-radius
+          clip doesn't reliably reach into that layer, so a square pixel of
+          this row's right edge can peek past the card's rounded corner even
+          at rest. Rounding this row's own corner to match is what actually
+          closes it, regardless of the clipping quirk. This was "that
+          border" — not a stray outline, the delete/edit action underneath. */}
+      <div
+        className={cn(
+          "absolute inset-y-0 right-0 flex overflow-hidden",
+          !bare ? "rounded-r-card" : "rounded-r-control",
+        )}
+      >
         {actions.map((action) => (
           <button
             key={action.label}

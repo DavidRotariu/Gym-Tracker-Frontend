@@ -1,6 +1,5 @@
 "use client";
 
-import { AuthHero } from "@/components/ui/AuthHero";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
 import { useAuth } from "@/hooks/use-auth";
@@ -37,14 +36,11 @@ export default function LoginPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
-        <AuthHero />
-        <div className="flex flex-col gap-1">
-          <h1 className="font-display text-large-title text-label">Sign in</h1>
-          <p className="text-body text-label-secondary">
-            Log every set. Track every overload.
-          </p>
-        </div>
+      <div className="flex flex-col gap-1">
+        <h1 className="font-display text-large-title text-label">Sign in</h1>
+        <p className="text-body text-label-secondary">
+          Log every set. Track every overload.
+        </p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
