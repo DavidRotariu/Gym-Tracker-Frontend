@@ -28,7 +28,16 @@ const archivo = Archivo({
 export const metadata: Metadata = {
   title: "Overload",
   description: "Log every set. Track every overload.",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Overload" },
+  // "black-translucent" draws the status bar over the page instead of
+  // reserving an opaque strip — required for the edge-to-edge dark UI this
+  // app already assumes everywhere it pads for env(safe-area-inset-top).
+  // "default" would double up: a system-drawn bar *and* our own inset
+  // padding, leaving a dead gap under the Dynamic Island/notch.
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Overload",
+  },
 };
 
 export const viewport: Viewport = {

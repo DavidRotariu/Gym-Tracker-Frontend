@@ -52,17 +52,6 @@ export function AuthHero() {
         }}
       />
 
-      {/* Faint hairline grid — texture without reaching for a stock image. */}
-      <div
-        aria-hidden
-        className="absolute inset-0 opacity-[0.07]"
-        style={{
-          backgroundImage:
-            "linear-gradient(to right, #fff 1px, transparent 1px), linear-gradient(to bottom, #fff 1px, transparent 1px)",
-          backgroundSize: "28px 28px",
-        }}
-      />
-
       <div
         aria-hidden
         className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent"
@@ -74,11 +63,9 @@ export function AuthHero() {
         transition={{ type: "spring", stiffness: 260, damping: 26 }}
         className="relative flex h-full flex-col justify-end gap-1 p-6 pb-7"
       >
-        <p className="text-kicker text-white/60 uppercase">Overload</p>
+        <p className="text-kicker text-white/60 uppercase">Progressive</p>
         <h1 className="font-stat text-stat leading-none text-white">
-          NO<span style={{ color: "var(--color-accent)" }}>.</span>ZERO
-          <br />
-          DAYS
+          OVER<span style={{ color: "var(--color-accent)" }}>LOAD</span>
         </h1>
       </motion.div>
     </div>
