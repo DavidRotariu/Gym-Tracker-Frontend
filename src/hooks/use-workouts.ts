@@ -9,10 +9,10 @@ export function useWorkoutHistory() {
   });
 }
 
-export function useWorkout(id: number | null) {
+export function useWorkout(id: string | null) {
   return useQuery({
     queryKey: ["workouts", id],
-    queryFn: () => workoutsApi.getWorkout(id as number),
+    queryFn: () => workoutsApi.getWorkout(id as string),
     enabled: id !== null,
   });
 }
@@ -20,12 +20,12 @@ export function useWorkout(id: number | null) {
 export function useStartWorkout() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (splitId: number | null) => workoutsApi.startWorkout(splitId),
+    mutationFn: (splitId: string | null) => workoutsApi.startWorkout(splitId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workouts"] }),
   });
 }
 
-export function usePatchWorkout(id: number) {
+export function usePatchWorkout(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (patch: WorkoutPatch) => workoutsApi.patchWorkout(id, patch),
@@ -39,7 +39,7 @@ export function usePatchWorkout(id: number) {
 export function useDeleteWorkout() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => workoutsApi.deleteWorkout(id),
+    mutationFn: (id: string) => workoutsApi.deleteWorkout(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workouts"] }),
   });
 }

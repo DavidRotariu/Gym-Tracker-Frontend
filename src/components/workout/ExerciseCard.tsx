@@ -15,8 +15,8 @@ interface ExerciseCardProps {
   name: string;
   muscle?: string;
   imageUrl?: string | null;
-  onChangeSet: (setId: number, patch: Partial<Set>) => void;
-  onDeleteSet: (setId: number) => void;
+  onChangeSet: (setId: string, patch: Partial<Set>) => void;
+  onDeleteSet: (setId: string) => void;
   onAddSet: () => void;
   onRemove: () => void;
   onSwap?: () => void;
@@ -109,6 +109,18 @@ export function ExerciseCard({
           </div>
         )}
 
+        {/* Its own badge, not buried inline in the subtitle — the muscle
+            group is the thing you scan for mid-workout ("what's next,
+            legs or push?"), same treatment as the "Up next" hero chip on
+            Today, so it reads as a tag rather than trailing text. */}
+        {muscle && (
+          <div className="absolute top-2 left-2">
+            <span className="rounded-pill bg-white/15 px-2.5 py-1 text-tab font-bold text-white uppercase backdrop-blur-sm">
+              {muscle}
+            </span>
+          </div>
+        )}
+
         <div className="absolute inset-x-0 bottom-0 p-3">
           {readOnly ? (
             <p className="truncate text-body font-semibold text-white">{name}</p>
@@ -121,7 +133,6 @@ export function ExerciseCard({
             </Link>
           )}
           <p className="text-subhead text-white/70">
-            {muscle ? `${muscle} · ` : ""}
             {we.sets.length === 0
               ? "No sets yet"
               : `${completed}/${we.sets.length} sets`}

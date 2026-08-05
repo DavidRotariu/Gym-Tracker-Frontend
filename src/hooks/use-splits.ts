@@ -6,10 +6,10 @@ export function useSplits() {
   return useQuery({ queryKey: ["splits"], queryFn: splitsApi.getSplits });
 }
 
-export function useSplit(id: number | null) {
+export function useSplit(id: string | null) {
   return useQuery({
     queryKey: ["splits", id],
-    queryFn: () => splitsApi.getSplit(id as number),
+    queryFn: () => splitsApi.getSplit(id as string),
     enabled: id !== null,
   });
 }
@@ -25,7 +25,7 @@ export function useCreateSplit() {
 export function useUpdateSplit() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, input }: { id: number; input: SplitInput }) =>
+    mutationFn: ({ id, input }: { id: string; input: SplitInput }) =>
       splitsApi.updateSplit(id, input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["splits"] }),
   });
@@ -34,7 +34,7 @@ export function useUpdateSplit() {
 export function useDeleteSplit() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => splitsApi.deleteSplit(id),
+    mutationFn: (id: string) => splitsApi.deleteSplit(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["splits"] }),
   });
 }

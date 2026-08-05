@@ -3,11 +3,11 @@ import type { Muscle, SplitMuscle } from "@/types";
 
 interface MuscleChipsProps {
   muscles: SplitMuscle[];
-  lookup: Map<number, string> | Muscle[] | undefined;
+  lookup: Map<string, string> | Muscle[] | undefined;
   className?: string;
 }
 
-function nameOf(lookup: MuscleChipsProps["lookup"], id: number): string {
+function nameOf(lookup: MuscleChipsProps["lookup"], id: string): string {
   if (!lookup) return `#${id}`;
   if (lookup instanceof Map) return lookup.get(id) ?? `#${id}`;
   return lookup.find((m) => m.id === id)?.name ?? `#${id}`;

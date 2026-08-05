@@ -24,7 +24,7 @@ const noop = () => {};
 
 export default function HistorySessionPage() {
   const params = useParams<{ sessionId: string }>();
-  const sessionId = Number(params.sessionId);
+  const sessionId = params.sessionId;
 
   const { data: session, isLoading } = useWorkout(sessionId);
   const { data: split } = useSplit(session?.split_id ?? null);
@@ -42,7 +42,7 @@ export default function HistorySessionPage() {
     );
   }, [exercises, muscles]);
   const exerciseImages = useMemo(
-    () => new Map(exercises?.map((e) => [e.id, e.image_url])),
+    () => new Map(exercises?.map((e) => [e.id, e.pic])),
     [exercises],
   );
 

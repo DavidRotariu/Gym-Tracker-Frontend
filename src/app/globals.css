@@ -49,12 +49,10 @@
   /* Hairline separator (opaque separator) */
   --separator: #c6c6c8;
 
-  /* The one loud color — Nike signature orange. A fill color: black ink
-     always sits on it (black-on-orange ~7:1; white-on-orange ~2.9:1 fails).
-     User-selectable in Profile > Accent color; overridden via an inline
-     custom-property on <html> when they pick one, so accent-muted below
-     (derived from it) always recomputes automatically. */
-  --accent: #ff7a2f;
+  /* The one loud color — fixed, not user-selectable (the old Profile >
+     Accent color swatch picker was removed). A fill color: black ink always
+     sits on it (black-on-#FF5F1F ~6.2:1; white-on-accent ~3:1 fails). */
+  --accent: #ff5f1f;
   --accent-foreground: #111111;
   --accent-muted: color-mix(in srgb, var(--accent) 12%, var(--background));
   /* Accent as TEXT or an ICON on a plain background — never --accent itself,
@@ -111,7 +109,7 @@
 
   --separator: #2a2a2c;
 
-  --accent: #ff8a45;
+  --accent: #ff5f1f;
   --accent-foreground: #111111;
   --accent-muted: color-mix(in srgb, var(--accent) 20%, var(--background));
   --accent-ink: #ff9f5a;

@@ -18,7 +18,7 @@ import { useMemo } from "react";
 
 export default function ExerciseDetailPage() {
   const params = useParams<{ id: string }>();
-  const exerciseId = Number(params.id);
+  const exerciseId = params.id;
 
   const { data: exercises } = useExercises();
   const { data: muscles } = useMuscles();
@@ -59,7 +59,7 @@ export default function ExerciseDetailPage() {
 
       <div className="relative mb-4">
         <MediaThumb
-          src={exercise?.image_url}
+          src={exercise?.pic}
           alt={exercise ? `${exercise.name} demonstration` : ""}
           fallback={
             <span className="text-stat text-label-tertiary">

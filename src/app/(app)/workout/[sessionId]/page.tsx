@@ -32,7 +32,7 @@ import { useEffect, useMemo, useState } from "react";
 export default function WorkoutSessionPage() {
   const params = useParams<{ sessionId: string }>();
   const router = useRouter();
-  const sessionId = Number(params.sessionId);
+  const sessionId = params.sessionId;
 
   const { data: session, isLoading } = useWorkout(sessionId);
   const { data: split } = useSplit(session?.split_id ?? null);
@@ -70,7 +70,7 @@ export default function WorkoutSessionPage() {
     );
   }, [exercises, muscles]);
   const exerciseImages = useMemo(
-    () => new Map(exercises?.map((e) => [e.id, e.image_url])),
+    () => new Map(exercises?.map((e) => [e.id, e.pic])),
     [exercises],
   );
   const exerciseMuscleId = useMemo(
@@ -100,7 +100,7 @@ export default function WorkoutSessionPage() {
     return result;
   }, [session]);
 
-  async function handleAddExercise(exerciseId: number) {
+  async function handleAddExercise(exerciseId: string) {
     if (swapTarget) {
       await swapExercise.mutateAsync({
         workoutExerciseId: swapTarget.id,
@@ -154,7 +154,7 @@ export default function WorkoutSessionPage() {
     });
   }
 
-  function handleChangeSet(setId: number, patch: Partial<Set>) {
+  function handleChangeSet(setId: string, patch: Partial<Set>) {
     patchSet.mutate({ id: setId, patch });
     if (patch.completed === true) {
       setRestSignal((n) => n + 1);
@@ -321,7 +321,7 @@ export default function WorkoutSessionPage() {
         allowedMuscleIds={
           swapTarget
             ? [exerciseMuscleId.get(swapTarget.exercise_id)].filter(
-                (id): id is number => id !== undefined,
+                (id): id is string => id !== undefined,
               )
             : split?.muscles.map((m) => m.muscle_id)
         }

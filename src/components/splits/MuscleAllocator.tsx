@@ -15,7 +15,7 @@ export function MuscleAllocator({
   allocation,
   onChange,
 }: MuscleAllocatorProps) {
-  function toggle(muscleId: number) {
+  function toggle(muscleId: string) {
     const exists = allocation.some((a) => a.muscle_id === muscleId);
     onChange(
       exists
@@ -24,7 +24,7 @@ export function MuscleAllocator({
     );
   }
 
-  function setCount(muscleId: number, count: number) {
+  function setCount(muscleId: string, count: number) {
     onChange(
       allocation.map((a) =>
         a.muscle_id === muscleId

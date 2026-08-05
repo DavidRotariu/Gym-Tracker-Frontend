@@ -11,7 +11,7 @@ export function getSplits() {
   return apiRequest<Split[]>("/splits");
 }
 
-export function getSplit(id: number) {
+export function getSplit(id: string) {
   return apiRequest<Split>(`/splits/${id}`);
 }
 
@@ -19,10 +19,10 @@ export function createSplit(input: SplitInput) {
   return apiRequest<Split>("/splits", { method: "POST", body: input });
 }
 
-export function updateSplit(id: number, input: SplitInput) {
+export function updateSplit(id: string, input: SplitInput) {
   return apiRequest<Split>(`/splits/${id}`, { method: "PUT", body: input });
 }
 
-export function deleteSplit(id: number) {
+export function deleteSplit(id: string) {
   return apiRequest<void>(`/splits/${id}`, { method: "DELETE" });
 }

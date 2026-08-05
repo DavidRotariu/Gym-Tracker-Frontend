@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  ACCENT_OPTIONS,
-  DEFAULT_ACCENT,
-  ThemePreference,
-  useTheme,
-} from "@/components/ThemeProvider";
+import { ThemePreference, useTheme } from "@/components/ThemeProvider";
 import { Button } from "@/components/ui/Button";
 import { Card, CardList } from "@/components/ui/Card";
 import { LargeTitle } from "@/components/ui/LargeTitle";
@@ -46,7 +41,7 @@ const SET_TYPE_DESCRIPTIONS: { type: SetType; description: string }[] = [
 export default function ProfilePage() {
   const router = useRouter();
   const { user, logout } = useAuth();
-  const { preference, setPreference, accent, setAccent } = useTheme();
+  const { preference, setPreference } = useTheme();
 
   function handleLogout() {
     logout();
@@ -108,51 +103,6 @@ export default function ProfilePage() {
                     )}
                   >
                     {option.label}
-                  </button>
-                );
-              })}
-            </div>
-          </Card>
-        </section>
-
-        {/* Accent color ----------------------------------------------------- */}
-        <section className="flex flex-col gap-2">
-          <h2 className="px-1 text-kicker text-label-tertiary uppercase">
-            Accent color
-          </h2>
-          <Card>
-            <div role="radiogroup" aria-label="Accent color" className="flex flex-wrap gap-3">
-              {[DEFAULT_ACCENT, ...ACCENT_OPTIONS].map((hex) => {
-                const selected = (accent ?? DEFAULT_ACCENT).toLowerCase() === hex.toLowerCase();
-                return (
-                  <button
-                    key={hex}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    aria-label={hex}
-                    onClick={() => setAccent(hex === DEFAULT_ACCENT ? null : hex)}
-                    className="flex size-11 cursor-pointer items-center justify-center rounded-pill active:opacity-70"
-                  >
-                    <span
-                      style={{ backgroundColor: hex }}
-                      className={cn(
-                        "flex size-8 items-center justify-center rounded-pill transition-transform duration-150",
-                        selected && "scale-110 ring-2 ring-offset-2 ring-label ring-offset-background",
-                      )}
-                    >
-                      {selected && (
-                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
-                          <path
-                            d="M4.5 10.5l3.6 3.6L15.5 6"
-                            stroke="white"
-                            strokeWidth="2.6"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      )}
-                    </span>
                   </button>
                 );
               })}

@@ -57,13 +57,25 @@ export async function apiRequest<T>(
   const data = text ? JSON.parse(text) : undefined;
 
   if (!res.ok) {
-    const err = data as ApiError | undefined;
-    throw new ApiRequestError(
-      res.status,
-      err?.error?.code ?? "unknown_error",
-      err?.error?.message ?? "Something went wrong.",
-    );
+    const detail = (data as ApiError | undefined)?.detail;
+    const message = Array.isArray(detail)
+      ? (detail[0]?.msg ?? "Something went wrong.")
+      : (detail ?? "Something went wrong.");
+    throw new ApiRequestError(res.status, String(res.status), message);
   }
 
   return data as T;
+}
+
+/** For endpoints returning raw binary (e.g. the QR PNG) instead of JSON. */
+export async function apiRequestBlob(path: string): Promise<Blob> {
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${BASE_URL}${path}`, { headers });
+  if (!res.ok) {
+    throw new ApiRequestError(res.status, String(res.status), "Couldn't load image.");
+  }
+  return res.blob();
 }

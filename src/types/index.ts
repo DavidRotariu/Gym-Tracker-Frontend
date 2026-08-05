@@ -1,47 +1,43 @@
 export interface User {
-  id: number;
+  id: string;
   email: string;
+  name?: string | null;
 }
 
 export interface Muscle {
-  id: number;
+  id: string;
   name: string;
-  /** Illustration shown on muscle-group cards. Mock-only extension — not
-   *  yet in API_ARCHITECTURE.md; falls back to a plain initial when absent. */
-  image_url?: string | null;
+  pic: string | null;
 }
 
 export interface Exercise {
-  id: number;
+  id: string;
   name: string;
-  muscle_id: number;
-  /** Demo GIF/photo shown while picking and logging. Mock-only extension —
-   *  not yet in API_ARCHITECTURE.md; falls back to a plain glyph when absent. */
-  image_url?: string | null;
+  muscle_id: string;
+  pic: string | null;
+  tips: string | null;
+  equipment: string | null;
+  favourite: boolean;
+  primary_muscle: string;
+  secondary_muscles: string[];
 }
 
 export interface SplitMuscle {
-  muscle_id: number;
+  muscle_id: string;
   nr_of_exercises: number;
 }
 
 export interface Split {
-  id: number;
+  id: string;
   name: string;
   pic: string | null;
   muscles: SplitMuscle[];
 }
 
-export interface Favorite {
-  user_id: number;
-  exercise_id: number;
-}
-
 export type SetType = "standard" | "warmup" | "drop" | "failure";
 
 export interface Set {
-  id: number;
-  workout_exercise_id: number;
+  id: string;
   set_number: number;
   set_type: SetType;
   target_weight: number | null;
@@ -55,16 +51,16 @@ export interface Set {
 }
 
 export interface WorkoutExercise {
-  id: number;
-  exercise_id: number;
+  id: string;
+  exercise_id: string;
   order_index: number;
   superset_group_id: number | null;
   sets: Set[];
 }
 
 export interface WorkoutSession {
-  id: number;
-  split_id: number | null;
+  id: string;
+  split_id: string | null;
   started_at: string;
   completed_at: string | null;
   notes: string | null;
@@ -72,15 +68,15 @@ export interface WorkoutSession {
 }
 
 export interface WorkoutSessionSummary {
-  id: number;
-  split_id: number | null;
+  id: string;
+  split_id: string | null;
   started_at: string;
   completed_at: string | null;
   notes: string | null;
 }
 
 export interface ExerciseHistoryEntry {
-  workout_session_id: number;
+  workout_session_id: string;
   date: string;
   sets: Pick<
     Set,
@@ -95,6 +91,10 @@ export interface LastSet {
   logged_at: string;
 }
 
+/**
+ * FastAPI error shape: HTTPException gives `detail: string`, request
+ * validation (422) gives `detail: [{loc, msg, type}]`.
+ */
 export interface ApiError {
-  error: { code: string; message: string };
+  detail: string | { loc: (string | number)[]; msg: string; type: string }[];
 }

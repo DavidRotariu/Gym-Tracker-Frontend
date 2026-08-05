@@ -10,20 +10,22 @@ import type {
   WorkoutSession,
 } from "@/types";
 
-function errorResponse(status: number, code: string, message: string) {
-  return HttpResponse.json({ error: { code, message } }, { status });
+/** Mirrors FastAPI's HTTPException shape ({detail: string}) so the real
+ *  client-side error parsing works unchanged against the mocks. */
+function errorResponse(status: number, message: string) {
+  return HttpResponse.json({ detail: message }, { status });
 }
 
-function auth(request: Request): number | null {
+function auth(request: Request): string | null {
   const header = request.headers.get("Authorization");
-  const match = header?.match(/^Bearer mock-token-(\d+)$/);
-  return match ? Number(match[1]) : null;
+  const match = header?.match(/^Bearer mock-token-(.+)$/);
+  return match ? match[1] : null;
 }
 
-function requireAuth(request: Request): number | HttpResponse<JsonBodyType> {
+function requireAuth(request: Request): string | HttpResponse<JsonBodyType> {
   const userId = auth(request);
   if (userId === null) {
-    return errorResponse(401, "unauthorized", "Sign in to continue.");
+    return errorResponse(401, "Sign in to continue.");
   }
   return userId;
 }
@@ -32,14 +34,18 @@ function isErr(v: unknown): v is HttpResponse<JsonBodyType> {
   return v instanceof HttpResponse;
 }
 
+// ponytail: in-memory only, not persisted through the localStorage-backed
+// mock DB (it can't hold a Blob) — QR uploads don't survive a page reload.
+const qrFiles = new Map<string, Blob>();
+
 export const handlers = [
   http.post("/auth/signup", async ({ request }) => {
     const body = (await request.json()) as { email: string; password: string };
     const db = getDb();
     if (db.users.some((u) => u.email === body.email)) {
-      return errorResponse(409, "email_taken", "An account with this email already exists.");
+      return errorResponse(409, "An account with this email already exists.");
     }
-    const id = db.nextId.user++;
+    const id = String(db.nextId.user++);
     db.users.push({ id, email: body.email, password: body.password, qr_code_url: null });
     saveDb(db);
     return HttpResponse.json(
@@ -53,7 +59,7 @@ export const handlers = [
     const db = getDb();
     const user = db.users.find((u) => u.email === body.email && u.password === body.password);
     if (!user) {
-      return errorResponse(401, "invalid_credentials", "Email or password is incorrect.");
+      return errorResponse(401, "Email or password is incorrect.");
     }
     return HttpResponse.json({
       access_token: `mock-token-${user.id}`,
@@ -71,14 +77,14 @@ export const handlers = [
     const url = new URL(request.url);
     const muscleId = url.searchParams.get("muscle_id");
     let list: Exercise[] = db.exercises;
-    if (muscleId) list = list.filter((e) => e.muscle_id === Number(muscleId));
+    if (muscleId) list = list.filter((e) => e.muscle_id === muscleId);
     return HttpResponse.json(list);
   }),
 
   http.get("/exercises/:id/history", ({ params, request }) => {
     const userId = requireAuth(request);
     if (isErr(userId)) return userId;
-    const exerciseId = Number(params.id);
+    const exerciseId = params.id as string;
     const db = getDb();
     const entries: ExerciseHistoryEntry[] = [];
     for (const session of db.workoutSessions) {
@@ -105,7 +111,7 @@ export const handlers = [
   http.get("/exercises/:id/last-set", ({ params, request }) => {
     const userId = requireAuth(request);
     if (isErr(userId)) return userId;
-    const exerciseId = Number(params.id);
+    const exerciseId = params.id as string;
     const db = getDb();
     let best: { set: Set; date: string } | null = null;
     for (const session of db.workoutSessions) {
@@ -133,7 +139,7 @@ export const handlers = [
   http.post("/favorites", async ({ request }) => {
     const userId = requireAuth(request);
     if (isErr(userId)) return userId;
-    const body = (await request.json()) as { exercise_id: number };
+    const body = (await request.json()) as { exercise_id: string };
     const db = getDb();
     if (!db.favorites.some((f) => f.user_id === userId && f.exercise_id === body.exercise_id)) {
       db.favorites.push({ user_id: userId, exercise_id: body.exercise_id });
@@ -145,7 +151,7 @@ export const handlers = [
   http.delete("/favorites/:exerciseId", ({ params, request }) => {
     const userId = requireAuth(request);
     if (isErr(userId)) return userId;
-    const exerciseId = Number(params.exerciseId);
+    const exerciseId = params.exerciseId as string;
     const db = getDb();
     db.favorites = db.favorites.filter(
       (f) => !(f.user_id === userId && f.exercise_id === exerciseId),
@@ -166,8 +172,8 @@ export const handlers = [
     const userId = requireAuth(request);
     if (isErr(userId)) return userId;
     const db = getDb();
-    const split = db.splits.find((s) => s.id === Number(params.id) && s.user_id === userId);
-    if (!split) return errorResponse(404, "not_found", "Split not found.");
+    const split = db.splits.find((s) => s.id === params.id && s.user_id === userId);
+    if (!split) return errorResponse(404, "Split not found.");
     return HttpResponse.json(stripUser(split));
   }),
 
@@ -176,7 +182,7 @@ export const handlers = [
     if (isErr(userId)) return userId;
     const body = (await request.json()) as Omit<Split, "id">;
     const db = getDb();
-    const split = { id: db.nextId.split++, user_id: userId, ...body };
+    const split = { id: String(db.nextId.split++), user_id: userId, ...body };
     db.splits.push(split);
     saveDb(db);
     return HttpResponse.json(stripUser(split), { status: 201 });
@@ -186,8 +192,8 @@ export const handlers = [
     const userId = requireAuth(request);
     if (isErr(userId)) return userId;
     const db = getDb();
-    const idx = db.splits.findIndex((s) => s.id === Number(params.id) && s.user_id === userId);
-    if (idx === -1) return errorResponse(404, "not_found", "Split not found.");
+    const idx = db.splits.findIndex((s) => s.id === params.id && s.user_id === userId);
+    if (idx === -1) return errorResponse(404, "Split not found.");
     const body = (await request.json()) as Omit<Split, "id">;
     db.splits[idx] = { ...db.splits[idx], ...body };
     saveDb(db);
@@ -198,7 +204,7 @@ export const handlers = [
     const userId = requireAuth(request);
     if (isErr(userId)) return userId;
     const db = getDb();
-    db.splits = db.splits.filter((s) => !(s.id === Number(params.id) && s.user_id === userId));
+    db.splits = db.splits.filter((s) => !(s.id === params.id && s.user_id === userId));
     saveDb(db);
     return new HttpResponse(null, { status: 204 });
   }),
@@ -206,7 +212,7 @@ export const handlers = [
   http.post("/workouts", async ({ request }) => {
     const userId = requireAuth(request);
     if (isErr(userId)) return userId;
-    const body = (await request.json().catch(() => ({}))) as { split_id?: number | null };
+    const body = (await request.json().catch(() => ({}))) as { split_id?: string | null };
     const db = getDb();
     const splitId = body.split_id ?? null;
     const split = db.splits.find((s) => s.id === splitId && s.user_id === userId);
@@ -224,7 +230,7 @@ export const handlers = [
         ];
         for (const exercise of ordered.slice(0, allocation.nr_of_exercises)) {
           exercises.push({
-            id: db.nextId.workoutExercise++,
+            id: String(db.nextId.workoutExercise++),
             exercise_id: exercise.id,
             order_index: exercises.length,
             superset_group_id: null,
@@ -234,8 +240,8 @@ export const handlers = [
       }
     }
 
-    const session: WorkoutSession & { user_id: number } = {
-      id: db.nextId.workoutSession++,
+    const session: WorkoutSession & { user_id: string } = {
+      id: String(db.nextId.workoutSession++),
       user_id: userId,
       split_id: splitId,
       started_at: new Date().toISOString(),
@@ -273,9 +279,9 @@ export const handlers = [
     if (isErr(userId)) return userId;
     const db = getDb();
     const session = db.workoutSessions.find(
-      (s) => s.id === Number(params.id) && s.user_id === userId,
+      (s) => s.id === params.id && s.user_id === userId,
     );
-    if (!session) return errorResponse(404, "not_found", "Workout not found.");
+    if (!session) return errorResponse(404, "Workout not found.");
     return HttpResponse.json(stripUser(session));
   }),
 
@@ -284,9 +290,9 @@ export const handlers = [
     if (isErr(userId)) return userId;
     const db = getDb();
     const session = db.workoutSessions.find(
-      (s) => s.id === Number(params.id) && s.user_id === userId,
+      (s) => s.id === params.id && s.user_id === userId,
     );
-    if (!session) return errorResponse(404, "not_found", "Workout not found.");
+    if (!session) return errorResponse(404, "Workout not found.");
     const patch = (await request.json()) as Partial<
       Pick<WorkoutSession, "completed_at" | "notes" | "started_at">
     >;
@@ -300,7 +306,7 @@ export const handlers = [
     if (isErr(userId)) return userId;
     const db = getDb();
     db.workoutSessions = db.workoutSessions.filter(
-      (s) => !(s.id === Number(params.id) && s.user_id === userId),
+      (s) => !(s.id === params.id && s.user_id === userId),
     );
     saveDb(db);
     return new HttpResponse(null, { status: 204 });
@@ -311,12 +317,12 @@ export const handlers = [
     if (isErr(userId)) return userId;
     const db = getDb();
     const session = db.workoutSessions.find(
-      (s) => s.id === Number(params.id) && s.user_id === userId,
+      (s) => s.id === params.id && s.user_id === userId,
     );
-    if (!session) return errorResponse(404, "not_found", "Workout not found.");
-    const body = (await request.json()) as { exercise_id: number; order_index: number };
+    if (!session) return errorResponse(404, "Workout not found.");
+    const body = (await request.json()) as { exercise_id: string; order_index: number };
     const we: WorkoutExercise = {
-      id: db.nextId.workoutExercise++,
+      id: String(db.nextId.workoutExercise++),
       exercise_id: body.exercise_id,
       order_index: body.order_index,
       superset_group_id: null,
@@ -332,12 +338,12 @@ export const handlers = [
     if (isErr(userId)) return userId;
     const db = getDb();
     const session = db.workoutSessions.find(
-      (s) => s.id === Number(params.id) && s.user_id === userId,
+      (s) => s.id === params.id && s.user_id === userId,
     );
-    if (!session) return errorResponse(404, "not_found", "Workout not found.");
-    const we = session.exercises.find((e) => e.id === Number(params.weId));
-    if (!we) return errorResponse(404, "not_found", "Exercise not found.");
-    const body = (await request.json()) as { exercise_id: number };
+    if (!session) return errorResponse(404, "Workout not found.");
+    const we = session.exercises.find((e) => e.id === params.weId);
+    if (!we) return errorResponse(404, "Exercise not found.");
+    const body = (await request.json()) as { exercise_id: string };
     we.exercise_id = body.exercise_id;
     we.sets = [];
     saveDb(db);
@@ -349,10 +355,10 @@ export const handlers = [
     if (isErr(userId)) return userId;
     const db = getDb();
     const session = db.workoutSessions.find(
-      (s) => s.id === Number(params.id) && s.user_id === userId,
+      (s) => s.id === params.id && s.user_id === userId,
     );
-    if (!session) return errorResponse(404, "not_found", "Workout not found.");
-    session.exercises = session.exercises.filter((e) => e.id !== Number(params.weId));
+    if (!session) return errorResponse(404, "Workout not found.");
+    session.exercises = session.exercises.filter((e) => e.id !== params.weId);
     saveDb(db);
     return new HttpResponse(null, { status: 204 });
   }),
@@ -362,10 +368,10 @@ export const handlers = [
     if (isErr(userId)) return userId;
     const db = getDb();
     const session = db.workoutSessions.find(
-      (s) => s.id === Number(params.id) && s.user_id === userId,
+      (s) => s.id === params.id && s.user_id === userId,
     );
-    if (!session) return errorResponse(404, "not_found", "Workout not found.");
-    const body = (await request.json()) as { workout_exercise_ids: number[] };
+    if (!session) return errorResponse(404, "Workout not found.");
+    const body = (await request.json()) as { workout_exercise_ids: string[] };
     const groupId = db.nextId.supersetGroup++;
     for (const we of session.exercises) {
       if (body.workout_exercise_ids.includes(we.id)) we.superset_group_id = groupId;
@@ -379,9 +385,9 @@ export const handlers = [
     if (isErr(userId)) return userId;
     const db = getDb();
     const session = db.workoutSessions.find(
-      (s) => s.id === Number(params.id) && s.user_id === userId,
+      (s) => s.id === params.id && s.user_id === userId,
     );
-    if (!session) return errorResponse(404, "not_found", "Workout not found.");
+    if (!session) return errorResponse(404, "Workout not found.");
     for (const we of session.exercises) {
       if (we.superset_group_id === Number(params.groupId)) we.superset_group_id = null;
     }
@@ -393,16 +399,15 @@ export const handlers = [
     const userId = requireAuth(request);
     if (isErr(userId)) return userId;
     const db = getDb();
-    const weId = Number(params.weId);
+    const weId = params.weId as string;
     const session = db.workoutSessions.find(
       (s) => s.user_id === userId && s.exercises.some((e) => e.id === weId),
     );
-    if (!session) return errorResponse(404, "not_found", "Exercise not found.");
+    if (!session) return errorResponse(404, "Exercise not found.");
     const we = session.exercises.find((e) => e.id === weId)!;
-    const body = (await request.json()) as Omit<Set, "id" | "workout_exercise_id" | "completed_at">;
+    const body = (await request.json()) as Omit<Set, "id" | "completed_at">;
     const set: Set = {
-      id: db.nextId.set++,
-      workout_exercise_id: weId,
+      id: String(db.nextId.set++),
       completed_at: body.completed ? new Date().toISOString() : null,
       ...body,
     };
@@ -415,7 +420,7 @@ export const handlers = [
     const userId = requireAuth(request);
     if (isErr(userId)) return userId;
     const db = getDb();
-    const setId = Number(params.id);
+    const setId = params.id as string;
     let target: Set | undefined;
     for (const session of db.workoutSessions) {
       if (session.user_id !== userId) continue;
@@ -424,7 +429,7 @@ export const handlers = [
         if (found) target = found;
       }
     }
-    if (!target) return errorResponse(404, "not_found", "Set not found.");
+    if (!target) return errorResponse(404, "Set not found.");
     const patch = (await request.json()) as Partial<Set>;
     Object.assign(target, patch);
     if (patch.completed && !target.completed_at) {
@@ -438,7 +443,7 @@ export const handlers = [
     const userId = requireAuth(request);
     if (isErr(userId)) return userId;
     const db = getDb();
-    const setId = Number(params.id);
+    const setId = params.id as string;
     for (const session of db.workoutSessions) {
       if (session.user_id !== userId) continue;
       for (const we of session.exercises) {
@@ -449,30 +454,32 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
-  http.get("/users/get-qr", ({ request }) => {
-    const userId = requireAuth(request);
-    if (isErr(userId)) return userId;
-    const db = getDb();
-    const user = db.users.find((u) => u.id === userId);
-    return HttpResponse.json({ qr_code_url: user?.qr_code_url ?? null });
-  }),
-
   http.post("/users/upload-qr", async ({ request }) => {
     const userId = requireAuth(request);
     if (isErr(userId)) return userId;
     const db = getDb();
     const user = db.users.find((u) => u.id === userId);
-    if (!user) return errorResponse(404, "not_found", "User not found.");
+    if (!user) return errorResponse(404, "User not found.");
     const form = await request.formData();
     const file = form.get("file") as File | null;
-    const url = file ? URL.createObjectURL(file) : null;
-    user.qr_code_url = url;
-    saveDb(db);
-    return HttpResponse.json({ qr_code_url: url });
+    if (file) {
+      qrFiles.set(userId, file);
+      user.qr_code_url = "uploaded";
+      saveDb(db);
+    }
+    return HttpResponse.json("uploaded");
+  }),
+
+  http.get("/users/qr-image", ({ request }) => {
+    const userId = requireAuth(request);
+    if (isErr(userId)) return userId;
+    const blob = qrFiles.get(userId);
+    if (!blob) return errorResponse(404, "No QR code uploaded yet.");
+    return new HttpResponse(blob, { headers: { "Content-Type": blob.type } });
   }),
 ];
 
-function stripUser<T extends { user_id: number }>(obj: T): Omit<T, "user_id"> {
+function stripUser<T extends { user_id: string }>(obj: T): Omit<T, "user_id"> {
   const { user_id, ...rest } = obj;
   void user_id;
   return rest;

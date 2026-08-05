@@ -8,7 +8,7 @@ import { useParams, useRouter } from "next/navigation";
 export default function EditSplitPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
-  const splitId = Number(params.id);
+  const splitId = params.id;
   const { data: split, isLoading } = useSplit(splitId);
   const updateSplit = useUpdateSplit();
   const deleteSplit = useDeleteSplit();

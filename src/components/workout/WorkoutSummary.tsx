@@ -1,5 +1,6 @@
 "use client";
 
+import { setThemeColorMeta, themeColorFor, useTheme } from "@/components/ThemeProvider";
 import { StatDisplay } from "@/components/ui/StatDisplay";
 import { getExerciseHistory } from "@/lib/api/exercises";
 import {
@@ -11,17 +12,17 @@ import {
 import type { WorkoutSession } from "@/types";
 import { useQueries } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 interface WorkoutSummaryProps {
   session: WorkoutSession;
   title: string;
-  exerciseNames: Map<number, string>;
+  exerciseNames: Map<string, string>;
   onDone: () => void;
 }
 
 interface PersonalRecord {
-  exerciseId: number;
+  exerciseId: string;
   weight: number;
   reps: number;
   previous: number;
@@ -41,8 +42,21 @@ export function WorkoutSummary({
   onDone,
 }: WorkoutSummaryProps) {
   const reduceMotion = useReducedMotion();
+  const { theme } = useTheme();
   const stats = useMemo(() => sessionStats(session), [session]);
   const topSets = useMemo(() => sessionTopSets(session), [session]);
+
+  // This screen is `bg-accent` full-bleed, not the theme background — the
+  // status-bar/notch area Safari paints from `theme-color` needs to follow
+  // it too, or the celebration goes full-orange everywhere except a black
+  // strip up top. Hand it back to the theme's color the moment this unmounts.
+  useEffect(() => {
+    const accent = getComputedStyle(document.documentElement)
+      .getPropertyValue("--accent")
+      .trim();
+    if (accent) setThemeColorMeta(accent);
+    return () => setThemeColorMeta(themeColorFor(theme));
+  }, [theme]);
 
   const exerciseIds = useMemo(
     () => [...new Set(session.exercises.map((e) => e.exercise_id))],

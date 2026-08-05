@@ -14,16 +14,16 @@ import { useEffect, useMemo, useState } from "react";
 interface ExercisePickerProps {
   open: boolean;
   onClose: () => void;
-  onSelect: (exerciseId: number) => void;
+  onSelect: (exerciseId: string) => void;
   /** Restrict to the muscles the current split calls for. */
-  allowedMuscleIds?: number[];
+  allowedMuscleIds?: string[];
   /** Sheet title when no muscle is picked yet. */
   title?: string;
 }
 
 const LAST_EXERCISE_KEY = "overload_last_exercise_by_muscle";
 
-function readLastByMuscle(): Record<number, number> {
+function readLastByMuscle(): Record<string, string> {
   if (typeof window === "undefined") return {};
   try {
     return JSON.parse(localStorage.getItem(LAST_EXERCISE_KEY) ?? "{}");
@@ -32,7 +32,7 @@ function readLastByMuscle(): Record<number, number> {
   }
 }
 
-function rememberLast(muscleId: number, exerciseId: number) {
+function rememberLast(muscleId: string, exerciseId: string) {
   const current = readLastByMuscle();
   current[muscleId] = exerciseId;
   localStorage.setItem(LAST_EXERCISE_KEY, JSON.stringify(current));
@@ -53,7 +53,7 @@ export function ExercisePicker({
   const { data: muscles } = useMuscles();
   const { data: exercises, isLoading } = useExercises();
   const [activeMuscle, setActiveMuscle] = useState<Muscle | null>(null);
-  const [lastByMuscle, setLastByMuscle] = useState<Record<number, number>>({});
+  const [lastByMuscle, setLastByMuscle] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (open) setLastByMuscle(readLastByMuscle());
@@ -77,7 +77,7 @@ export function ExercisePicker({
   }, [muscles, allowedMuscleIds]);
 
   const exercisesByMuscle = useMemo(() => {
-    const map = new Map<number, typeof exercises>();
+    const map = new Map<string, typeof exercises>();
     for (const e of exercises ?? []) {
       const list = map.get(e.muscle_id) ?? [];
       list.push(e);
@@ -95,7 +95,7 @@ export function ExercisePicker({
     return list;
   }, [activeMuscle, exercisesByMuscle, lastByMuscle]);
 
-  function choose(exercise: { id: number; muscle_id: number }) {
+  function choose(exercise: { id: string; muscle_id: string }) {
     rememberLast(exercise.muscle_id, exercise.id);
     onSelect(exercise.id);
     onClose();
@@ -157,7 +157,7 @@ export function ExercisePicker({
                     )}
                   >
                     <MediaThumb
-                      src={m.image_url}
+                      src={m.pic}
                       alt=""
                       fallback={
                         <span className="text-stat-sm font-bold text-label-tertiary">
@@ -205,7 +205,7 @@ export function ExercisePicker({
                 )}
               >
                 <MediaThumb
-                  src={exercise.image_url}
+                  src={exercise.pic}
                   alt=""
                   fallback={
                     <span className="text-caption font-bold text-label-tertiary">

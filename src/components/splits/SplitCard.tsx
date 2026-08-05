@@ -48,7 +48,7 @@ export function SplitCard({ split, muscles, onStart, pending }: SplitCardProps) 
         targetMuscles.length > 0 &&
         (targetMuscles.length === 1 ? (
           <MediaThumb
-            src={targetMuscles[0].image_url}
+            src={targetMuscles[0].pic}
             alt=""
             static
             fallback={
@@ -63,7 +63,7 @@ export function SplitCard({ split, muscles, onStart, pending }: SplitCardProps) 
             {targetMuscles.map((m) => (
               <MediaThumb
                 key={m.id}
-                src={m.image_url}
+                src={m.pic}
                 alt=""
                 static
                 fallback={

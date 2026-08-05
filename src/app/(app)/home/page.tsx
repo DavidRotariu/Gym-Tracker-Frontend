@@ -9,7 +9,7 @@ import { MuscleChips } from "@/components/ui/MuscleChips";
 import { Sheet } from "@/components/ui/Sheet";
 import { useMuscles } from "@/hooks/use-muscles";
 import { useSplits } from "@/hooks/use-splits";
-import { useQr, useUploadQr } from "@/hooks/use-users";
+import { useQrImage, useUploadQr } from "@/hooks/use-users";
 import { useStartWorkout, useWorkoutHistory } from "@/hooks/use-workouts";
 import {
   currentStreak,
@@ -30,12 +30,13 @@ export default function HomePage() {
   const { data: splits, isLoading: splitsLoading } = useSplits();
   const { data: history } = useWorkoutHistory();
   const { data: muscles } = useMuscles();
-  const { data: qr } = useQr();
   const uploadQr = useUploadQr();
   const startWorkout = useStartWorkout();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [qrRefresh, setQrRefresh] = useState(0);
+  const { url: qrUrl } = useQrImage(qrOpen, qrRefresh);
 
   const today = useMemo(
     () =>
@@ -77,10 +78,10 @@ export default function HomePage() {
     const primary = [...suggested.muscles].sort(
       (a, b) => b.nr_of_exercises - a.nr_of_exercises,
     )[0];
-    return muscles?.find((m) => m.id === primary.muscle_id)?.image_url ?? null;
+    return muscles?.find((m) => m.id === primary.muscle_id)?.pic ?? null;
   }, [suggested, suggestedIcon, muscles]);
 
-  async function start(splitId: number | null) {
+  async function start(splitId: string | null) {
     const session = await startWorkout.mutateAsync(splitId);
     setPickerOpen(false);
     router.push(`/workout/${session.id}`);
@@ -267,10 +268,10 @@ export default function HomePage() {
       {/* Gym QR — scan this at the door. */}
       <Sheet open={qrOpen} onClose={() => setQrOpen(false)} title="Gym QR code">
         <div className="flex flex-col items-center gap-4 pt-2 pb-2">
-          {qr?.qr_code_url ? (
+          {qrUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
-              src={qr.qr_code_url}
+              src={qrUrl}
               alt="Your gym QR code"
               className="size-56 rounded-card bg-white object-contain p-3 shadow-sm"
             />
@@ -287,7 +288,11 @@ export default function HomePage() {
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) uploadQr.mutate(file);
+              if (file) {
+                uploadQr.mutate(file, {
+                  onSuccess: () => setQrRefresh((n) => n + 1),
+                });
+              }
             }}
           />
           <Button
@@ -298,7 +303,7 @@ export default function HomePage() {
           >
             {uploadQr.isPending
               ? "Uploading…"
-              : qr?.qr_code_url
+              : qrUrl
                 ? "Replace QR code"
                 : "Upload QR code"}
           </Button>
@@ -320,9 +325,9 @@ function StartSheet({
   open: boolean;
   onClose: () => void;
   splits: ReturnType<typeof useSplits>["data"];
-  suggestedId: number | null;
-  muscleLookup: Map<number, string>;
-  onStart: (splitId: number | null) => void;
+  suggestedId: string | null;
+  muscleLookup: Map<string, string>;
+  onStart: (splitId: string | null) => void;
   pending: boolean;
 }) {
   return (

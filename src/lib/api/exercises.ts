@@ -1,13 +1,13 @@
 import { apiRequest } from "./client";
 import type { Exercise, ExerciseHistoryEntry, LastSet } from "@/types";
 
-export function getExercises(muscleId?: number) {
+export function getExercises(muscleId?: string) {
   const qs = muscleId ? `?muscle_id=${muscleId}` : "";
   return apiRequest<Exercise[]>(`/exercises${qs}`);
 }
 
 export function getExerciseHistory(
-  exerciseId: number,
+  exerciseId: string,
   opts?: { limit?: number; before?: string },
 ) {
   const params = new URLSearchParams();
@@ -19,6 +19,6 @@ export function getExerciseHistory(
   );
 }
 
-export async function getLastSet(exerciseId: number) {
+export async function getLastSet(exerciseId: string) {
   return apiRequest<LastSet | null>(`/exercises/${exerciseId}/last-set`);
 }

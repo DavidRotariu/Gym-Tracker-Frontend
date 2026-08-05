@@ -93,8 +93,8 @@ export function sessionStats(session: WorkoutSession): SessionStats {
  */
 export function sessionTopSets(
   session: WorkoutSession,
-): Map<number, { weight: number; reps: number }> {
-  const best = new Map<number, { weight: number; reps: number }>();
+): Map<string, { weight: number; reps: number }> {
+  const best = new Map<string, { weight: number; reps: number }>();
   for (const exercise of session.exercises) {
     for (const set of exercise.sets) {
       if (!set.completed || set.actual_weight === null) continue;

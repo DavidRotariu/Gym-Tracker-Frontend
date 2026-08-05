@@ -15,9 +15,9 @@ export interface MockDB {
   users: MockUser[];
   muscles: Muscle[];
   exercises: Exercise[];
-  favorites: { user_id: number; exercise_id: number }[];
-  splits: (Split & { user_id: number })[];
-  workoutSessions: (WorkoutSession & { user_id: number })[];
+  favorites: { user_id: string; exercise_id: string }[];
+  splits: (Split & { user_id: string })[];
+  workoutSessions: (WorkoutSession & { user_id: string })[];
   nextId: {
     user: number;
     split: number;
@@ -48,9 +48,9 @@ const MUSCLE_FILES: Record<string, string> = {
 };
 
 const MUSCLES: Muscle[] = Object.keys(MUSCLE_FILES).map((name, i) => ({
-  id: i + 1,
+  id: String(i + 1),
   name,
-  image_url: `/muscles/${MUSCLE_FILES[name]}`,
+  pic: `/muscles/${MUSCLE_FILES[name]}`,
 }));
 
 const EXERCISE_FILES: Record<number, string> = {
@@ -203,12 +203,21 @@ const EXERCISE_NAMES: { id: number; name: string; muscle_id: number }[] = [
   { id: 112, name: "Hyperextension", muscle_id: 11 },
 ];
 
+const MUSCLE_BY_INDEX = new Map(MUSCLES.map((m, i) => [i + 1, m]));
+
 const EXERCISES: Exercise[] = EXERCISE_NAMES.map((e) => ({
-  ...e,
-  image_url: EXERCISE_FILES[e.id] ? `/exercises/${EXERCISE_FILES[e.id]}` : null,
+  id: String(e.id),
+  name: e.name,
+  muscle_id: String(e.muscle_id),
+  pic: EXERCISE_FILES[e.id] ? `/exercises/${EXERCISE_FILES[e.id]}` : null,
+  tips: null,
+  equipment: null,
+  favourite: false,
+  primary_muscle: MUSCLE_BY_INDEX.get(e.muscle_id)?.name ?? "",
+  secondary_muscles: [],
 }));
 
-const DEMO_USER_ID = 1;
+const DEMO_USER_ID = "1";
 
 function iso(daysAgo: number, hour = 18, minute = 0): string {
   const d = new Date();
@@ -232,7 +241,7 @@ function buildHistorySession(
     }[];
   }[],
   nextId: MockDB["nextId"],
-): WorkoutSession & { user_id: number } {
+): WorkoutSession & { user_id: string } {
   const startedAt = iso(daysAgo, 18, 0);
   const supersetMap = new Map<number, number>();
   const exercises = plan.map((p, idx) => {
@@ -245,13 +254,12 @@ function buildHistorySession(
     }
     const workoutExerciseId = nextId.workoutExercise++;
     return {
-      id: workoutExerciseId,
-      exercise_id: p.exerciseId,
+      id: String(workoutExerciseId),
+      exercise_id: String(p.exerciseId),
       order_index: idx,
       superset_group_id: supersetGroupId,
       sets: p.sets.map((s, si) => ({
-        id: nextId.set++,
-        workout_exercise_id: workoutExerciseId,
+        id: String(nextId.set++),
         set_number: si + 1,
         set_type: s.type,
         target_weight: s.w,
@@ -266,9 +274,9 @@ function buildHistorySession(
     };
   });
   return {
-    id,
+    id: String(id),
     user_id: DEMO_USER_ID,
-    split_id: splitId,
+    split_id: splitId === null ? null : String(splitId),
     started_at: startedAt,
     completed_at: iso(daysAgo, 19, 10),
     notes: null,
@@ -286,42 +294,42 @@ export function createSeedData(): MockDB {
     supersetGroup: 1,
   };
 
-  const splits: (Split & { user_id: number })[] = [
+  const splits: (Split & { user_id: string })[] = [
     {
-      id: 1,
+      id: "1",
       user_id: DEMO_USER_ID,
       name: "Push Day",
       pic: null,
       muscles: [
-        { muscle_id: 1, nr_of_exercises: 3 },
-        { muscle_id: 3, nr_of_exercises: 2 },
-        { muscle_id: 7, nr_of_exercises: 1 },
+        { muscle_id: "1", nr_of_exercises: 3 },
+        { muscle_id: "3", nr_of_exercises: 2 },
+        { muscle_id: "7", nr_of_exercises: 1 },
       ],
     },
     {
-      id: 2,
+      id: "2",
       user_id: DEMO_USER_ID,
       name: "Pull Day",
       pic: null,
       muscles: [
-        { muscle_id: 2, nr_of_exercises: 3 },
-        { muscle_id: 6, nr_of_exercises: 2 },
+        { muscle_id: "2", nr_of_exercises: 3 },
+        { muscle_id: "6", nr_of_exercises: 2 },
       ],
     },
     {
-      id: 3,
+      id: "3",
       user_id: DEMO_USER_ID,
       name: "Leg Day",
       pic: null,
       muscles: [
-        { muscle_id: 4, nr_of_exercises: 2 },
-        { muscle_id: 5, nr_of_exercises: 2 },
-        { muscle_id: 8, nr_of_exercises: 1 },
+        { muscle_id: "4", nr_of_exercises: 2 },
+        { muscle_id: "5", nr_of_exercises: 2 },
+        { muscle_id: "8", nr_of_exercises: 1 },
       ],
     },
   ];
 
-  const sessions: (WorkoutSession & { user_id: number })[] = [
+  const sessions: (WorkoutSession & { user_id: string })[] = [
     buildHistorySession(
       nextId.workoutSession++,
       2,
@@ -485,8 +493,8 @@ export function createSeedData(): MockDB {
   ];
 
   // one in-progress ad-hoc session (no completed_at) for continuity testing
-  const inProgress: WorkoutSession & { user_id: number } = {
-    id: nextId.workoutSession++,
+  const inProgress: WorkoutSession & { user_id: string } = {
+    id: String(nextId.workoutSession++),
     user_id: DEMO_USER_ID,
     split_id: null,
     started_at: iso(0, 7, 30),
@@ -508,9 +516,9 @@ export function createSeedData(): MockDB {
     muscles: MUSCLES,
     exercises: EXERCISES,
     favorites: [
-      { user_id: DEMO_USER_ID, exercise_id: 10 },
-      { user_id: DEMO_USER_ID, exercise_id: 20 },
-      { user_id: DEMO_USER_ID, exercise_id: 40 },
+      { user_id: DEMO_USER_ID, exercise_id: "10" },
+      { user_id: DEMO_USER_ID, exercise_id: "20" },
+      { user_id: DEMO_USER_ID, exercise_id: "40" },
     ],
     splits,
     workoutSessions: sessions,

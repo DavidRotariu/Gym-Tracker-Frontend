@@ -25,7 +25,7 @@ export default function SplitsPage() {
   const deleteSplit = useDeleteSplit();
   const [createOpen, setCreateOpen] = useState(false);
 
-  async function start(splitId: number) {
+  async function start(splitId: string) {
     const session = await startWorkout.mutateAsync(splitId);
     router.push(`/workout/${session.id}`);
   }

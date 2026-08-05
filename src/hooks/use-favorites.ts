@@ -7,7 +7,7 @@ import * as favoritesApi from "@/lib/api/favorites";
 export function useAddFavorite() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (exerciseId: number) => favoritesApi.addFavorite(exerciseId),
+    mutationFn: (exerciseId: string) => favoritesApi.addFavorite(exerciseId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["favorites"] }),
   });
 }
@@ -15,18 +15,18 @@ export function useAddFavorite() {
 export function useRemoveFavorite() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (exerciseId: number) => favoritesApi.removeFavorite(exerciseId),
+    mutationFn: (exerciseId: string) => favoritesApi.removeFavorite(exerciseId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["favorites"] }),
   });
 }
 
 const STORAGE_KEY = "overload_favorites";
 
-function readLocal(): number[] {
+function readLocal(): string[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as number[]) : [];
+    return raw ? (JSON.parse(raw) as string[]) : [];
   } catch {
     return [];
   }
@@ -38,7 +38,7 @@ function readLocal(): number[] {
  * mirror the state locally so the toggle can render. Drop the mirror once a
  * GET /favorites endpoint exists.
  */
-export function useFavorite(exerciseId: number | null) {
+export function useFavorite(exerciseId: string | null) {
   const [favorited, setFavorited] = useState(false);
   const addFavorite = useAddFavorite();
   const removeFavorite = useRemoveFavorite();
