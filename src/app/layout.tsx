@@ -45,13 +45,14 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  // Dark is the app's default and primary target regardless of OS
-  // preference (see ThemeProvider), so it's the unconditional fallback;
-  // light only wins when the OS explicitly asks for it.
-  themeColor: [
-    { color: "#000000" },
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-  ],
+  // No static themeColor here — it would be keyed off the OS's
+  // prefers-color-scheme media query, but the app's actual theme (the
+  // `.dark` class ThemeProvider controls) can disagree with the OS: dark is
+  // the in-app default *regardless* of OS preference, and the user can
+  // override it manually in Profile. A media-query-driven tag would then
+  // mismatch the real background, which is exactly the "status bar area is
+  // the wrong color" bug — themeInitScript/ThemeProvider own this tag
+  // instead, keyed off the resolved theme itself.
 };
 
 export default function RootLayout({

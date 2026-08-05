@@ -247,6 +247,11 @@ html {
   box-sizing: border-box;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+  /* Same as body — so the area under the notch/Dynamic Island (and the gap
+     an elastic overscroll bounce can momentarily reveal above the page)
+     reads as the app's background instead of the browser's default white,
+     which is what makes standalone iOS show a mismatched bar up top. */
+  background: var(--background);
 }
 
 *,

@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { useReducedMotion } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface MediaThumbProps {
   src?: string | null;
@@ -11,10 +11,11 @@ interface MediaThumbProps {
   fallback: React.ReactNode;
   className?: string;
   /**
-   * Render a still first frame instead of autoplaying. Required for any
-   * video that appears in a list — decoding dozens of clips at once in a
-   * scroll view tanks the frame rate. Only a hero or the currently active
-   * exercise may omit this.
+   * Render a still first frame instead of ever playing. For clips that
+   * genuinely never need motion (e.g. a fixed illustration). Anything else
+   * — including long lists — can leave this off: playback is gated by
+   * on-screen visibility (see below), not by how many cards happen to be
+   * mounted.
    */
   static?: boolean;
 }
@@ -41,6 +42,27 @@ export function MediaThumb({
 }: MediaThumbProps) {
   const [failed, setFailed] = useState(false);
   const reduceMotion = useReducedMotion();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const wantsMotion = !stillOnly && !reduceMotion;
+
+  // Play only while the clip is actually on screen, pause the instant it
+  // isn't — decoding is driven by the IntersectionObserver, not by whether
+  // the element happens to be mounted. That's what lets *every* card in a
+  // scrolling list autoplay its video without dozens of off-screen decoders
+  // tanking frame rate the way a blanket `autoplay` would.
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || !wantsMotion) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) el.play().catch(() => {});
+        else el.pause();
+      },
+      { threshold: 0.25 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [wantsMotion]);
 
   if (!src || failed) {
     return (
@@ -59,16 +81,15 @@ export function MediaThumb({
   const url = encodeURI(src);
 
   if (isVideo(src)) {
-    const autoplay = !stillOnly && !reduceMotion;
     return (
       <video
-        key={autoplay ? "auto" : "still"}
+        ref={videoRef}
+        key={wantsMotion ? "motion" : "still"}
         src={url}
-        autoPlay={autoplay}
-        loop={autoplay}
+        loop={wantsMotion}
         muted
         playsInline
-        preload={autoplay ? "auto" : "metadata"}
+        preload="metadata"
         onError={() => setFailed(true)}
         className={cn("bg-fill object-cover", className)}
         aria-label={alt}

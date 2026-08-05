@@ -52,50 +52,35 @@ export function ExerciseCard({
   }, [history]);
 
   return (
-    <Card className="flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <MediaThumb
-            src={imageUrl}
-            alt=""
-            static
-            fallback={
-              <span className="text-caption font-bold text-label-tertiary">
-                {name.slice(0, 1)}
-              </span>
-            }
-            className="size-11 shrink-0 rounded-control"
-          />
-          <div className="min-w-0">
-            {readOnly ? (
-              <p className="truncate text-body font-semibold text-label">{name}</p>
-            ) : (
-              <Link
-                href={`/exercises/${we.exercise_id}`}
-                className="block truncate text-body font-semibold text-label active:opacity-60"
-              >
-                {name}
-              </Link>
-            )}
-            <p className="text-subhead text-label-secondary">
-              {muscle ? `${muscle} · ` : ""}
-              {we.sets.length === 0
-                ? "No sets yet"
-                : `${completed}/${we.sets.length} sets`}
-            </p>
-          </div>
-        </div>
+    <Card flush className="flex flex-col overflow-hidden">
+      {/* The clip plays for real now (MediaThumb gates playback by on-screen
+          visibility, not by omission) at a size where the movement — an
+          actual demonstration of the exercise, not a 44px identicon — earns
+          its keep mid-workout. Name/muscle/actions overlay it, same
+          treatment as the "Up next" hero on Today. */}
+      <div className="relative h-40 w-full shrink-0 bg-fill">
+        <MediaThumb
+          src={imageUrl}
+          alt=""
+          fallback={
+            <span className="text-stat-sm font-bold text-label-tertiary">
+              {name.slice(0, 1)}
+            </span>
+          }
+          className="absolute inset-0 size-full"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
 
         {!readOnly && (
-          <div className="-mt-2 -mr-2 flex shrink-0 items-center">
+          <div className="absolute top-2 right-2 flex shrink-0 items-center rounded-pill bg-black/35 backdrop-blur-sm">
             {onSwap && (
               <button
                 type="button"
                 onClick={onSwap}
                 aria-label={`Swap ${name}`}
-                className="flex size-11 cursor-pointer items-center justify-center rounded-pill text-label-tertiary active:text-accent-ink"
+                className="flex size-10 cursor-pointer items-center justify-center rounded-pill text-white/80 active:text-white"
               >
-                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
                   <path
                     d="M3 7h11.5M14.5 7 11 3.5M17 13H5.5M5.5 13 9 16.5"
                     stroke="currentColor"
@@ -110,9 +95,9 @@ export function ExerciseCard({
               type="button"
               onClick={onRemove}
               aria-label={`Remove ${name}`}
-              className="flex size-11 cursor-pointer items-center justify-center rounded-pill text-label-tertiary active:text-red"
+              className="flex size-10 cursor-pointer items-center justify-center rounded-pill text-white/80 active:text-red"
             >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+              <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
                 <path
                   d="M5 5l10 10M15 5L5 15"
                   stroke="currentColor"
@@ -123,62 +108,83 @@ export function ExerciseCard({
             </button>
           </div>
         )}
+
+        <div className="absolute inset-x-0 bottom-0 p-3">
+          {readOnly ? (
+            <p className="truncate text-body font-semibold text-white">{name}</p>
+          ) : (
+            <Link
+              href={`/exercises/${we.exercise_id}`}
+              className="block truncate text-body font-semibold text-white active:opacity-70"
+            >
+              {name}
+            </Link>
+          )}
+          <p className="text-subhead text-white/70">
+            {muscle ? `${muscle} · ` : ""}
+            {we.sets.length === 0
+              ? "No sets yet"
+              : `${completed}/${we.sets.length} sets`}
+          </p>
+        </div>
       </div>
 
-      {we.sets.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {!readOnly && (
-            <div className="grid grid-cols-[32px_1fr_64px_56px_44px] gap-2 px-2">
-              <span />
-              <span className="text-tab font-medium text-label-tertiary uppercase">
-                Previous
-              </span>
-              <span className="text-center text-tab font-medium text-label-tertiary uppercase">
-                Kg
-              </span>
-              <span className="text-center text-tab font-medium text-label-tertiary uppercase">
-                Reps
-              </span>
-              <span />
-            </div>
-          )}
-          <AnimatePresence initial={false}>
-            {we.sets
-              .slice()
-              .sort((a, b) => a.set_number - b.set_number)
-              .map((set) => (
-                // A newly-added row grows into place instead of just
-                // appearing — the visible half of "press Add set, see
-                // something happen" (apple-design §1: feedback should be
-                // continuous with the action, not a dead pop-in).
-                <motion.div
-                  key={set.id}
-                  layout="position"
-                  initial={{ opacity: 0, scale: 0.94, height: 0 }}
-                  animate={{ opacity: 1, scale: 1, height: "auto" }}
-                  exit={{ opacity: 0, scale: 0.94, height: 0 }}
-                  transition={{ type: "spring", stiffness: 420, damping: 32 }}
-                >
-                  <SetRow
-                    set={set}
-                    previous={previousBySetNumber.get(set.set_number)}
-                    readOnly={readOnly}
-                    onChange={(patch) => onChangeSet(set.id, patch)}
-                    onDelete={() => onDeleteSet(set.id)}
-                  />
-                </motion.div>
-              ))}
-          </AnimatePresence>
-        </div>
-      )}
+      <div className="flex flex-col gap-4 p-4">
+        {we.sets.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {!readOnly && (
+              <div className="grid grid-cols-[32px_1fr_64px_56px_44px] gap-2 px-2">
+                <span />
+                <span className="text-tab font-medium text-label-tertiary uppercase">
+                  Previous
+                </span>
+                <span className="text-center text-tab font-medium text-label-tertiary uppercase">
+                  Kg
+                </span>
+                <span className="text-center text-tab font-medium text-label-tertiary uppercase">
+                  Reps
+                </span>
+                <span />
+              </div>
+            )}
+            <AnimatePresence initial={false}>
+              {we.sets
+                .slice()
+                .sort((a, b) => a.set_number - b.set_number)
+                .map((set) => (
+                  // A newly-added row grows into place instead of just
+                  // appearing — the visible half of "press Add set, see
+                  // something happen" (apple-design §1: feedback should be
+                  // continuous with the action, not a dead pop-in).
+                  <motion.div
+                    key={set.id}
+                    layout="position"
+                    initial={{ opacity: 0, scale: 0.94, height: 0 }}
+                    animate={{ opacity: 1, scale: 1, height: "auto" }}
+                    exit={{ opacity: 0, scale: 0.94, height: 0 }}
+                    transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                  >
+                    <SetRow
+                      set={set}
+                      previous={previousBySetNumber.get(set.set_number)}
+                      readOnly={readOnly}
+                      onChange={(patch) => onChangeSet(set.id, patch)}
+                      onDelete={() => onDeleteSet(set.id)}
+                    />
+                  </motion.div>
+                ))}
+            </AnimatePresence>
+          </div>
+        )}
 
-      {!readOnly && (
-        <AddSetButton
-          label={we.sets.length === 0 ? "Log first set" : "Add set"}
-          onAdd={onAddSet}
-          pending={addPending}
-        />
-      )}
+        {!readOnly && (
+          <AddSetButton
+            label={we.sets.length === 0 ? "Log first set" : "Add set"}
+            onAdd={onAddSet}
+            pending={addPending}
+          />
+        )}
+      </div>
     </Card>
   );
 }
