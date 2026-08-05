@@ -54,14 +54,31 @@ export function ExercisePicker({
   const { data: exercises, isLoading } = useExercises();
   const [activeMuscle, setActiveMuscle] = useState<Muscle | null>(null);
   const [lastByMuscle, setLastByMuscle] = useState<Record<string, string>>({});
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     if (open) setLastByMuscle(readLastByMuscle());
   }, [open]);
 
   useEffect(() => {
-    if (!open) setActiveMuscle(null);
+    if (!open) {
+      setActiveMuscle(null);
+      setQuery("");
+    }
   }, [open]);
+
+  const muscleName = useMemo(
+    () => new Map(muscles?.map((m) => [m.id, m.name])),
+    [muscles],
+  );
+
+  /** Typing searches across every exercise, muscle step or not — clear the
+   *  query to fall back to the muscle-first browse flow. */
+  const searchResults = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return (exercises ?? []).filter((e) => e.name.toLowerCase().includes(q));
+  }, [exercises, query]);
 
   /** Every muscle is browsable; the split's own muscles just float to the
    *  top and get an accent highlight, instead of hiding the rest. */
@@ -101,6 +118,48 @@ export function ExercisePicker({
     onClose();
   }
 
+  function renderRow(
+    exercise: NonNullable<typeof exercises>[number],
+    isLast: boolean,
+    subtitle?: string,
+  ) {
+    return (
+      <button
+        key={exercise.id}
+        onClick={() => choose(exercise)}
+        className={cn(
+          "flex min-h-14 cursor-pointer items-center gap-3 rounded-control",
+          "bg-background-secondary py-2 pr-4 pl-2 text-left active:opacity-70",
+          isLast && "ring-1 ring-inset ring-accent-ink/60",
+        )}
+      >
+        <MediaThumb
+          src={exercise.pic}
+          alt=""
+          fallback={
+            <span className="text-caption font-bold text-label-tertiary">
+              {exercise.name.slice(0, 1)}
+            </span>
+          }
+          className="size-10 shrink-0 rounded-control"
+        />
+        <span className="min-w-0 flex-1 truncate text-body font-medium text-label">
+          {exercise.name}
+          {subtitle && (
+            <span className="block truncate text-caption text-label-tertiary">
+              {subtitle}
+            </span>
+          )}
+        </span>
+        {isLast && (
+          <span className="shrink-0 rounded-pill bg-accent-muted px-2 py-1 text-tab font-bold text-accent-ink uppercase">
+            Last time
+          </span>
+        )}
+      </button>
+    );
+  }
+
   return (
     <Sheet
       open={open}
@@ -118,7 +177,34 @@ export function ExercisePicker({
         ) : undefined
       }
     >
-      {!activeMuscle ? (
+      <div className="pb-3">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search exercises"
+          className="h-11 w-full rounded-control bg-fill px-4 text-body text-label placeholder:text-label-tertiary focus:outline-2 focus:outline-offset-0 focus:outline-blue"
+        />
+      </div>
+
+      {query.trim() ? (
+        <div className="flex flex-col gap-2 pb-2">
+          {searchResults.length === 0 ? (
+            <EmptyState
+              title="No matches"
+              description={`Nothing found for "${query.trim()}".`}
+            />
+          ) : (
+            searchResults.map((exercise) =>
+              renderRow(
+                exercise,
+                lastByMuscle[exercise.muscle_id] === exercise.id,
+                muscleName.get(exercise.muscle_id),
+              ),
+            )
+          )}
+        </div>
+      ) : !activeMuscle ? (
         <div className="flex flex-col gap-4 pb-2">
           {isLoading ? (
             <div className="grid grid-cols-2 gap-3">
@@ -192,39 +278,9 @@ export function ExercisePicker({
             />
           )}
 
-          {activeExercises.map((exercise) => {
-            const isLast = lastByMuscle[activeMuscle.id] === exercise.id;
-            return (
-              <button
-                key={exercise.id}
-                onClick={() => choose(exercise)}
-                className={cn(
-                  "flex min-h-14 cursor-pointer items-center gap-3 rounded-control",
-                  "bg-background-secondary py-2 pr-4 pl-2 text-left active:opacity-70",
-                  isLast && "ring-1 ring-inset ring-accent-ink/60",
-                )}
-              >
-                <MediaThumb
-                  src={exercise.pic}
-                  alt=""
-                  fallback={
-                    <span className="text-caption font-bold text-label-tertiary">
-                      {exercise.name.slice(0, 1)}
-                    </span>
-                  }
-                  className="size-10 shrink-0 rounded-control"
-                />
-                <span className="min-w-0 flex-1 truncate text-body font-medium text-label">
-                  {exercise.name}
-                </span>
-                {isLast && (
-                  <span className="shrink-0 rounded-pill bg-accent-muted px-2 py-1 text-tab font-bold text-accent-ink uppercase">
-                    Last time
-                  </span>
-                )}
-              </button>
-            );
-          })}
+          {activeExercises.map((exercise) =>
+            renderRow(exercise, lastByMuscle[activeMuscle.id] === exercise.id),
+          )}
         </div>
       )}
     </Sheet>

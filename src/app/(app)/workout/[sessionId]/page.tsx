@@ -25,9 +25,34 @@ import { getLastSet } from "@/lib/api/exercises";
 import { formatElapsed } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Set, WorkoutExercise, WorkoutSession } from "@/types";
-import { AnimatePresence, motion } from "framer-motion";
+import { Reorder, useDragControls } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+
+/** Stable id for a group (a superset counts as one draggable unit). */
+function groupKey(group: WorkoutExercise[]): string {
+  const gid = group[0].superset_group_id;
+  return group.length > 1 && gid !== null ? `ss-${gid}` : group[0].id;
+}
+
+// ponytail: there's no reorder endpoint on the backend (only add/remove/swap),
+// so custom ordering is mirrored client-side the same way favourites are —
+// it survives reloads on this device but isn't synced anywhere else.
+const ORDER_KEY_PREFIX = "overload_exercise_order_";
+
+function readOrder(sessionId: string): string[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(ORDER_KEY_PREFIX + sessionId);
+    return raw ? (JSON.parse(raw) as string[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveOrder(sessionId: string, order: string[]) {
+  localStorage.setItem(ORDER_KEY_PREFIX + sessionId, JSON.stringify(order));
+}
 
 export default function WorkoutSessionPage() {
   const params = useParams<{ sessionId: string }>();
@@ -99,6 +124,33 @@ export default function WorkoutSessionPage() {
     }
     return result;
   }, [session]);
+
+  const [order, setOrder] = useState<string[]>([]);
+
+  // Re-derive display order whenever the group set changes: keep the saved
+  // drag order for groups that still exist, append anything new at the end.
+  useEffect(() => {
+    const keys = groups.map(groupKey);
+    const saved = readOrder(sessionId);
+    if (!saved) {
+      setOrder(keys);
+      return;
+    }
+    const known = new Set(keys);
+    const kept = saved.filter((k) => known.has(k));
+    const added = keys.filter((k) => !saved.includes(k));
+    setOrder([...kept, ...added]);
+  }, [groups, sessionId]);
+
+  const orderedGroups = useMemo(() => {
+    const byKey = new Map(groups.map((g) => [groupKey(g), g]));
+    return order.map((k) => byKey.get(k)).filter((g): g is WorkoutExercise[] => !!g);
+  }, [groups, order]);
+
+  function handleReorder(next: string[]) {
+    setOrder(next);
+    saveOrder(sessionId, next);
+  }
 
   async function handleAddExercise(exerciseId: string) {
     if (swapTarget) {
@@ -244,8 +296,14 @@ export default function WorkoutSessionPage() {
           </Card>
         ) : (
           <div className="flex flex-col gap-3">
-            <AnimatePresence initial={false}>
-              {groups.map((group) => {
+            <Reorder.Group
+              as="div"
+              axis="y"
+              values={order}
+              onReorder={handleReorder}
+              className="flex flex-col gap-3"
+            >
+              {orderedGroups.map((group) => {
                 const cards = group.map((we) => (
                   <ExerciseCard
                     key={we.id}
@@ -263,20 +321,10 @@ export default function WorkoutSessionPage() {
                 ));
 
                 const groupId = group[0].superset_group_id;
-                const key =
-                  group.length > 1 && groupId !== null
-                    ? `ss-${groupId}`
-                    : String(group[0].id);
+                const key = groupKey(group);
 
                 return (
-                  <motion.div
-                    key={key}
-                    layout
-                    initial={{ opacity: 0, y: 12, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.96 }}
-                    transition={{ type: "spring", stiffness: 380, damping: 32 }}
-                  >
+                  <DraggableGroup key={key} groupKey={key}>
                     {group.length > 1 && groupId !== null ? (
                       <SupersetGroup onUngroup={() => removeSuperset.mutate(groupId)}>
                         {cards}
@@ -284,10 +332,10 @@ export default function WorkoutSessionPage() {
                     ) : (
                       cards
                     )}
-                  </motion.div>
+                  </DraggableGroup>
                 );
               })}
-            </AnimatePresence>
+            </Reorder.Group>
 
             <button
               onClick={() => setPickerOpen(true)}
@@ -336,5 +384,46 @@ export default function WorkoutSessionPage() {
         />
       )}
     </>
+  );
+}
+
+/**
+ * A group (single exercise or superset) draggable by its handle only — the
+ * card underneath is full of its own tappable buttons and inputs, so the
+ * whole surface can't be the drag target.
+ */
+function DraggableGroup({
+  groupKey,
+  children,
+}: {
+  groupKey: string;
+  children: React.ReactNode;
+}) {
+  const controls = useDragControls();
+
+  return (
+    <Reorder.Item
+      value={groupKey}
+      dragListener={false}
+      dragControls={controls}
+      className="flex items-start gap-1"
+    >
+      <button
+        type="button"
+        onPointerDown={(e) => controls.start(e)}
+        aria-label="Drag to reorder"
+        className="mt-3 flex h-10 w-7 shrink-0 cursor-grab touch-none items-center justify-center text-label-tertiary active:cursor-grabbing"
+      >
+        <svg width="12" height="18" viewBox="0 0 12 18" fill="none" aria-hidden>
+          <circle cx="2.5" cy="3" r="1.5" fill="currentColor" />
+          <circle cx="9.5" cy="3" r="1.5" fill="currentColor" />
+          <circle cx="2.5" cy="9" r="1.5" fill="currentColor" />
+          <circle cx="9.5" cy="9" r="1.5" fill="currentColor" />
+          <circle cx="2.5" cy="15" r="1.5" fill="currentColor" />
+          <circle cx="9.5" cy="15" r="1.5" fill="currentColor" />
+        </svg>
+      </button>
+      <div className="min-w-0 flex-1">{children}</div>
+    </Reorder.Item>
   );
 }

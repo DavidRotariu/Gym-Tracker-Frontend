@@ -92,9 +92,10 @@ export interface LastSet {
 }
 
 /**
- * FastAPI error shape: HTTPException gives `detail: string`, request
- * validation (422) gives `detail: [{loc, msg, type}]`.
+ * The deployed API wraps every error as {error: {code, message}} — verified
+ * against the live Lambda, which does NOT match the generic FastAPI
+ * {detail: ...} shape shown in its own Swagger examples.
  */
 export interface ApiError {
-  detail: string | { loc: (string | number)[]; msg: string; type: string }[];
+  error: { code: string; message: string };
 }

@@ -89,7 +89,10 @@ export function MediaThumb({
         loop={wantsMotion}
         muted
         playsInline
-        preload="metadata"
+        // Off-screen cards in a list (the exercise picker, muscle grids)
+        // shouldn't compete for bandwidth with the one actually playing —
+        // nothing loads until the IntersectionObserver below calls play().
+        preload="none"
         onError={() => setFailed(true)}
         className={cn("bg-fill object-cover", className)}
         aria-label={alt}
