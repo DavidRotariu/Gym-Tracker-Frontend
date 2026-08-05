@@ -10,10 +10,11 @@ import type {
   WorkoutSession,
 } from "@/types";
 
-/** Mirrors FastAPI's HTTPException shape ({detail: string}) so the real
- *  client-side error parsing works unchanged against the mocks. */
+/** Mirrors the deployed API's error shape ({error: {code, message}},
+ *  verified against the live Lambda) so client-side error parsing works
+ *  unchanged against the mocks. */
 function errorResponse(status: number, message: string) {
-  return HttpResponse.json({ detail: message }, { status });
+  return HttpResponse.json({ error: { code: String(status), message } }, { status });
 }
 
 function auth(request: Request): string | null {
