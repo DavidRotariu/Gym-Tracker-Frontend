@@ -9,19 +9,73 @@ const PRESETS = [60, 90, 120, 180];
 const RING_R = 22;
 const RING_C = 2 * Math.PI * RING_R;
 
+const STORAGE_KEY = "overload_rest_timer";
+
+interface StoredTimer {
+  duration: number;
+  /** Absolute ms timestamp the rest ends at, or null while paused/stopped. */
+  endAt: number | null;
+  /** Seconds left, valid while paused (endAt is null). */
+  pausedRemaining: number;
+}
+
+function readStored(): StoredTimer | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as StoredTimer) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStored(state: StoredTimer) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
 interface RestTimerProps {
   /** Bump to (re)start the timer — the session screen does this when a set
    *  is marked complete. */
   startSignal: number;
 }
 
+/**
+ * Counts down from an absolute end timestamp instead of decrementing a
+ * counter every tick — a `setInterval` tick gets throttled or fully
+ * suspended while the tab/app is backgrounded, so a decrement-based clock
+ * silently stalls and is wrong by however long you were away. Deriving
+ * `remaining` from `Date.now()` each render is correct the instant the app
+ * comes back, tick or no tick. The end time is also persisted, so it
+ * survives closing the browser entirely, not just switching tabs.
+ */
 export function RestTimer({ startSignal }: RestTimerProps) {
   const [duration, setDuration] = useState(90);
-  const [remaining, setRemaining] = useState(0);
-  const [running, setRunning] = useState(false);
+  const [endAt, setEndAt] = useState<number | null>(null);
+  const [pausedRemaining, setPausedRemaining] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   const durationRef = useRef(duration);
   durationRef.current = duration;
   const reduceMotion = useReducedMotion();
+
+  // Resume whatever was running (or paused) when this last unmounted —
+  // covers both a full browser close and just navigating away and back.
+  useEffect(() => {
+    const stored = readStored();
+    if (!stored) return;
+    setDuration(stored.duration);
+    if (stored.endAt !== null && stored.endAt > Date.now()) {
+      setEndAt(stored.endAt);
+    } else if (stored.pausedRemaining > 0) {
+      setPausedRemaining(stored.pausedRemaining);
+    }
+  }, []);
+
+  function start(seconds: number) {
+    const next = Date.now() + seconds * 1000;
+    setEndAt(next);
+    setPausedRemaining(0);
+    writeStored({ duration: seconds, endAt: next, pausedRemaining: 0 });
+  }
 
   // Only a *change* of signal starts the clock. Comparing the value (rather
   // than tracking "first render") keeps this idempotent under StrictMode's
@@ -30,25 +84,39 @@ export function RestTimer({ startSignal }: RestTimerProps) {
   useEffect(() => {
     if (startSignal === lastSignal.current) return;
     lastSignal.current = startSignal;
-    setRemaining(durationRef.current);
-    setRunning(true);
+    start(durationRef.current);
   }, [startSignal]);
 
+  // Tick every second while running, and re-sync immediately the moment the
+  // tab regains focus/visibility instead of waiting for the next tick.
   useEffect(() => {
-    if (!running) return;
-    const id = setInterval(() => {
-      setRemaining((r) => {
-        if (r <= 1) {
-          setRunning(false);
-          return 0;
-        }
-        return r - 1;
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [running]);
+    if (endAt === null) return;
+    const tick = () => setNow(Date.now());
+    const id = setInterval(tick, 1000);
+    document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", tick);
+    };
+  }, [endAt]);
 
-  const visible = running || remaining > 0;
+  const remaining =
+    endAt !== null ? Math.max(0, Math.ceil((endAt - now) / 1000)) : pausedRemaining;
+  const running = endAt !== null && remaining > 0;
+
+  // The countdown ran out while ticking (or while we were away) — settle
+  // into the stopped state once instead of re-deriving "expired" everywhere.
+  useEffect(() => {
+    if (endAt !== null && remaining === 0) {
+      setEndAt(null);
+      setPausedRemaining(0);
+      writeStored({ duration, endAt: null, pausedRemaining: 0 });
+    }
+  }, [endAt, remaining, duration]);
+
+  const visible = running || pausedRemaining > 0;
   const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
   const ss = String(remaining % 60).padStart(2, "0");
   const progress = duration > 0 ? remaining / duration : 0;
@@ -117,8 +185,7 @@ export function RestTimer({ startSignal }: RestTimerProps) {
                 transition={{ type: "spring", stiffness: 500, damping: 30 }}
                 onClick={() => {
                   setDuration(preset);
-                  setRemaining(preset);
-                  setRunning(true);
+                  start(preset);
                 }}
                 className={cn(
                   "tabular h-11 flex-1 cursor-pointer rounded-control text-caption font-semibold",
@@ -137,10 +204,13 @@ export function RestTimer({ startSignal }: RestTimerProps) {
             whileTap={{ scale: 0.9 }}
             transition={{ type: "spring", stiffness: 500, damping: 30 }}
             onClick={() => {
-              if (running) setRunning(false);
-              else {
-                if (remaining === 0) setRemaining(duration);
-                setRunning(true);
+              if (running) {
+                setPausedRemaining(remaining);
+                setEndAt(null);
+                writeStored({ duration, endAt: null, pausedRemaining: remaining });
+              } else {
+                const seconds = pausedRemaining > 0 ? pausedRemaining : duration;
+                start(seconds);
               }
             }}
             aria-label={running ? "Pause rest timer" : "Resume rest timer"}
@@ -167,8 +237,9 @@ export function RestTimer({ startSignal }: RestTimerProps) {
             whileTap={{ scale: 0.9 }}
             transition={{ type: "spring", stiffness: 500, damping: 30 }}
             onClick={() => {
-              setRunning(false);
-              setRemaining(0);
+              setEndAt(null);
+              setPausedRemaining(0);
+              writeStored({ duration, endAt: null, pausedRemaining: 0 });
             }}
             aria-label="Dismiss rest timer"
             className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-pill text-label-tertiary active:bg-fill"

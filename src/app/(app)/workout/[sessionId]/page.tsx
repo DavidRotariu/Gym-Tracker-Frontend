@@ -304,34 +304,37 @@ export default function WorkoutSessionPage() {
               className="flex flex-col gap-3"
             >
               {orderedGroups.map((group) => {
-                const cards = group.map((we) => (
-                  <ExerciseCard
-                    key={we.id}
-                    workoutExercise={we}
-                    name={exerciseNames.get(we.exercise_id) ?? "Exercise"}
-                    muscle={exerciseMuscle.get(we.exercise_id)}
-                    imageUrl={exerciseImages.get(we.exercise_id)}
-                    onChangeSet={handleChangeSet}
-                    onDeleteSet={(setId) => deleteSet.mutate(setId)}
-                    onAddSet={() => handleAddSet(we)}
-                    onRemove={() => removeExercise.mutate(we.id)}
-                    onSwap={() => setSwapTarget(we)}
-                    addPending={logSet.isPending}
-                  />
-                ));
-
                 const groupId = group[0].superset_group_id;
                 const key = groupKey(group);
 
                 return (
                   <DraggableGroup key={key} groupKey={key}>
-                    {group.length > 1 && groupId !== null ? (
-                      <SupersetGroup onUngroup={() => removeSuperset.mutate(groupId)}>
-                        {cards}
-                      </SupersetGroup>
-                    ) : (
-                      cards
-                    )}
+                    {(startDrag) => {
+                      const cards = group.map((we) => (
+                        <ExerciseCard
+                          key={we.id}
+                          workoutExercise={we}
+                          name={exerciseNames.get(we.exercise_id) ?? "Exercise"}
+                          muscle={exerciseMuscle.get(we.exercise_id)}
+                          imageUrl={exerciseImages.get(we.exercise_id)}
+                          onChangeSet={handleChangeSet}
+                          onDeleteSet={(setId) => deleteSet.mutate(setId)}
+                          onAddSet={() => handleAddSet(we)}
+                          onRemove={() => removeExercise.mutate(we.id)}
+                          onSwap={() => setSwapTarget(we)}
+                          onDragHandlePointerDown={startDrag}
+                          addPending={logSet.isPending}
+                        />
+                      ));
+
+                      return group.length > 1 && groupId !== null ? (
+                        <SupersetGroup onUngroup={() => removeSuperset.mutate(groupId)}>
+                          {cards}
+                        </SupersetGroup>
+                      ) : (
+                        cards
+                      );
+                    }}
                   </DraggableGroup>
                 );
               })}
@@ -388,42 +391,23 @@ export default function WorkoutSessionPage() {
 }
 
 /**
- * A group (single exercise or superset) draggable by its handle only — the
- * card underneath is full of its own tappable buttons and inputs, so the
- * whole surface can't be the drag target.
+ * A group (single exercise or superset) draggable by a handle living inside
+ * each card's own action pill (alongside swap/remove) rather than a
+ * dedicated grip column — `startDrag` is handed down so any card in the
+ * group can kick off dragging the whole group.
  */
 function DraggableGroup({
   groupKey,
   children,
 }: {
   groupKey: string;
-  children: React.ReactNode;
+  children: (startDrag: (e: React.PointerEvent) => void) => React.ReactNode;
 }) {
   const controls = useDragControls();
 
   return (
-    <Reorder.Item
-      value={groupKey}
-      dragListener={false}
-      dragControls={controls}
-      className="flex items-start gap-1"
-    >
-      <button
-        type="button"
-        onPointerDown={(e) => controls.start(e)}
-        aria-label="Drag to reorder"
-        className="mt-3 flex h-10 w-7 shrink-0 cursor-grab touch-none items-center justify-center text-label-tertiary active:cursor-grabbing"
-      >
-        <svg width="12" height="18" viewBox="0 0 12 18" fill="none" aria-hidden>
-          <circle cx="2.5" cy="3" r="1.5" fill="currentColor" />
-          <circle cx="9.5" cy="3" r="1.5" fill="currentColor" />
-          <circle cx="2.5" cy="9" r="1.5" fill="currentColor" />
-          <circle cx="9.5" cy="9" r="1.5" fill="currentColor" />
-          <circle cx="2.5" cy="15" r="1.5" fill="currentColor" />
-          <circle cx="9.5" cy="15" r="1.5" fill="currentColor" />
-        </svg>
-      </button>
-      <div className="min-w-0 flex-1">{children}</div>
+    <Reorder.Item value={groupKey} dragListener={false} dragControls={controls}>
+      {children((e) => controls.start(e))}
     </Reorder.Item>
   );
 }

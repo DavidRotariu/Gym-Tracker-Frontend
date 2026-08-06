@@ -1,20 +1,25 @@
 "use client";
 
+import { ApiRequestError } from "@/lib/api/client";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Gauge } from "@/components/ui/Gauge";
 import { LargeTitle } from "@/components/ui/LargeTitle";
 import { MediaThumb } from "@/components/ui/MediaThumb";
+import { Sheet } from "@/components/ui/Sheet";
 import { SetTypeBadge } from "@/components/ui/SetTypeBadge";
 import { StatDisplay } from "@/components/ui/StatDisplay";
-import { useExerciseHistory, useExercises } from "@/hooks/use-exercises";
+import { TextField } from "@/components/ui/TextField";
+import { useExerciseHistory, useExercises, useUpdateExercise } from "@/hooks/use-exercises";
 import { useFavorite } from "@/hooks/use-favorites";
 import { useMuscles } from "@/hooks/use-muscles";
 import { formatDay, formatVolume } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import type { Exercise, Muscle } from "@/types";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 export default function ExerciseDetailPage() {
   const params = useParams<{ id: string }>();
@@ -24,6 +29,7 @@ export default function ExerciseDetailPage() {
   const { data: muscles } = useMuscles();
   const { data: history, isLoading } = useExerciseHistory(exerciseId);
   const { favorited, toggle, pending } = useFavorite(exerciseId);
+  const [editOpen, setEditOpen] = useState(false);
 
   const exercise = useMemo(
     () => exercises?.find((e) => e.id === exerciseId),
@@ -55,7 +61,31 @@ export default function ExerciseDetailPage() {
 
   return (
     <>
-      <LargeTitle title={exercise?.name ?? "Exercise"} eyebrow={muscleName} back />
+      <LargeTitle
+        title={exercise?.name ?? "Exercise"}
+        eyebrow={muscleName}
+        back
+        action={
+          exercise ? (
+            <button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              aria-label="Edit exercise"
+              className="flex size-9 cursor-pointer items-center justify-center rounded-pill text-label-secondary active:bg-fill"
+            >
+              <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+                <path
+                  d="M13.5 2.5 17 6 6.5 16.5 2.5 17.5 3.5 13.5 14 3z"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          ) : undefined
+        }
+      />
 
       <div className="relative mb-4">
         <MediaThumb
@@ -188,6 +218,115 @@ export default function ExerciseDetailPage() {
           </section>
         </div>
       )}
+
+      <Sheet open={editOpen} onClose={() => setEditOpen(false)} title="Edit exercise">
+        {exercise && (
+          <ExerciseEditForm
+            exercise={exercise}
+            muscles={muscles ?? []}
+            onSaved={() => setEditOpen(false)}
+          />
+        )}
+      </Sheet>
     </>
+  );
+}
+
+/**
+ * Edits the shared catalog entry, not a per-user copy — fine for a two-person
+ * app, but worth remembering if this ever grows past that.
+ */
+function ExerciseEditForm({
+  exercise,
+  muscles,
+  onSaved,
+}: {
+  exercise: Exercise;
+  muscles: Muscle[];
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(exercise.name);
+  const [muscleId, setMuscleId] = useState(exercise.muscle_id);
+  const [equipment, setEquipment] = useState(exercise.equipment ?? "");
+  const [tips, setTips] = useState(exercise.tips ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const updateExercise = useUpdateExercise();
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) {
+      setError("Give this exercise a name.");
+      return;
+    }
+    setError(null);
+    try {
+      await updateExercise.mutateAsync({
+        id: exercise.id,
+        input: {
+          name: name.trim(),
+          muscle_id: muscleId,
+          equipment: equipment.trim() || null,
+          tips: tips.trim() || null,
+        },
+      });
+      onSaved();
+    } catch (err) {
+      setError(
+        err instanceof ApiRequestError
+          ? err.message
+          : "Couldn't save changes. Try again.",
+      );
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5 pb-2">
+      <TextField
+        label="Name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        autoComplete="off"
+      />
+
+      <div className="flex flex-col gap-2">
+        <label className="text-caption font-medium text-label-secondary">Muscle</label>
+        <select
+          value={muscleId}
+          onChange={(e) => setMuscleId(e.target.value)}
+          className="h-12 rounded-control bg-fill px-4 text-body text-label focus:outline-2 focus:outline-offset-0 focus:outline-blue"
+        >
+          {muscles.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <TextField
+        label="Equipment"
+        value={equipment}
+        onChange={(e) => setEquipment(e.target.value)}
+        placeholder="Barbell, bench…"
+        autoComplete="off"
+      />
+
+      <div className="flex flex-col gap-2">
+        <label className="text-caption font-medium text-label-secondary">Tips</label>
+        <textarea
+          value={tips}
+          onChange={(e) => setTips(e.target.value)}
+          rows={4}
+          placeholder="Form cues, setup notes…"
+          className="rounded-control bg-fill px-4 py-3 text-body text-label placeholder:text-label-tertiary focus:outline-2 focus:outline-offset-0 focus:outline-blue"
+        />
+      </div>
+
+      {error && <p className="text-caption text-red">{error}</p>}
+
+      <Button type="submit" size="lg" block disabled={updateExercise.isPending}>
+        {updateExercise.isPending ? "Saving…" : "Save changes"}
+      </Button>
+    </form>
   );
 }

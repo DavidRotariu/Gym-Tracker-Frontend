@@ -185,7 +185,7 @@ export default function HomePage() {
             {completed.length > 0 && (
               <Link
                 href="/history"
-                className="text-caption font-semibold text-blue"
+                className="text-caption font-semibold text-accent-ink"
               >
                 See all
               </Link>

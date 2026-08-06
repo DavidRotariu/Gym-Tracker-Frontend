@@ -14,8 +14,7 @@ const variantClasses: Record<Variant, string> = {
   /* Volt is a fill only — black ink always sits on it. */
   primary: "bg-accent text-accent-foreground active:brightness-95",
   secondary: "bg-fill text-label active:opacity-70",
-  /* systemBlue stays reserved for standard links/actions. */
-  ghost: "bg-transparent text-blue active:opacity-60",
+  ghost: "bg-transparent text-accent-ink active:opacity-60",
   destructive: "bg-transparent text-red active:opacity-60",
 };
 

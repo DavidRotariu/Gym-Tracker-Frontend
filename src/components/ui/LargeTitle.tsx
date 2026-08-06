@@ -58,7 +58,7 @@ export function LargeTitle({
             <button
               onClick={goBack}
               aria-label={backLabel}
-              className="-ml-2 flex h-11 min-w-11 cursor-pointer items-center gap-1 px-2 text-blue active:opacity-60"
+              className="-ml-2 flex h-11 min-w-11 cursor-pointer items-center gap-1 px-2 text-accent-ink active:opacity-60"
             >
               <svg width="12" height="20" viewBox="0 0 12 20" fill="none">
                 <path

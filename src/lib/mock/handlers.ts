@@ -82,6 +82,29 @@ export const handlers = [
     return HttpResponse.json(list);
   }),
 
+  // Mirrors the PATCH /exercises/{id} endpoint the frontend calls once the
+  // deployed API grows one — see updateExercise() in lib/api/exercises.ts.
+  http.patch("/exercises/:id", async ({ params, request }) => {
+    const userId = requireAuth(request);
+    if (isErr(userId)) return userId;
+    const db = getDb();
+    const exercise = db.exercises.find((e) => e.id === params.id);
+    if (!exercise) return errorResponse(404, "Exercise not found.");
+    const body = (await request.json()) as {
+      name: string;
+      muscle_id: string;
+      equipment: string | null;
+      tips: string | null;
+    };
+    exercise.name = body.name;
+    exercise.muscle_id = body.muscle_id;
+    exercise.equipment = body.equipment;
+    exercise.tips = body.tips;
+    exercise.primary_muscle = db.muscles.find((m) => m.id === body.muscle_id)?.name ?? "";
+    saveDb(db);
+    return HttpResponse.json(exercise);
+  }),
+
   http.get("/exercises/:id/history", ({ params, request }) => {
     const userId = requireAuth(request);
     if (isErr(userId)) return userId;

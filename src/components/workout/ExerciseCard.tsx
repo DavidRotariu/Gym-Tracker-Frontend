@@ -20,6 +20,9 @@ interface ExerciseCardProps {
   onAddSet: () => void;
   onRemove: () => void;
   onSwap?: () => void;
+  /** Starts dragging the enclosing group (see workout/[sessionId]/page.tsx) —
+   *  omitted for a lone exercise that isn't part of a reorderable list. */
+  onDragHandlePointerDown?: (e: React.PointerEvent) => void;
   readOnly?: boolean;
   addPending?: boolean;
 }
@@ -34,6 +37,7 @@ export function ExerciseCard({
   onAddSet,
   onRemove,
   onSwap,
+  onDragHandlePointerDown,
   readOnly,
   addPending,
 }: ExerciseCardProps) {
@@ -73,6 +77,23 @@ export function ExerciseCard({
 
         {!readOnly && (
           <div className="absolute top-2 right-2 flex shrink-0 items-center rounded-pill bg-black/35 backdrop-blur-sm">
+            {onDragHandlePointerDown && (
+              <button
+                type="button"
+                onPointerDown={onDragHandlePointerDown}
+                aria-label={`Drag to reorder ${name}`}
+                className="flex size-10 touch-none cursor-grab items-center justify-center rounded-pill text-white/80 active:cursor-grabbing active:text-white"
+              >
+                <svg width="12" height="18" viewBox="0 0 12 18" fill="none" aria-hidden>
+                  <circle cx="2.5" cy="3" r="1.5" fill="currentColor" />
+                  <circle cx="9.5" cy="3" r="1.5" fill="currentColor" />
+                  <circle cx="2.5" cy="9" r="1.5" fill="currentColor" />
+                  <circle cx="9.5" cy="9" r="1.5" fill="currentColor" />
+                  <circle cx="2.5" cy="15" r="1.5" fill="currentColor" />
+                  <circle cx="9.5" cy="15" r="1.5" fill="currentColor" />
+                </svg>
+              </button>
+            )}
             {onSwap && (
               <button
                 type="button"

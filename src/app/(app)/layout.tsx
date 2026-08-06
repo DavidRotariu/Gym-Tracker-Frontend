@@ -1,6 +1,7 @@
 "use client";
 
 import { TabBar } from "@/components/ui/TabBar";
+import { VideoPrefetcher } from "@/components/VideoPrefetcher";
 import { useRequireAuth } from "@/hooks/use-auth";
 import { motion } from "framer-motion";
 import { usePathname } from "next/navigation";
@@ -17,6 +18,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col">
+      <VideoPrefetcher />
       <motion.main
         key={pathname}
         initial={{ opacity: 0, y: 6 }}

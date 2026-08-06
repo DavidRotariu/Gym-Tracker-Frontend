@@ -7,9 +7,12 @@ import { useExercises } from "@/hooks/use-exercises";
 import { useMuscles } from "@/hooks/use-muscles";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import type { Muscle } from "@/types";
-import { motion } from "framer-motion";
+import type { Exercise, Muscle } from "@/types";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+
+const LONG_PRESS_MS = 450;
 
 interface ExercisePickerProps {
   open: boolean;
@@ -55,6 +58,7 @@ export function ExercisePicker({
   const [activeMuscle, setActiveMuscle] = useState<Muscle | null>(null);
   const [lastByMuscle, setLastByMuscle] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
+  const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null);
 
   useEffect(() => {
     if (open) setLastByMuscle(readLastByMuscle());
@@ -64,6 +68,7 @@ export function ExercisePicker({
     if (!open) {
       setActiveMuscle(null);
       setQuery("");
+      setPreviewExercise(null);
     }
   }, [open]);
 
@@ -123,12 +128,42 @@ export function ExercisePicker({
     isLast: boolean,
     subtitle?: string,
   ) {
+    // Plain closures, not hook state — this runs inside a .map(), so a real
+    // useState/useRef here would change hook count between renders as the
+    // list length changes. A held-down timer just needs to survive until
+    // pointerup, which a closure captured by this row's own button does
+    // fine without React involved at all.
+    let pressTimer: ReturnType<typeof setTimeout> | null = null;
+    let longPressed = false;
+
+    function startPress() {
+      longPressed = false;
+      pressTimer = setTimeout(() => {
+        longPressed = true;
+        setPreviewExercise(exercise);
+      }, LONG_PRESS_MS);
+    }
+    function endPress() {
+      if (pressTimer) clearTimeout(pressTimer);
+    }
+
     return (
       <button
         key={exercise.id}
-        onClick={() => choose(exercise)}
+        onPointerDown={startPress}
+        onPointerUp={endPress}
+        onPointerLeave={endPress}
+        onPointerCancel={endPress}
+        onClick={(e) => {
+          // The long-press already fired the preview — don't also select.
+          if (longPressed) {
+            e.preventDefault();
+            return;
+          }
+          choose(exercise);
+        }}
         className={cn(
-          "flex min-h-14 cursor-pointer items-center gap-3 rounded-control",
+          "flex min-h-14 cursor-pointer items-center gap-3 rounded-control select-none",
           "bg-background-secondary py-2 pr-4 pl-2 text-left active:opacity-70",
           isLast && "ring-1 ring-inset ring-accent-ink/60",
         )}
@@ -170,7 +205,7 @@ export function ExercisePicker({
           <button
             type="button"
             onClick={() => setActiveMuscle(null)}
-            className="min-h-11 cursor-pointer px-2 text-body font-semibold text-blue active:opacity-60"
+            className="min-h-11 cursor-pointer px-2 text-body font-semibold text-accent-ink active:opacity-60"
           >
             Muscles
           </button>
@@ -283,6 +318,119 @@ export function ExercisePicker({
           )}
         </div>
       )}
+
+      <ExercisePreview
+        exercise={previewExercise}
+        muscleName={previewExercise ? muscleName.get(previewExercise.muscle_id) : undefined}
+        onClose={() => setPreviewExercise(null)}
+        onSelect={() => previewExercise && choose(previewExercise)}
+      />
     </Sheet>
+  );
+}
+
+/**
+ * The long-press "peek" — a centered card over everything (including the
+ * picker sheet), not another bottom sheet: this is a quick look, not a
+ * second place to navigate.
+ */
+function ExercisePreview({
+  exercise,
+  muscleName,
+  onClose,
+  onSelect,
+}: {
+  exercise: Exercise | null;
+  muscleName?: string;
+  onClose: () => void;
+  onSelect: () => void;
+}) {
+  const [mounted, setMounted] = useState(false);
+  const reduceMotion = useReducedMotion();
+  useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    if (!exercise) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [exercise, onClose]);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {exercise && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
+          <motion.div
+            className="absolute inset-0 bg-scrim"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={onClose}
+            aria-hidden
+          />
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label={exercise.name}
+            className="relative flex w-full max-w-[340px] flex-col overflow-hidden rounded-card bg-background-elevated shadow-sheet"
+            initial={{ opacity: 0, scale: reduceMotion ? 1 : 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: reduceMotion ? 1 : 0.92 }}
+            transition={
+              reduceMotion ? { duration: 0.12 } : { type: "spring", stiffness: 420, damping: 32 }
+            }
+          >
+            <div className="relative h-48 w-full shrink-0 bg-fill">
+              <MediaThumb
+                src={exercise.pic}
+                alt={`${exercise.name} demonstration`}
+                fallback={
+                  <span className="text-stat text-label-tertiary">
+                    {exercise.name.slice(0, 1)}
+                  </span>
+                }
+                className="absolute inset-0 size-full"
+              />
+            </div>
+            <div className="flex flex-col gap-3 p-4">
+              <div>
+                <p className="text-body font-semibold text-label">{exercise.name}</p>
+                {muscleName && (
+                  <p className="text-caption text-label-tertiary">
+                    {muscleName}
+                    {exercise.equipment ? ` · ${exercise.equipment}` : ""}
+                  </p>
+                )}
+              </div>
+              {exercise.tips && (
+                <p className="text-caption text-label-secondary">{exercise.tips}</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="h-11 flex-1 cursor-pointer rounded-button bg-fill text-body font-semibold text-label active:opacity-70"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={onSelect}
+                  className="h-11 flex-1 cursor-pointer rounded-button bg-accent text-body font-semibold text-accent-foreground active:opacity-70"
+                >
+                  Select
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>,
+    document.body,
   );
 }

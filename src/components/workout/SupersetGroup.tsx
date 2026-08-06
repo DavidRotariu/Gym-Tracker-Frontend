@@ -23,7 +23,7 @@ export function SupersetGroup({ children, onUngroup }: SupersetGroupProps) {
           <button
             type="button"
             onClick={onUngroup}
-            className="min-h-11 cursor-pointer text-caption font-semibold text-blue active:opacity-60"
+            className="min-h-11 cursor-pointer text-caption font-semibold text-accent-ink active:opacity-60"
           >
             Ungroup
           </button>
