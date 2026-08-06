@@ -23,7 +23,9 @@ export default function SignupPage() {
     setSubmitting(true);
     try {
       await signup(email, password);
-      router.replace("/home");
+      // A brand-new account has no splits yet, so the launch gate at "/"
+      // will just fall straight through to /home on its own.
+      router.replace("/");
     } catch (err) {
       setError(
         err instanceof ApiRequestError

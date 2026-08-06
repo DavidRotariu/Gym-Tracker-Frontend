@@ -23,7 +23,9 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(email, password);
-      router.replace("/home");
+      // "/" is the launch gate (QR + next split) — it decides on its own
+      // whether it has anything to show and falls through to /home if not.
+      router.replace("/");
     } catch (err) {
       setError(
         err instanceof ApiRequestError

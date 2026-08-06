@@ -2,8 +2,6 @@
 
 import { Button } from "@/components/ui/Button";
 import { MediaThumb } from "@/components/ui/MediaThumb";
-import { MuscleChips } from "@/components/ui/MuscleChips";
-import { useMuscles } from "@/hooks/use-muscles";
 import { useSplits } from "@/hooks/use-splits";
 import { useQrImage } from "@/hooks/use-users";
 import { useStartWorkout, useWorkoutHistory } from "@/hooks/use-workouts";
@@ -27,7 +25,6 @@ export function LaunchGate() {
   const router = useRouter();
   const { data: splits, isLoading: splitsLoading } = useSplits();
   const { data: history, isLoading: historyLoading } = useWorkoutHistory();
-  const { data: muscles } = useMuscles();
   const { url: qrUrl } = useQrImage(true);
   const startWorkout = useStartWorkout();
 
@@ -37,10 +34,6 @@ export function LaunchGate() {
 
   const loading = splitsLoading || historyLoading;
   const suggested = useMemo(() => suggestSplit(splits, history), [splits, history]);
-  const muscleLookup = useMemo(
-    () => new Map(muscles?.map((m) => [m.id, m.name])),
-    [muscles],
-  );
   const splitIcon = suggested ? getSplitIcon(suggested.name) : undefined;
 
   const skip = !loading && (alreadyShown || !suggested);
@@ -104,7 +97,6 @@ export function LaunchGate() {
           <h1 className="font-stat text-stat text-label uppercase">
             It&rsquo;s {suggested!.name}!
           </h1>
-          <MuscleChips muscles={suggested!.muscles} lookup={muscleLookup} />
         </div>
       </div>
 

@@ -3,8 +3,9 @@
 import { EmptyState } from "@/components/ui/EmptyState";
 import { MediaThumb } from "@/components/ui/MediaThumb";
 import { Sheet } from "@/components/ui/Sheet";
-import { useExercises } from "@/hooks/use-exercises";
+import { useExercises, useLastSet } from "@/hooks/use-exercises";
 import { useMuscles } from "@/hooks/use-muscles";
+import { formatDay } from "@/lib/format";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { Exercise, Muscle } from "@/types";
@@ -351,6 +352,7 @@ function ExercisePreview({
 }) {
   const [mounted, setMounted] = useState(false);
   const reduceMotion = useReducedMotion();
+  const { data: lastSet, isLoading: lastSetLoading } = useLastSet(exercise?.id ?? null);
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
@@ -411,6 +413,24 @@ function ExercisePreview({
                   </p>
                 )}
               </div>
+              {/* The whole point of a quick peek mid-picker: "did I already
+                  do this, and with what?" — without leaving to the full
+                  exercise history page. */}
+              {!lastSetLoading && (
+                <p className="text-caption text-label-secondary">
+                  {lastSet ? (
+                    <>
+                      Last trained {formatDay(lastSet.logged_at)} ·{" "}
+                      <span className="font-semibold text-label">
+                        {lastSet.actual_weight ?? 0} kg × {lastSet.actual_reps ?? 0}
+                      </span>
+                    </>
+                  ) : (
+                    "Not logged yet"
+                  )}
+                </p>
+              )}
+
               {exercise.tips && (
                 <p className="text-caption text-label-secondary">{exercise.tips}</p>
               )}
