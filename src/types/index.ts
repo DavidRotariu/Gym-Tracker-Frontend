@@ -10,16 +10,19 @@ export interface Muscle {
   pic: string | null;
 }
 
+export type ExerciseType = "body_weight" | "weighted" | "negative";
+
 export interface Exercise {
   id: string;
   name: string;
   muscle_id: string;
+  exercise_type: ExerciseType;
   pic: string | null;
   tips: string | null;
   equipment: string | null;
   favourite: boolean;
   primary_muscle: string;
-  secondary_muscles: string[];
+  secondary_muscles: Muscle[];
 }
 
 export interface SplitMuscle {

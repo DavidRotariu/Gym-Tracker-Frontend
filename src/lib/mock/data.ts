@@ -1,5 +1,6 @@
 import type {
   Exercise,
+  ExerciseType,
   Muscle,
   Split,
   User,
@@ -9,6 +10,7 @@ import type {
 export interface MockUser extends User {
   password: string;
   qr_code_url: string | null;
+  profile_picture_url: string | null;
 }
 
 export interface MockDB {
@@ -205,16 +207,58 @@ const EXERCISE_NAMES: { id: number; name: string; muscle_id: number }[] = [
 
 const MUSCLE_BY_INDEX = new Map(MUSCLES.map((m, i) => [i + 1, m]));
 
+/** Movements with no external load — everything else defaults to "weighted". */
+const BODY_WEIGHT_EXERCISE_IDS = new Set([13, 21, 72, 80, 82, 83, 85]);
+
+/**
+ * Secondary muscles worked by each exercise, by muscle index (see MUSCLES).
+ * Not exhaustive — a representative subset of the catalog, same ~40% split
+ * the real dataset has (65/149 exercises carry at least one).
+ */
+const SECONDARY_MUSCLE_IDS: Record<number, number[]> = {
+  10: [3, 7], // Bench Press: shoulders, triceps
+  11: [3, 7],
+  15: [3, 7],
+  16: [3, 7],
+  17: [3],
+  20: [5, 11], // Deadlift: hamstrings, glutes
+  21: [6], // Pull-Up: biceps
+  22: [6],
+  23: [6],
+  24: [6],
+  25: [6],
+  40: [11, 5], // Back Squat: glutes, hamstrings
+  41: [11],
+  42: [11],
+  44: [11],
+  45: [11],
+  46: [11],
+  50: [11], // Romanian Deadlift: glutes
+  60: [10], // Barbell Curl: forearms
+  63: [10],
+  65: [10],
+  74: [1], // Close-Grip Bench Press: chest
+  75: [1, 7], // Seated Dip: chest, triceps
+  110: [5], // Hip Thrust: hamstrings
+  111: [5],
+  112: [5],
+};
+
 const EXERCISES: Exercise[] = EXERCISE_NAMES.map((e) => ({
   id: String(e.id),
   name: e.name,
   muscle_id: String(e.muscle_id),
+  exercise_type: (BODY_WEIGHT_EXERCISE_IDS.has(e.id)
+    ? "body_weight"
+    : "weighted") as ExerciseType,
   pic: EXERCISE_FILES[e.id] ? `/exercises/${EXERCISE_FILES[e.id]}` : null,
   tips: null,
   equipment: null,
   favourite: false,
   primary_muscle: MUSCLE_BY_INDEX.get(e.muscle_id)?.name ?? "",
-  secondary_muscles: [],
+  secondary_muscles: (SECONDARY_MUSCLE_IDS[e.id] ?? [])
+    .map((mid) => MUSCLE_BY_INDEX.get(mid))
+    .filter((m): m is Muscle => m !== undefined),
 }));
 
 const DEMO_USER_ID = "1";
@@ -511,6 +555,7 @@ export function createSeedData(): MockDB {
         email: "demo@overload.app",
         password: "demo1234",
         qr_code_url: null,
+        profile_picture_url: null,
       },
     ],
     muscles: MUSCLES,

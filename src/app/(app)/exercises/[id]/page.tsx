@@ -16,7 +16,7 @@ import { useFavorite } from "@/hooks/use-favorites";
 import { useMuscles } from "@/hooks/use-muscles";
 import { formatDay, formatVolume } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { Exercise, Muscle } from "@/types";
+import type { Exercise, ExerciseType, Muscle } from "@/types";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -139,6 +139,19 @@ export default function ExerciseDetailPage() {
         </Card>
       )}
 
+      {exercise && exercise.secondary_muscles.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {exercise.secondary_muscles.map((m) => (
+            <span
+              key={m.id}
+              className="rounded-pill bg-fill px-3 py-1 text-caption font-medium text-label-secondary"
+            >
+              {m.name}
+            </span>
+          ))}
+        </div>
+      )}
+
       {stats && (
         <div className="flex flex-col gap-4">
           <Card className="flex flex-col gap-4">
@@ -247,10 +260,23 @@ function ExerciseEditForm({
 }) {
   const [name, setName] = useState(exercise.name);
   const [muscleId, setMuscleId] = useState(exercise.muscle_id);
+  const [exerciseType, setExerciseType] = useState<ExerciseType>(exercise.exercise_type);
+  const [secondaryMuscleIds, setSecondaryMuscleIds] = useState(
+    new Set(exercise.secondary_muscles.map((m) => m.id)),
+  );
   const [equipment, setEquipment] = useState(exercise.equipment ?? "");
   const [tips, setTips] = useState(exercise.tips ?? "");
   const [error, setError] = useState<string | null>(null);
   const updateExercise = useUpdateExercise();
+
+  function toggleSecondaryMuscle(id: string) {
+    setSecondaryMuscleIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -265,8 +291,10 @@ function ExerciseEditForm({
         input: {
           name: name.trim(),
           muscle_id: muscleId,
+          exercise_type: exerciseType,
           equipment: equipment.trim() || null,
           tips: tips.trim() || null,
+          secondary_muscles: [...secondaryMuscleIds],
         },
       });
       onSaved();
@@ -301,6 +329,48 @@ function ExerciseEditForm({
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label className="text-caption font-medium text-label-secondary">Type</label>
+        <select
+          value={exerciseType}
+          onChange={(e) => setExerciseType(e.target.value as ExerciseType)}
+          className="h-12 rounded-control bg-fill px-4 text-body text-label focus:outline-2 focus:outline-offset-0 focus:outline-blue"
+        >
+          <option value="weighted">Weighted</option>
+          <option value="body_weight">Body weight</option>
+          <option value="negative">Negative</option>
+        </select>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label className="text-caption font-medium text-label-secondary">
+          Secondary muscles
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {muscles
+            .filter((m) => m.id !== muscleId)
+            .map((m) => {
+              const selected = secondaryMuscleIds.has(m.id);
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => toggleSecondaryMuscle(m.id)}
+                  className={cn(
+                    "cursor-pointer rounded-pill px-3 py-1.5 text-caption font-medium transition-colors",
+                    selected
+                      ? "bg-accent text-accent-foreground"
+                      : "bg-fill text-label-secondary",
+                  )}
+                >
+                  {m.name}
+                </button>
+              );
+            })}
+        </div>
       </div>
 
       <TextField

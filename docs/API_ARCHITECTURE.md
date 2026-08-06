@@ -30,12 +30,20 @@ existing API).
 | id | integer | PK |
 | name | string | |
 
-### Exercise *(unchanged)*
+### Exercise
 
 | Field | Type | Notes |
 |---|---|---|
 | id | integer | PK |
 | name | string | |
+| muscle_id | integer | FK → Muscle, primary muscle |
+| exercise_type | enum | `body_weight` \| `weighted` \| `negative`; existing rows migrated to `weighted` |
+
+### ExerciseSecondaryMuscle *(join, same shape as SplitMuscle)*
+
+| Field | Type | Notes |
+|---|---|---|
+| exercise_id | integer | FK → Exercise |
 | muscle_id | integer | FK → Muscle |
 
 ### Split
@@ -114,6 +122,7 @@ One exercise picked live during a session.
 | email | string | |
 | password_hash | string | |
 | qr_code_url | string \| null | |
+| profile_picture_url | string \| null | |
 
 ---
 
@@ -155,7 +164,31 @@ status (400/401/403/404/409/500).
 **`GET /exercises?muscle_id={id}`**
 ```json
 // response 200
-[ { "id": 10, "name": "Bench Press", "muscle_id": 1 }, ... ]
+[
+  {
+    "id": 10,
+    "name": "Bench Press",
+    "muscle_id": 1,
+    "exercise_type": "weighted",
+    "secondary_muscles": [ { "id": 3, "name": "Shoulders" }, { "id": 7, "name": "Triceps" } ]
+  }
+]
+```
+
+**`PATCH /exercises/{exercise_id}`** — any subset of fields.
+```json
+// request (any subset)
+{
+  "name": "Barbell Bench Press",
+  "pic": "string|null",
+  "tips": "string|null",
+  "equipment": "string|null",
+  "exercise_type": "weighted",
+  "muscle_id": 1,
+  "favorite": true,
+  "secondary_muscles": [3, 7]
+}
+// response 200 — same shape as GET /exercises item
 ```
 
 **`GET /exercises/{id}/history?limit=&before=`**
@@ -360,6 +393,25 @@ session into a superset (pass their `WorkoutExercise` ids).
 ```json
 // response 200
 { "qr_code_url": "string" }
+```
+
+**`POST /users/profile-picture`** — `multipart/form-data`, field `file`.
+JPEG/PNG/WebP only, 5 MB max; anything else is `400`.
+```json
+// response 200
+{ "profile_picture_url": "string" }
+```
+
+**`GET /users/profile-picture`**
+```json
+// response 200
+{ "profile_picture_url": "string" }
+// or 204 No Content if none set
+```
+
+**`DELETE /users/profile-picture`**
+```json
+// response 204
 ```
 
 ---

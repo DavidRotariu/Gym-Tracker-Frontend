@@ -7,9 +7,15 @@ import { LargeTitle } from "@/components/ui/LargeTitle";
 import { SET_TYPE_LABEL, SetTypeDot } from "@/components/ui/SetTypeBadge";
 import type { SetType } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
+import {
+  useDeleteProfilePicture,
+  useProfilePicture,
+  useUploadProfilePicture,
+} from "@/hooks/use-users";
 import { resetDemoData } from "@/lib/mock/reset";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { useRef } from "react";
 
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
 
@@ -42,6 +48,22 @@ export default function ProfilePage() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const { preference, setPreference } = useTheme();
+  const { data: profilePicture } = useProfilePicture();
+  const uploadPicture = useUploadProfilePicture();
+  const deletePicture = useDeleteProfilePicture();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+  const MAX_BYTES = 5 * 1024 * 1024;
+
+  function handlePictureChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!ACCEPTED_TYPES.includes(file.type)) return;
+    if (file.size > MAX_BYTES) return;
+    uploadPicture.mutate(file);
+  }
 
   function handleLogout() {
     logout();
@@ -62,10 +84,31 @@ export default function ProfilePage() {
       <div className="flex flex-col gap-8">
         {/* Account -------------------------------------------------------- */}
         <Card className="flex items-center gap-4">
-          <div className="flex size-14 shrink-0 items-center justify-center rounded-pill bg-accent font-display text-large-title text-accent-foreground">
-            {initial}
-          </div>
-          <div className="min-w-0">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Change profile picture"
+            className="relative flex size-14 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-pill bg-accent font-display text-large-title text-accent-foreground"
+          >
+            {profilePicture?.profile_picture_url ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={profilePicture.profile_picture_url}
+                alt=""
+                className="size-full object-cover"
+              />
+            ) : (
+              initial
+            )}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handlePictureChange}
+          />
+          <div className="min-w-0 flex-1">
             <p className="text-kicker text-label-tertiary uppercase">
               Signed in as
             </p>
@@ -73,6 +116,16 @@ export default function ProfilePage() {
               {user?.email}
             </p>
           </div>
+          {profilePicture?.profile_picture_url && (
+            <button
+              type="button"
+              onClick={() => deletePicture.mutate()}
+              disabled={deletePicture.isPending}
+              className="shrink-0 text-caption font-medium text-red active:opacity-60 disabled:opacity-40"
+            >
+              Remove
+            </button>
+          )}
         </Card>
 
         {/* Appearance ----------------------------------------------------- */}

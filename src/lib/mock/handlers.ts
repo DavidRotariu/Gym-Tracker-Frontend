@@ -39,6 +39,11 @@ function isErr(v: unknown): v is HttpResponse<JsonBodyType> {
 // mock DB (it can't hold a Blob) — QR uploads don't survive a page reload.
 const qrFiles = new Map<string, Blob>();
 
+// Same in-memory-only caveat as qrFiles above.
+const profilePictures = new Map<string, string>();
+const PROFILE_PICTURE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const PROFILE_PICTURE_MAX_BYTES = 5 * 1024 * 1024;
+
 export const handlers = [
   http.post("/auth/signup", async ({ request }) => {
     const body = (await request.json()) as { email: string; password: string };
@@ -47,7 +52,13 @@ export const handlers = [
       return errorResponse(409, "An account with this email already exists.");
     }
     const id = String(db.nextId.user++);
-    db.users.push({ id, email: body.email, password: body.password, qr_code_url: null });
+    db.users.push({
+      id,
+      email: body.email,
+      password: body.password,
+      qr_code_url: null,
+      profile_picture_url: null,
+    });
     saveDb(db);
     return HttpResponse.json(
       { access_token: `mock-token-${id}`, user: { id, email: body.email } },
@@ -82,25 +93,46 @@ export const handlers = [
     return HttpResponse.json(list);
   }),
 
-  // Mirrors the PATCH /exercises/{id} endpoint the frontend calls once the
-  // deployed API grows one — see updateExercise() in lib/api/exercises.ts.
+  // Mirrors PATCH /exercises/{id} — see updateExercise() in lib/api/exercises.ts.
   http.patch("/exercises/:id", async ({ params, request }) => {
     const userId = requireAuth(request);
     if (isErr(userId)) return userId;
     const db = getDb();
     const exercise = db.exercises.find((e) => e.id === params.id);
     if (!exercise) return errorResponse(404, "Exercise not found.");
-    const body = (await request.json()) as {
+    const body = (await request.json()) as Partial<{
       name: string;
+      pic: string | null;
       muscle_id: string;
+      exercise_type: Exercise["exercise_type"];
       equipment: string | null;
       tips: string | null;
-    };
-    exercise.name = body.name;
-    exercise.muscle_id = body.muscle_id;
-    exercise.equipment = body.equipment;
-    exercise.tips = body.tips;
-    exercise.primary_muscle = db.muscles.find((m) => m.id === body.muscle_id)?.name ?? "";
+      favorite: boolean;
+      secondary_muscles: string[];
+    }>;
+
+    if (body.name !== undefined) exercise.name = body.name;
+    if (body.pic !== undefined) exercise.pic = body.pic;
+    if (body.exercise_type !== undefined) exercise.exercise_type = body.exercise_type;
+    if (body.equipment !== undefined) exercise.equipment = body.equipment;
+    if (body.tips !== undefined) exercise.tips = body.tips;
+    if (body.muscle_id !== undefined) {
+      exercise.muscle_id = body.muscle_id;
+      exercise.primary_muscle = db.muscles.find((m) => m.id === body.muscle_id)?.name ?? "";
+    }
+    if (body.secondary_muscles !== undefined) {
+      exercise.secondary_muscles = body.secondary_muscles
+        .map((id) => db.muscles.find((m) => m.id === id))
+        .filter((m): m is Exercise["secondary_muscles"][number] => m !== undefined);
+    }
+    if (body.favorite !== undefined) {
+      exercise.favourite = body.favorite;
+      db.favorites = db.favorites.filter(
+        (f) => !(f.user_id === userId && f.exercise_id === exercise.id),
+      );
+      if (body.favorite) db.favorites.push({ user_id: userId, exercise_id: exercise.id });
+    }
+
     saveDb(db);
     return HttpResponse.json(exercise);
   }),
@@ -500,6 +532,38 @@ export const handlers = [
     const blob = qrFiles.get(userId);
     if (!blob) return errorResponse(404, "No QR code uploaded yet.");
     return new HttpResponse(blob, { headers: { "Content-Type": blob.type } });
+  }),
+
+  http.post("/users/profile-picture", async ({ request }) => {
+    const userId = requireAuth(request);
+    if (isErr(userId)) return userId;
+    const form = await request.formData();
+    const file = form.get("file") as File | null;
+    if (!file) return errorResponse(400, "No file provided.");
+    if (!PROFILE_PICTURE_TYPES.has(file.type)) {
+      return errorResponse(400, "Only JPEG, PNG, or WebP images are allowed.");
+    }
+    if (file.size > PROFILE_PICTURE_MAX_BYTES) {
+      return errorResponse(400, "Image must be 5MB or smaller.");
+    }
+    const url = URL.createObjectURL(file);
+    profilePictures.set(userId, url);
+    return HttpResponse.json({ profile_picture_url: url });
+  }),
+
+  http.get("/users/profile-picture", ({ request }) => {
+    const userId = requireAuth(request);
+    if (isErr(userId)) return userId;
+    const url = profilePictures.get(userId);
+    if (!url) return new HttpResponse(null, { status: 204 });
+    return HttpResponse.json({ profile_picture_url: url });
+  }),
+
+  http.delete("/users/profile-picture", ({ request }) => {
+    const userId = requireAuth(request);
+    if (isErr(userId)) return userId;
+    profilePictures.delete(userId);
+    return new HttpResponse(null, { status: 204 });
   }),
 ];
 

@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import * as usersApi from "@/lib/api/users";
 
@@ -43,4 +43,27 @@ export function useQrImage(enabled: boolean, refreshKey = 0) {
 
 export function useUploadQr() {
   return useMutation({ mutationFn: (file: File) => usersApi.uploadQr(file) });
+}
+
+export function useProfilePicture() {
+  return useQuery({
+    queryKey: ["profile-picture"],
+    queryFn: () => usersApi.getProfilePicture(),
+  });
+}
+
+export function useUploadProfilePicture() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => usersApi.uploadProfilePicture(file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["profile-picture"] }),
+  });
+}
+
+export function useDeleteProfilePicture() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => usersApi.deleteProfilePicture(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["profile-picture"] }),
+  });
 }

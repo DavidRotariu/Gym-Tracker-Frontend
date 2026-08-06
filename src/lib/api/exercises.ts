@@ -1,5 +1,5 @@
 import { apiRequest } from "./client";
-import type { Exercise, ExerciseHistoryEntry, LastSet } from "@/types";
+import type { Exercise, ExerciseHistoryEntry, ExerciseType, LastSet } from "@/types";
 
 export function getExercises(muscleId?: string) {
   const qs = muscleId ? `?muscle_id=${muscleId}` : "";
@@ -23,19 +23,19 @@ export async function getLastSet(exerciseId: string) {
   return apiRequest<LastSet | null>(`/exercises/${exerciseId}/last-set`);
 }
 
+/** Any subset of these fields — PATCH only touches what's included. */
 export interface ExerciseUpdateInput {
-  name: string;
-  muscle_id: string;
-  equipment: string | null;
-  tips: string | null;
+  name?: string;
+  pic?: string | null;
+  muscle_id?: string;
+  exercise_type?: ExerciseType;
+  equipment?: string | null;
+  tips?: string | null;
+  favorite?: boolean;
+  /** Replaces the full set of secondary-muscle associations. */
+  secondary_muscles?: string[];
 }
 
-/**
- * ponytail: the deployed API has no update endpoint yet (only GET/POST
- * /exercises) — this call 404s until the backend adds
- * `PATCH /exercises/{id}`. Wired up now so the UI just works the moment it
- * exists, no further frontend changes needed.
- */
 export function updateExercise(exerciseId: string, input: ExerciseUpdateInput) {
   return apiRequest<Exercise>(`/exercises/${exerciseId}`, {
     method: "PATCH",
