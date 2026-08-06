@@ -87,22 +87,23 @@ export function LaunchGate() {
           </div>
         )}
 
-        <div className="flex flex-col items-center gap-3 text-center">
+        <div className="flex flex-col items-center gap-4 text-center">
           <p className="text-kicker text-label-tertiary uppercase">Up next</p>
-          <div className="flex items-center gap-2.5">
-            {splitIcon && (
-              <MediaThumb
-                src={splitIcon}
-                alt=""
-                static
-                fallback={<span />}
-                className="size-9 shrink-0 rounded-control object-contain"
-              />
-            )}
-            <h1 className="font-display text-large-title text-label">
-              It&rsquo;s {suggested!.name}!
-            </h1>
-          </div>
+          {splitIcon && (
+            <MediaThumb
+              src={splitIcon}
+              alt=""
+              static
+              fallback={<span />}
+              className="h-28 w-28 shrink-0 object-contain"
+            />
+          )}
+          {/* Campaign-poster scale, condensed and black-weight — the same
+              hero treatment as the volume number on the finish screen, not
+              a scaled-up version of an ordinary heading. */}
+          <h1 className="font-stat text-stat text-label uppercase">
+            It&rsquo;s {suggested!.name}!
+          </h1>
           <MuscleChips muscles={suggested!.muscles} lookup={muscleLookup} />
         </div>
       </div>
