@@ -120,6 +120,10 @@ export function ExercisePicker({
   function choose(exercise: { id: string; muscle_id: string }) {
     rememberLast(exercise.muscle_id, exercise.id);
     onSelect(exercise.id);
+    // Don't rely on the picker sheet's own close to cascade this — close
+    // the preview the instant a selection is made, whether that came from
+    // the preview's own "Select" button or a fresh tap on the row behind it.
+    setPreviewExercise(null);
     onClose();
   }
 
@@ -163,7 +167,7 @@ export function ExercisePicker({
           choose(exercise);
         }}
         className={cn(
-          "flex min-h-14 cursor-pointer items-center gap-3 rounded-control select-none",
+          "flex min-h-14 cursor-pointer items-center gap-3 rounded-control select-none [-webkit-touch-callout:none]",
           "bg-background-secondary py-2 pr-4 pl-2 text-left active:opacity-70",
           isLast && "ring-1 ring-inset ring-accent-ink/60",
         )}

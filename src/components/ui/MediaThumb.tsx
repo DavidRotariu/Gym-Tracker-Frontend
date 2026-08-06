@@ -94,7 +94,13 @@ export function MediaThumb({
         // nothing loads until the IntersectionObserver below calls play().
         preload="none"
         onError={() => setFailed(true)}
-        className={cn("bg-fill object-cover", className)}
+        // A long-press meant to trigger our own UI (the exercise picker's
+        // preview peek, the drag handle) shouldn't also pop the browser's
+        // native "save video"/text-selection callout on top of it.
+        className={cn(
+          "bg-fill object-cover select-none [-webkit-touch-callout:none]",
+          className,
+        )}
         aria-label={alt}
       />
     );
@@ -105,8 +111,12 @@ export function MediaThumb({
     <img
       src={url}
       alt={alt}
+      draggable={false}
       onError={() => setFailed(true)}
-      className={cn("bg-fill object-cover", className)}
+      className={cn(
+        "bg-fill object-cover select-none [-webkit-touch-callout:none]",
+        className,
+      )}
     />
   );
 }

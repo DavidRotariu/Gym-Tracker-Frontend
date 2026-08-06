@@ -118,7 +118,9 @@ export function WorkoutSummary({
           <p className="text-kicker text-accent-foreground/70 uppercase">
             Workout complete
           </p>
-          <h1 className="mt-2 font-stat text-stat-sm text-accent-foreground uppercase">
+          {/* Same campaign-poster scale as the launch gate's "It's Push
+              Day!" — condensed, black-weight, full caps. */}
+          <h1 className="mt-2 font-stat text-stat text-accent-foreground uppercase">
             {title}
           </h1>
         </motion.div>
