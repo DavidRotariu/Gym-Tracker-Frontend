@@ -26,9 +26,11 @@ export async function getLastSet(exerciseId: string) {
 /** Any subset of these fields — PATCH only touches what's included. */
 export interface ExerciseUpdateInput {
   name?: string;
-  pic?: string | null;
+  image_url?: string | null;
+  video_url?: string | null;
   muscle_id?: string;
   exercise_type?: ExerciseType;
+  rest_time?: number;
   equipment?: string | null;
   tips?: string | null;
   favorite?: boolean;

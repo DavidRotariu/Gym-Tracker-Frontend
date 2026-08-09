@@ -76,6 +76,7 @@ export default function WorkoutSessionPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [swapTarget, setSwapTarget] = useState<WorkoutExercise | null>(null);
   const [restSignal, setRestSignal] = useState(0);
+  const [restSeconds, setRestSeconds] = useState<number | undefined>(undefined);
   const [summary, setSummary] = useState<WorkoutSession | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -94,8 +95,8 @@ export default function WorkoutSessionPage() {
       exercises?.map((e) => [e.id, muscleNames.get(e.muscle_id) ?? ""]),
     );
   }, [exercises, muscles]);
-  const exerciseImages = useMemo(
-    () => new Map(exercises?.map((e) => [e.id, e.pic])),
+  const exerciseMedia = useMemo(
+    () => new Map(exercises?.map((e) => [e.id, e.video_url ?? e.image_url])),
     [exercises],
   );
   const exerciseMuscleId = useMemo(
@@ -220,6 +221,10 @@ export default function WorkoutSessionPage() {
   function handleChangeSet(we: WorkoutExercise, setId: string, patch: Partial<Set>) {
     patchSet.mutate({ id: setId, patch });
     if (patch.completed === true) {
+      // Each exercise carries its own configured rest time, so the timer
+      // that pops up after this set matches this exercise, not whatever was
+      // last used.
+      setRestSeconds(exercises?.find((e) => e.id === we.exercise_id)?.rest_time);
       setRestSignal((n) => n + 1);
     }
 
@@ -345,7 +350,7 @@ export default function WorkoutSessionPage() {
                           workoutExercise={we}
                           name={exerciseNames.get(we.exercise_id) ?? "Exercise"}
                           muscle={exerciseMuscle.get(we.exercise_id)}
-                          imageUrl={exerciseImages.get(we.exercise_id)}
+                          mediaUrl={exerciseMedia.get(we.exercise_id)}
                           onChangeSet={(setId, patch) => handleChangeSet(we, setId, patch)}
                           onDeleteSet={(setId) => deleteSet.mutate(setId)}
                           onAddSet={() => handleAddSet(we)}
@@ -386,7 +391,7 @@ export default function WorkoutSessionPage() {
       {/* Rest timer, pinned above the safe area. */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[480px] px-4 pb-[calc(env(safe-area-inset-bottom)+12px)]">
         <div className="pointer-events-auto">
-          <RestTimer startSignal={restSignal} />
+          <RestTimer startSignal={restSignal} restSeconds={restSeconds} />
         </div>
       </div>
 

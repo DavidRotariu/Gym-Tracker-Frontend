@@ -28,8 +28,9 @@ function isVideo(src: string): boolean {
 }
 
 /**
- * Muscle illustrations and exercise clips are a mock-only data extension
- * (see types/index.ts) — filenames may contain spaces/parentheses, so paths
+ * Renders whatever `src` is — a local muscle illustration or a cloud-hosted
+ * exercise image/video URL (see Exercise.image_url/video_url in
+ * types/index.ts). Local filenames may contain spaces/parentheses, so paths
  * always go through encodeURI. Always degrades to `fallback` instead of a
  * broken-media icon.
  */

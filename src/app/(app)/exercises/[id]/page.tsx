@@ -89,7 +89,7 @@ export default function ExerciseDetailPage() {
 
       <div className="relative mb-4">
         <MediaThumb
-          src={exercise?.pic}
+          src={exercise?.video_url ?? exercise?.image_url}
           alt={exercise ? `${exercise.name} demonstration` : ""}
           fallback={
             <span className="text-stat text-label-tertiary">
@@ -266,6 +266,7 @@ function ExerciseEditForm({
   );
   const [equipment, setEquipment] = useState(exercise.equipment ?? "");
   const [tips, setTips] = useState(exercise.tips ?? "");
+  const [restTime, setRestTime] = useState(String(exercise.rest_time));
   const [error, setError] = useState<string | null>(null);
   const updateExercise = useUpdateExercise();
 
@@ -284,6 +285,11 @@ function ExerciseEditForm({
       setError("Give this exercise a name.");
       return;
     }
+    const restTimeSeconds = Number(restTime);
+    if (!Number.isFinite(restTimeSeconds) || restTimeSeconds < 0) {
+      setError("Rest time must be a positive number of seconds.");
+      return;
+    }
     setError(null);
     try {
       await updateExercise.mutateAsync({
@@ -292,6 +298,7 @@ function ExerciseEditForm({
           name: name.trim(),
           muscle_id: muscleId,
           exercise_type: exerciseType,
+          rest_time: restTimeSeconds,
           equipment: equipment.trim() || null,
           tips: tips.trim() || null,
           secondary_muscles: [...secondaryMuscleIds],
@@ -343,6 +350,16 @@ function ExerciseEditForm({
           <option value="negative">Negative</option>
         </select>
       </div>
+
+      <TextField
+        label="Rest time (seconds)"
+        type="number"
+        inputMode="numeric"
+        min={0}
+        step={5}
+        value={restTime}
+        onChange={(e) => setRestTime(e.target.value)}
+      />
 
       <div className="flex flex-col gap-2">
         <label className="text-caption font-medium text-label-secondary">

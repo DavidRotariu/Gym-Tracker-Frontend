@@ -17,7 +17,12 @@ export interface Exercise {
   name: string;
   muscle_id: string;
   exercise_type: ExerciseType;
-  pic: string | null;
+  /** Small still, cloud-hosted — icon-sized uses (search rows, lists). */
+  image_url: string | null;
+  /** Demo clip, cloud-hosted — card and bigger-view uses. */
+  video_url: string | null;
+  /** Rest time in seconds to prefill after logging a set of this exercise. */
+  rest_time: number;
   tips: string | null;
   equipment: string | null;
   favourite: boolean;

@@ -37,6 +37,10 @@ interface RestTimerProps {
   /** Bump to (re)start the timer — the session screen does this when a set
    *  is marked complete. */
   startSignal: number;
+  /** The just-completed set's exercise's configured rest time — used as the
+   *  duration for *this* start. Falls back to whatever duration was last
+   *  used (preset tap, or a previous exercise) if omitted. */
+  restSeconds?: number;
 }
 
 /**
@@ -48,7 +52,7 @@ interface RestTimerProps {
  * comes back, tick or no tick. The end time is also persisted, so it
  * survives closing the browser entirely, not just switching tabs.
  */
-export function RestTimer({ startSignal }: RestTimerProps) {
+export function RestTimer({ startSignal, restSeconds }: RestTimerProps) {
   const [duration, setDuration] = useState(90);
   const [endAt, setEndAt] = useState<number | null>(null);
   const [pausedRemaining, setPausedRemaining] = useState(0);
@@ -84,8 +88,10 @@ export function RestTimer({ startSignal }: RestTimerProps) {
   useEffect(() => {
     if (startSignal === lastSignal.current) return;
     lastSignal.current = startSignal;
-    start(durationRef.current);
-  }, [startSignal]);
+    const seconds = restSeconds ?? durationRef.current;
+    setDuration(seconds);
+    start(seconds);
+  }, [startSignal, restSeconds]);
 
   // Tick every second while running, and re-sync immediately the moment the
   // tab regains focus/visibility instead of waiting for the next tick.

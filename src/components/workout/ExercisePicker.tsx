@@ -174,7 +174,7 @@ export function ExercisePicker({
         )}
       >
         <MediaThumb
-          src={exercise.pic}
+          src={exercise.image_url}
           alt=""
           fallback={
             <span className="text-caption font-bold text-label-tertiary">
@@ -393,7 +393,7 @@ function ExercisePreview({
           >
             <div className="relative h-48 w-full shrink-0 bg-fill">
               <MediaThumb
-                src={exercise.pic}
+                src={exercise.video_url ?? exercise.image_url}
                 alt={`${exercise.name} demonstration`}
                 fallback={
                   <span className="text-stat text-label-tertiary">

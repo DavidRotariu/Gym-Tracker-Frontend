@@ -14,7 +14,9 @@ interface ExerciseCardProps {
   workoutExercise: WorkoutExercise;
   name: string;
   muscle?: string;
-  imageUrl?: string | null;
+  /** Prefer the video clip at this size — falls back to the still if the
+   *  exercise has no video yet. */
+  mediaUrl?: string | null;
   onChangeSet: (setId: string, patch: Partial<Set>) => void;
   onDeleteSet: (setId: string) => void;
   onAddSet: () => void;
@@ -31,7 +33,7 @@ export function ExerciseCard({
   workoutExercise: we,
   name,
   muscle,
-  imageUrl,
+  mediaUrl,
   onChangeSet,
   onDeleteSet,
   onAddSet,
@@ -64,7 +66,7 @@ export function ExerciseCard({
           treatment as the "Up next" hero on Today. */}
       <div className="relative h-40 w-full shrink-0 bg-fill">
         <MediaThumb
-          src={imageUrl}
+          src={mediaUrl}
           alt=""
           fallback={
             <span className="text-stat-sm font-bold text-label-tertiary">

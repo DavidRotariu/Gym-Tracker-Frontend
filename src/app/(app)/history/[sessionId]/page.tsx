@@ -41,8 +41,8 @@ export default function HistorySessionPage() {
       exercises?.map((e) => [e.id, muscleNames.get(e.muscle_id) ?? ""]),
     );
   }, [exercises, muscles]);
-  const exerciseImages = useMemo(
-    () => new Map(exercises?.map((e) => [e.id, e.pic])),
+  const exerciseMedia = useMemo(
+    () => new Map(exercises?.map((e) => [e.id, e.video_url ?? e.image_url])),
     [exercises],
   );
 
@@ -124,7 +124,7 @@ export default function HistorySessionPage() {
                   workoutExercise={we}
                   name={exerciseNames.get(we.exercise_id) ?? "Exercise"}
                   muscle={exerciseMuscle.get(we.exercise_id)}
-                  imageUrl={exerciseImages.get(we.exercise_id)}
+                  mediaUrl={exerciseMedia.get(we.exercise_id)}
                   readOnly
                   onChangeSet={noop}
                   onDeleteSet={noop}

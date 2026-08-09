@@ -102,9 +102,11 @@ export const handlers = [
     if (!exercise) return errorResponse(404, "Exercise not found.");
     const body = (await request.json()) as Partial<{
       name: string;
-      pic: string | null;
+      image_url: string | null;
+      video_url: string | null;
       muscle_id: string;
       exercise_type: Exercise["exercise_type"];
+      rest_time: number;
       equipment: string | null;
       tips: string | null;
       favorite: boolean;
@@ -112,8 +114,10 @@ export const handlers = [
     }>;
 
     if (body.name !== undefined) exercise.name = body.name;
-    if (body.pic !== undefined) exercise.pic = body.pic;
+    if (body.image_url !== undefined) exercise.image_url = body.image_url;
+    if (body.video_url !== undefined) exercise.video_url = body.video_url;
     if (body.exercise_type !== undefined) exercise.exercise_type = body.exercise_type;
+    if (body.rest_time !== undefined) exercise.rest_time = body.rest_time;
     if (body.equipment !== undefined) exercise.equipment = body.equipment;
     if (body.tips !== undefined) exercise.tips = body.tips;
     if (body.muscle_id !== undefined) {
