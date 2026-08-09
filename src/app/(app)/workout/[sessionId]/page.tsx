@@ -206,10 +206,39 @@ export default function WorkoutSessionPage() {
     });
   }
 
-  function handleChangeSet(setId: string, patch: Partial<Set>) {
+  /**
+   * Filling in a set's weight or reps carries that value forward to any
+   * later set in the same exercise whose *same field* is still untouched —
+   * logging a straight-sets exercise becomes "type once, tap complete" for
+   * every set after the first instead of retyping the same numbers. Weight
+   * and reps propagate independently, since they're typed one after the
+   * other (weight, then tab to reps): a set that already got its weight
+   * from this carry-forward still picks up reps a moment later. Any field a
+   * set already has — typed by hand or carried forward earlier — is left
+   * alone, so correcting set 1 after set 3 diverges doesn't stomp it.
+   */
+  function handleChangeSet(we: WorkoutExercise, setId: string, patch: Partial<Set>) {
     patchSet.mutate({ id: setId, patch });
     if (patch.completed === true) {
       setRestSignal((n) => n + 1);
+    }
+
+    const current = we.sets.find((s) => s.id === setId);
+    if (!current) return;
+
+    if (patch.actual_weight !== undefined && patch.actual_weight !== null) {
+      for (const s of we.sets) {
+        if (s.set_number > current.set_number && s.actual_weight === null) {
+          patchSet.mutate({ id: s.id, patch: { actual_weight: patch.actual_weight } });
+        }
+      }
+    }
+    if (patch.actual_reps !== undefined && patch.actual_reps !== null) {
+      for (const s of we.sets) {
+        if (s.set_number > current.set_number && s.actual_reps === null) {
+          patchSet.mutate({ id: s.id, patch: { actual_reps: patch.actual_reps } });
+        }
+      }
     }
   }
 
@@ -301,7 +330,7 @@ export default function WorkoutSessionPage() {
               axis="y"
               values={order}
               onReorder={handleReorder}
-              className="flex flex-col gap-3"
+              className="workout-exercises flex flex-col gap-3"
             >
               {orderedGroups.map((group) => {
                 const groupId = group[0].superset_group_id;
@@ -317,7 +346,7 @@ export default function WorkoutSessionPage() {
                           name={exerciseNames.get(we.exercise_id) ?? "Exercise"}
                           muscle={exerciseMuscle.get(we.exercise_id)}
                           imageUrl={exerciseImages.get(we.exercise_id)}
-                          onChangeSet={handleChangeSet}
+                          onChangeSet={(setId, patch) => handleChangeSet(we, setId, patch)}
                           onDeleteSet={(setId) => deleteSet.mutate(setId)}
                           onAddSet={() => handleAddSet(we)}
                           onRemove={() => removeExercise.mutate(we.id)}

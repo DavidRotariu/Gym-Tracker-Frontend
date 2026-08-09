@@ -313,3 +313,15 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Mid-workout focus: while logging a set inside one exercise card, dim every
+   other card so the one you're typing into reads as "the" exercise. Pure
+   :has()/:focus-within — no scroll or tap-tracking state needed, and it
+   clears itself the instant focus leaves the list. */
+.exercise-card {
+  transition: opacity 200ms ease;
+}
+.workout-exercises:has(.exercise-card:focus-within)
+  .exercise-card:not(:focus-within) {
+  opacity: 0.5;
+}
