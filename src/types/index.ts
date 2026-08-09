@@ -18,7 +18,7 @@ export interface Exercise {
   muscle_id: string;
   exercise_type: ExerciseType;
   /** Small still, cloud-hosted — icon-sized uses (search rows, lists). */
-  image_url: string | null;
+  thumbnail_url: string | null;
   /** Demo clip, cloud-hosted — card and bigger-view uses. */
   video_url: string | null;
   /** Rest time in seconds to prefill after logging a set of this exercise. */

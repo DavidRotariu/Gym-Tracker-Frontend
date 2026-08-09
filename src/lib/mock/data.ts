@@ -33,7 +33,7 @@ export interface MockDB {
 /**
  * Muscle illustrations still ship locally under public/muscles (filenames as
  * provided — spaces/parens included, MediaThumb encodes the URL). Exercise
- * media moved to the cloud (image_url/video_url on Exercise) — the mock
+ * media moved to the cloud (thumbnail_url/video_url on Exercise) — the mock
  * backend has no local files to point at, so those come back null here;
  * MediaThumb already degrades to its fallback glyph when src is null.
  */
@@ -178,7 +178,7 @@ const EXERCISES: Exercise[] = EXERCISE_NAMES.map((e) => ({
   exercise_type: (BODY_WEIGHT_EXERCISE_IDS.has(e.id)
     ? "body_weight"
     : "weighted") as ExerciseType,
-  image_url: null,
+  thumbnail_url: null,
   video_url: null,
   rest_time: 90,
   tips: null,

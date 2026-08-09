@@ -38,7 +38,7 @@ existing API).
 | name | string | |
 | muscle_id | integer | FK → Muscle, primary muscle |
 | exercise_type | enum | `body_weight` \| `weighted` \| `negative`; existing rows migrated to `weighted` |
-| image_url | string \| null | cloud-hosted still — small/icon uses (search, lists) |
+| thumbnail_url | string \| null | cloud-hosted still — small/icon uses (search, lists) |
 | video_url | string \| null | cloud-hosted clip — card and bigger-view uses |
 | rest_time | integer | seconds; default rest to prefill after logging a set of this exercise |
 
@@ -173,7 +173,7 @@ status (400/401/403/404/409/500).
     "name": "Bench Press",
     "muscle_id": 1,
     "exercise_type": "weighted",
-    "image_url": "string|null",
+    "thumbnail_url": "string|null",
     "video_url": "string|null",
     "rest_time": 90,
     "secondary_muscles": [ { "id": 3, "name": "Shoulders" }, { "id": 7, "name": "Triceps" } ]
@@ -186,7 +186,7 @@ status (400/401/403/404/409/500).
 // request (any subset)
 {
   "name": "Barbell Bench Press",
-  "image_url": "string|null",
+  "thumbnail_url": "string|null",
   "video_url": "string|null",
   "tips": "string|null",
   "equipment": "string|null",

@@ -89,7 +89,7 @@ export default function ExerciseDetailPage() {
 
       <div className="relative mb-4">
         <MediaThumb
-          src={exercise?.video_url ?? exercise?.image_url}
+          src={exercise?.video_url ?? exercise?.thumbnail_url}
           alt={exercise ? `${exercise.name} demonstration` : ""}
           fallback={
             <span className="text-stat text-label-tertiary">

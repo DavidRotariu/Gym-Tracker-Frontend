@@ -29,7 +29,7 @@ function isVideo(src: string): boolean {
 
 /**
  * Renders whatever `src` is — a local muscle illustration or a cloud-hosted
- * exercise image/video URL (see Exercise.image_url/video_url in
+ * exercise image/video URL (see Exercise.thumbnail_url/video_url in
  * types/index.ts). Local filenames may contain spaces/parentheses, so paths
  * always go through encodeURI. Always degrades to `fallback` instead of a
  * broken-media icon.

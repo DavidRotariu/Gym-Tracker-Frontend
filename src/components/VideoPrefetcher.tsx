@@ -59,7 +59,7 @@ export function VideoPrefetcher() {
     const urls = [
       ...muscles.map((m) => m.pic),
       ...exercises.map((e) => e.video_url),
-      ...exercises.map((e) => e.image_url),
+      ...exercises.map((e) => e.thumbnail_url),
     ].filter((u): u is string => !!u);
     if (urls.length === 0) return;
 

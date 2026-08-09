@@ -42,7 +42,7 @@ export default function HistorySessionPage() {
     );
   }, [exercises, muscles]);
   const exerciseMedia = useMemo(
-    () => new Map(exercises?.map((e) => [e.id, e.video_url ?? e.image_url])),
+    () => new Map(exercises?.map((e) => [e.id, e.video_url ?? e.thumbnail_url])),
     [exercises],
   );
 
