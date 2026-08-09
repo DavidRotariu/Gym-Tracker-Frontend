@@ -1,5 +1,15 @@
 import type { Split, WorkoutSession, WorkoutSessionSummary } from "@/types";
 
+/**
+ * The API sends muscle names as raw lowercase slugs ("full_body",
+ * "upper_back") — this is the one place that turns one into display text,
+ * so every screen shows "Full body" instead of the wire format.
+ */
+export function formatMuscleName(name: string): string {
+  const spaced = name.replace(/_/g, " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
 /** "1h 12m" / "48m" / "—" */
 export function formatDuration(
   startedAt: string,

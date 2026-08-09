@@ -31,150 +31,168 @@ export interface MockDB {
 }
 
 /**
- * Muscle illustrations still ship locally under public/muscles (filenames as
- * provided — spaces/parens included, MediaThumb encodes the URL). Exercise
- * media moved to the cloud (thumbnail_url/video_url on Exercise) — the mock
- * backend has no local files to point at, so those come back null here;
- * MediaThumb already degrades to its fallback glyph when src is null.
+ * The full muscle catalog — filenames under public/muscles match these slugs
+ * exactly (e.g. `full_body.png`), so no per-muscle override map is needed.
+ * `name` is stored raw/lowercase to mirror what the real API sends (see
+ * primary_muscle on a live exercise, e.g. "abdominals") — display code
+ * capitalizes it (formatMuscleName in lib/format.ts), it isn't pre-formatted
+ * here.
  */
-const MUSCLE_FILES: Record<string, string> = {
-  Chest: "Chest.png",
-  Back: "Back.png",
-  Shoulders: "Shoulders.png",
-  Quads: "Quadriceps.png",
-  Hamstrings: "Hamstrings.png",
-  Biceps: "Biceps.png",
-  Triceps: "Triceps.png",
-  Core: "Abs.png",
-  Calves: "Calves.png",
-  Forearms: "Forearms.png",
-  Glutes: "Glutes.png",
-};
+const MUSCLE_SLUGS = [
+  "forearms",
+  "calves",
+  "hamstrings",
+  "biceps",
+  "glutes",
+  "traps",
+  "shoulders",
+  "abductors",
+  "cardio",
+  "full_body",
+  "adductors",
+  "quadriceps",
+  "upper_back",
+  "triceps",
+  "lower_back",
+  "other",
+  "abdominals",
+  "neck",
+  "chest",
+  "lats",
+] as const;
 
-const MUSCLES: Muscle[] = Object.keys(MUSCLE_FILES).map((name, i) => ({
+const MUSCLES: Muscle[] = MUSCLE_SLUGS.map((slug, i) => ({
   id: String(i + 1),
-  name,
-  pic: `/muscles/${MUSCLE_FILES[name]}`,
+  name: slug,
+  pic: `/muscles/${slug}.png`,
 }));
 
-const EXERCISE_NAMES: { id: number; name: string; muscle_id: number }[] = [
-  // Chest
-  { id: 10, name: "Barbell Bench Press", muscle_id: 1 },
-  { id: 11, name: "Incline Dumbbell Press", muscle_id: 1 },
-  { id: 12, name: "Cable Fly", muscle_id: 1 },
-  { id: 13, name: "Push-Up", muscle_id: 1 },
-  { id: 14, name: "Dumbbell Fly", muscle_id: 1 },
-  { id: 15, name: "Smith Machine Bench Press", muscle_id: 1 },
-  { id: 16, name: "Lever Chest Press", muscle_id: 1 },
-  { id: 17, name: "Pec Deck Fly", muscle_id: 1 },
-  // Back
-  { id: 20, name: "Deadlift", muscle_id: 2 },
-  { id: 21, name: "Pull-Up", muscle_id: 2 },
-  { id: 22, name: "Barbell Row", muscle_id: 2 },
-  { id: 23, name: "Lat Pulldown", muscle_id: 2 },
-  { id: 24, name: "Seated Cable Row", muscle_id: 2 },
-  { id: 25, name: "T-Bar Row", muscle_id: 2 },
-  { id: 26, name: "Barbell Shrug", muscle_id: 2 },
-  { id: 27, name: "Straight-Arm Pulldown", muscle_id: 2 },
-  // Shoulders
-  { id: 30, name: "Overhead Press", muscle_id: 3 },
-  { id: 31, name: "Lateral Raise", muscle_id: 3 },
-  { id: 32, name: "Rear Delt Fly", muscle_id: 3 },
-  { id: 33, name: "Arnold Press", muscle_id: 3 },
-  { id: 34, name: "Front Raise", muscle_id: 3 },
-  { id: 35, name: "Upright Row", muscle_id: 3 },
-  { id: 36, name: "Band Face Pull", muscle_id: 3 },
-  // Quads
-  { id: 40, name: "Back Squat", muscle_id: 4 },
-  { id: 41, name: "Leg Press", muscle_id: 4 },
-  { id: 42, name: "Walking Lunge", muscle_id: 4 },
-  { id: 43, name: "Leg Extension", muscle_id: 4 },
-  { id: 44, name: "Smith Machine Squat", muscle_id: 4 },
-  { id: 45, name: "Goblet Squat", muscle_id: 4 },
-  { id: 46, name: "Bulgarian Split Squat", muscle_id: 4 },
-  // Hamstrings
-  { id: 50, name: "Romanian Deadlift", muscle_id: 5 },
-  { id: 51, name: "Lying Leg Curl", muscle_id: 5 },
-  { id: 52, name: "Seated Leg Curl", muscle_id: 5 },
-  { id: 53, name: "Glute Ham Raise", muscle_id: 5 },
-  // Biceps
-  { id: 60, name: "Barbell Curl", muscle_id: 6 },
-  { id: 61, name: "Hammer Curl", muscle_id: 6 },
-  { id: 62, name: "Concentration Curl", muscle_id: 6 },
-  { id: 63, name: "Preacher Curl", muscle_id: 6 },
-  { id: 64, name: "Cable Curl", muscle_id: 6 },
-  { id: 65, name: "EZ-Bar Curl", muscle_id: 6 },
-  // Triceps
-  { id: 70, name: "Triceps Pushdown", muscle_id: 7 },
-  { id: 71, name: "Skull Crusher", muscle_id: 7 },
-  { id: 72, name: "Diamond Push-Up", muscle_id: 7 },
-  { id: 73, name: "Overhead Triceps Extension", muscle_id: 7 },
-  { id: 74, name: "Close-Grip Bench Press", muscle_id: 7 },
-  { id: 75, name: "Seated Dip", muscle_id: 7 },
-  // Core
-  { id: 80, name: "Hanging Leg Raise", muscle_id: 8 },
-  { id: 81, name: "Cable Crunch", muscle_id: 8 },
-  { id: 82, name: "Plank", muscle_id: 8 },
-  { id: 83, name: "Lying Leg Raise", muscle_id: 8 },
-  { id: 84, name: "Russian Twist", muscle_id: 8 },
-  { id: 85, name: "L-Sit", muscle_id: 8 },
-  // Calves
-  { id: 90, name: "Standing Calf Raise", muscle_id: 9 },
-  { id: 91, name: "Lever Standing Calf Raise", muscle_id: 9 },
-  { id: 92, name: "Smith Machine Calf Raise", muscle_id: 9 },
-  // Forearms
-  { id: 100, name: "Barbell Reverse Wrist Curl", muscle_id: 10 },
-  { id: 101, name: "Cable Hammer Curl", muscle_id: 10 },
-  { id: 102, name: "Barbell Reverse Curl", muscle_id: 10 },
-  // Glutes
-  { id: 110, name: "Barbell Hip Thrust", muscle_id: 11 },
-  { id: 111, name: "Lever Hip Thrust", muscle_id: 11 },
-  { id: 112, name: "Hyperextension", muscle_id: 11 },
-];
+const MUSCLE_ID_BY_SLUG = new Map(MUSCLES.map((m) => [m.name, m.id]));
+const MUSCLE_BY_ID = new Map(MUSCLES.map((m) => [m.id, m]));
 
-const MUSCLE_BY_INDEX = new Map(MUSCLES.map((m, i) => [i + 1, m]));
+function muscleId(slug: (typeof MUSCLE_SLUGS)[number]): string {
+  return MUSCLE_ID_BY_SLUG.get(slug)!;
+}
+
+const EXERCISE_NAMES: {
+  id: number;
+  name: string;
+  muscle: (typeof MUSCLE_SLUGS)[number];
+}[] = [
+  // Chest
+  { id: 10, name: "Barbell Bench Press", muscle: "chest" },
+  { id: 11, name: "Incline Dumbbell Press", muscle: "chest" },
+  { id: 12, name: "Cable Fly", muscle: "chest" },
+  { id: 13, name: "Push-Up", muscle: "chest" },
+  { id: 14, name: "Dumbbell Fly", muscle: "chest" },
+  { id: 15, name: "Smith Machine Bench Press", muscle: "chest" },
+  { id: 16, name: "Lever Chest Press", muscle: "chest" },
+  { id: 17, name: "Pec Deck Fly", muscle: "chest" },
+  // Back (split across the real catalog's more granular back muscles)
+  { id: 20, name: "Deadlift", muscle: "lower_back" },
+  { id: 21, name: "Pull-Up", muscle: "lats" },
+  { id: 22, name: "Barbell Row", muscle: "lats" },
+  { id: 23, name: "Lat Pulldown", muscle: "lats" },
+  { id: 24, name: "Seated Cable Row", muscle: "upper_back" },
+  { id: 25, name: "T-Bar Row", muscle: "upper_back" },
+  { id: 26, name: "Barbell Shrug", muscle: "traps" },
+  { id: 27, name: "Straight-Arm Pulldown", muscle: "lats" },
+  // Shoulders
+  { id: 30, name: "Overhead Press", muscle: "shoulders" },
+  { id: 31, name: "Lateral Raise", muscle: "shoulders" },
+  { id: 32, name: "Rear Delt Fly", muscle: "shoulders" },
+  { id: 33, name: "Arnold Press", muscle: "shoulders" },
+  { id: 34, name: "Front Raise", muscle: "shoulders" },
+  { id: 35, name: "Upright Row", muscle: "shoulders" },
+  { id: 36, name: "Band Face Pull", muscle: "shoulders" },
+  // Quads
+  { id: 40, name: "Back Squat", muscle: "quadriceps" },
+  { id: 41, name: "Leg Press", muscle: "quadriceps" },
+  { id: 42, name: "Walking Lunge", muscle: "quadriceps" },
+  { id: 43, name: "Leg Extension", muscle: "quadriceps" },
+  { id: 44, name: "Smith Machine Squat", muscle: "quadriceps" },
+  { id: 45, name: "Goblet Squat", muscle: "quadriceps" },
+  { id: 46, name: "Bulgarian Split Squat", muscle: "quadriceps" },
+  // Hamstrings
+  { id: 50, name: "Romanian Deadlift", muscle: "hamstrings" },
+  { id: 51, name: "Lying Leg Curl", muscle: "hamstrings" },
+  { id: 52, name: "Seated Leg Curl", muscle: "hamstrings" },
+  { id: 53, name: "Glute Ham Raise", muscle: "hamstrings" },
+  // Biceps
+  { id: 60, name: "Barbell Curl", muscle: "biceps" },
+  { id: 61, name: "Hammer Curl", muscle: "biceps" },
+  { id: 62, name: "Concentration Curl", muscle: "biceps" },
+  { id: 63, name: "Preacher Curl", muscle: "biceps" },
+  { id: 64, name: "Cable Curl", muscle: "biceps" },
+  { id: 65, name: "EZ-Bar Curl", muscle: "biceps" },
+  // Triceps
+  { id: 70, name: "Triceps Pushdown", muscle: "triceps" },
+  { id: 71, name: "Skull Crusher", muscle: "triceps" },
+  { id: 72, name: "Diamond Push-Up", muscle: "triceps" },
+  { id: 73, name: "Overhead Triceps Extension", muscle: "triceps" },
+  { id: 74, name: "Close-Grip Bench Press", muscle: "triceps" },
+  { id: 75, name: "Seated Dip", muscle: "triceps" },
+  // Core
+  { id: 80, name: "Hanging Leg Raise", muscle: "abdominals" },
+  { id: 81, name: "Cable Crunch", muscle: "abdominals" },
+  { id: 82, name: "Plank", muscle: "abdominals" },
+  { id: 83, name: "Lying Leg Raise", muscle: "abdominals" },
+  { id: 84, name: "Russian Twist", muscle: "abdominals" },
+  { id: 85, name: "L-Sit", muscle: "abdominals" },
+  // Calves
+  { id: 90, name: "Standing Calf Raise", muscle: "calves" },
+  { id: 91, name: "Lever Standing Calf Raise", muscle: "calves" },
+  { id: 92, name: "Smith Machine Calf Raise", muscle: "calves" },
+  // Forearms
+  { id: 100, name: "Barbell Reverse Wrist Curl", muscle: "forearms" },
+  { id: 101, name: "Cable Hammer Curl", muscle: "forearms" },
+  { id: 102, name: "Barbell Reverse Curl", muscle: "forearms" },
+  // Glutes
+  { id: 110, name: "Barbell Hip Thrust", muscle: "glutes" },
+  { id: 111, name: "Lever Hip Thrust", muscle: "glutes" },
+  { id: 112, name: "Hyperextension", muscle: "glutes" },
+];
 
 /** Movements with no external load — everything else defaults to "weighted". */
 const BODY_WEIGHT_EXERCISE_IDS = new Set([13, 21, 72, 80, 82, 83, 85]);
 
 /**
- * Secondary muscles worked by each exercise, by muscle index (see MUSCLES).
- * Not exhaustive — a representative subset of the catalog, same ~40% split
- * the real dataset has (65/149 exercises carry at least one).
+ * Secondary muscles worked by each exercise. Not exhaustive — a
+ * representative subset of the catalog, same ~40% split the real dataset
+ * has (65/149 exercises carry at least one).
  */
-const SECONDARY_MUSCLE_IDS: Record<number, number[]> = {
-  10: [3, 7], // Bench Press: shoulders, triceps
-  11: [3, 7],
-  15: [3, 7],
-  16: [3, 7],
-  17: [3],
-  20: [5, 11], // Deadlift: hamstrings, glutes
-  21: [6], // Pull-Up: biceps
-  22: [6],
-  23: [6],
-  24: [6],
-  25: [6],
-  40: [11, 5], // Back Squat: glutes, hamstrings
-  41: [11],
-  42: [11],
-  44: [11],
-  45: [11],
-  46: [11],
-  50: [11], // Romanian Deadlift: glutes
-  60: [10], // Barbell Curl: forearms
-  63: [10],
-  65: [10],
-  74: [1], // Close-Grip Bench Press: chest
-  75: [1, 7], // Seated Dip: chest, triceps
-  110: [5], // Hip Thrust: hamstrings
-  111: [5],
-  112: [5],
+const SECONDARY_MUSCLES: Record<number, (typeof MUSCLE_SLUGS)[number][]> = {
+  10: ["shoulders", "triceps"], // Bench Press
+  11: ["shoulders", "triceps"],
+  15: ["shoulders", "triceps"],
+  16: ["shoulders", "triceps"],
+  17: ["shoulders"],
+  20: ["hamstrings", "glutes"], // Deadlift
+  21: ["biceps"], // Pull-Up
+  22: ["biceps"],
+  23: ["biceps"],
+  24: ["biceps"],
+  40: ["glutes", "hamstrings"], // Back Squat
+  41: ["glutes"],
+  42: ["glutes"],
+  44: ["glutes"],
+  45: ["glutes"],
+  46: ["glutes"],
+  50: ["glutes"], // Romanian Deadlift
+  60: ["forearms"], // Barbell Curl
+  63: ["forearms"],
+  65: ["forearms"],
+  74: ["chest"], // Close-Grip Bench Press
+  75: ["chest", "triceps"], // Seated Dip
+  110: ["hamstrings"], // Hip Thrust
+  111: ["hamstrings"],
+  112: ["hamstrings"],
 };
 
 const EXERCISES: Exercise[] = EXERCISE_NAMES.map((e) => ({
   id: String(e.id),
   name: e.name,
-  muscle_id: String(e.muscle_id),
+  muscle_id: muscleId(e.muscle),
   exercise_type: (BODY_WEIGHT_EXERCISE_IDS.has(e.id)
     ? "body_weight"
     : "weighted") as ExerciseType,
@@ -184,9 +202,9 @@ const EXERCISES: Exercise[] = EXERCISE_NAMES.map((e) => ({
   tips: null,
   equipment: null,
   favourite: false,
-  primary_muscle: MUSCLE_BY_INDEX.get(e.muscle_id)?.name ?? "",
-  secondary_muscles: (SECONDARY_MUSCLE_IDS[e.id] ?? [])
-    .map((mid) => MUSCLE_BY_INDEX.get(mid))
+  primary_muscle: e.muscle,
+  secondary_muscles: (SECONDARY_MUSCLES[e.id] ?? [])
+    .map((slug) => MUSCLE_BY_ID.get(muscleId(slug)))
     .filter((m): m is Muscle => m !== undefined),
 }));
 
@@ -274,9 +292,9 @@ export function createSeedData(): MockDB {
       name: "Push Day",
       pic: null,
       muscles: [
-        { muscle_id: "1", nr_of_exercises: 3 },
-        { muscle_id: "3", nr_of_exercises: 2 },
-        { muscle_id: "7", nr_of_exercises: 1 },
+        { muscle_id: muscleId("chest"), nr_of_exercises: 3 },
+        { muscle_id: muscleId("shoulders"), nr_of_exercises: 2 },
+        { muscle_id: muscleId("triceps"), nr_of_exercises: 1 },
       ],
     },
     {
@@ -285,8 +303,10 @@ export function createSeedData(): MockDB {
       name: "Pull Day",
       pic: null,
       muscles: [
-        { muscle_id: "2", nr_of_exercises: 3 },
-        { muscle_id: "6", nr_of_exercises: 2 },
+        // "Back" isn't one muscle in this catalog — lats has the deepest
+        // exercise pool of the back muscles, so it stands in for the split.
+        { muscle_id: muscleId("lats"), nr_of_exercises: 3 },
+        { muscle_id: muscleId("biceps"), nr_of_exercises: 2 },
       ],
     },
     {
@@ -295,9 +315,9 @@ export function createSeedData(): MockDB {
       name: "Leg Day",
       pic: null,
       muscles: [
-        { muscle_id: "4", nr_of_exercises: 2 },
-        { muscle_id: "5", nr_of_exercises: 2 },
-        { muscle_id: "8", nr_of_exercises: 1 },
+        { muscle_id: muscleId("quadriceps"), nr_of_exercises: 2 },
+        { muscle_id: muscleId("hamstrings"), nr_of_exercises: 2 },
+        { muscle_id: muscleId("abdominals"), nr_of_exercises: 1 },
       ],
     },
   ];
