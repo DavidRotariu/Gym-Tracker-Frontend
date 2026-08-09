@@ -1,9 +1,25 @@
 import { apiRequest } from "./client";
+import { formatMuscleName } from "@/lib/format";
 import type { Exercise, ExerciseHistoryEntry, ExerciseType, LastSet } from "@/types";
 
-export function getExercises(muscleId?: string) {
+/** Muscle names arrive raw/lowercase both standalone (GET /muscles) and
+ *  embedded on an Exercise (primary_muscle, secondary_muscles) — format the
+ *  embedded copies here since they don't pass through getMuscles(). */
+function formatExercise(exercise: Exercise): Exercise {
+  return {
+    ...exercise,
+    primary_muscle: formatMuscleName(exercise.primary_muscle),
+    secondary_muscles: exercise.secondary_muscles.map((m) => ({
+      ...m,
+      name: formatMuscleName(m.name),
+    })),
+  };
+}
+
+export async function getExercises(muscleId?: string) {
   const qs = muscleId ? `?muscle_id=${muscleId}` : "";
-  return apiRequest<Exercise[]>(`/exercises${qs}`);
+  const exercises = await apiRequest<Exercise[]>(`/exercises${qs}`);
+  return exercises.map(formatExercise);
 }
 
 export function getExerciseHistory(
@@ -38,9 +54,10 @@ export interface ExerciseUpdateInput {
   secondary_muscles?: string[];
 }
 
-export function updateExercise(exerciseId: string, input: ExerciseUpdateInput) {
-  return apiRequest<Exercise>(`/exercises/${exerciseId}`, {
+export async function updateExercise(exerciseId: string, input: ExerciseUpdateInput) {
+  const exercise = await apiRequest<Exercise>(`/exercises/${exerciseId}`, {
     method: "PATCH",
     body: input,
   });
+  return formatExercise(exercise);
 }
