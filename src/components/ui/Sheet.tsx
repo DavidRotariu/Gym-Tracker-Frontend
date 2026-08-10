@@ -153,7 +153,11 @@ export function Sheet({
               </div>
             )}
 
-            <div className="overflow-y-auto overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
+            {/* flex-1 only does anything when the sheet itself has a fixed
+                height (see ExercisePicker's `h-[88vh]` override) — it's a
+                no-op for every other sheet, which stays sized to its
+                content as before. */}
+            <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
               {children}
             </div>
           </motion.div>

@@ -98,6 +98,14 @@ export function RestTimer({ startSignal, restSeconds }: RestTimerProps) {
   useEffect(() => {
     if (endAt === null) return;
     const tick = () => setNow(Date.now());
+    // `now` only gets refreshed while this effect is running — once a rest
+    // period ends, ticking stops and `now` freezes until the next timer
+    // starts. Without this, the first render after that next start() still
+    // computes `remaining` against however-stale `now` was, which can read
+    // as way more (or less) than the actual duration for a moment — the
+    // ring briefly winds to a bogus position before the real 1s tick lands
+    // and corrects it. Ticking once immediately here closes that gap.
+    tick();
     const id = setInterval(tick, 1000);
     document.addEventListener("visibilitychange", tick);
     window.addEventListener("focus", tick);

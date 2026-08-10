@@ -16,6 +16,7 @@ import {
   formatDay,
   formatDuration,
   muscleImage,
+  shortMuscleName,
   suggestSplit,
 } from "@/lib/format";
 import { staggerContainer, staggerItem } from "@/lib/motion";
@@ -50,7 +51,7 @@ export default function HomePage() {
   );
 
   const muscleLookup = useMemo(
-    () => new Map(muscles?.map((m) => [m.id, m.name])),
+    () => new Map(muscles?.map((m) => [m.id, shortMuscleName(m.name)])),
     [muscles],
   );
   const splitNames = useMemo(

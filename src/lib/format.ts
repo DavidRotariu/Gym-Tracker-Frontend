@@ -28,6 +28,19 @@ export function formatMuscleName(name: string | null | undefined): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
+/** Display-only shorthands for a couple of muscles whose full names run
+ *  long in tight UI (filter circles, chips) — everything else (the image
+ *  lookup, the API data itself) keeps using the full `Muscle.name`, only
+ *  the on-screen label goes through this. */
+const MUSCLE_NAME_SHORTHANDS: Record<string, string> = {
+  Abdominals: "Abs",
+  Quadriceps: "Quads",
+};
+
+export function shortMuscleName(name: string): string {
+  return MUSCLE_NAME_SHORTHANDS[name] ?? name;
+}
+
 /**
  * Local anatomical illustration for a muscle — always one of the PNGs in
  * public/muscles/, never whatever `Muscle.pic` the API happens to send.

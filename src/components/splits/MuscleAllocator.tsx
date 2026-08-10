@@ -1,6 +1,7 @@
 "use client";
 
 import { Stepper } from "@/components/ui/Stepper";
+import { shortMuscleName } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Muscle, SplitMuscle } from "@/types";
 
@@ -76,7 +77,7 @@ export function MuscleAllocator({
                       : "text-label-secondary",
                   )}
                 >
-                  {muscle.name}
+                  {shortMuscleName(muscle.name)}
                 </span>
               </button>
 

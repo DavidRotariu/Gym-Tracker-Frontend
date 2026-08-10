@@ -15,6 +15,7 @@ import {
   formatTime,
   formatVolume,
   sessionStats,
+  shortMuscleName,
 } from "@/lib/format";
 import type { WorkoutExercise } from "@/types";
 import { useParams } from "next/navigation";
@@ -36,7 +37,7 @@ export default function HistorySessionPage() {
     [exercises],
   );
   const exerciseMuscle = useMemo(() => {
-    const muscleNames = new Map(muscles?.map((m) => [m.id, m.name]));
+    const muscleNames = new Map(muscles?.map((m) => [m.id, shortMuscleName(m.name)]));
     return new Map(
       exercises?.map((e) => [e.id, muscleNames.get(e.muscle_id) ?? ""]),
     );

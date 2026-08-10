@@ -1,3 +1,4 @@
+import { shortMuscleName } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Muscle, SplitMuscle } from "@/types";
 
@@ -9,8 +10,8 @@ interface MuscleChipsProps {
 
 function nameOf(lookup: MuscleChipsProps["lookup"], id: string): string {
   if (!lookup) return `#${id}`;
-  if (lookup instanceof Map) return lookup.get(id) ?? `#${id}`;
-  return lookup.find((m) => m.id === id)?.name ?? `#${id}`;
+  const name = lookup instanceof Map ? lookup.get(id) : lookup.find((m) => m.id === id)?.name;
+  return name ? shortMuscleName(name) : `#${id}`;
 }
 
 /** "Chest ×3" pills describing a split's muscle allocation. */

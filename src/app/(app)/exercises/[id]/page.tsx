@@ -14,7 +14,7 @@ import { TextField } from "@/components/ui/TextField";
 import { useExerciseHistory, useExercises, useUpdateExercise } from "@/hooks/use-exercises";
 import { useFavorite } from "@/hooks/use-favorites";
 import { useMuscles } from "@/hooks/use-muscles";
-import { formatDay, formatVolume } from "@/lib/format";
+import { formatDay, formatVolume, shortMuscleName } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Exercise, ExerciseType, Muscle } from "@/types";
 import Link from "next/link";
@@ -35,7 +35,8 @@ export default function ExerciseDetailPage() {
     () => exercises?.find((e) => e.id === exerciseId),
     [exercises, exerciseId],
   );
-  const muscleName = muscles?.find((m) => m.id === exercise?.muscle_id)?.name;
+  const muscleNameRaw = muscles?.find((m) => m.id === exercise?.muscle_id)?.name;
+  const muscleName = muscleNameRaw ? shortMuscleName(muscleNameRaw) : undefined;
 
   const stats = useMemo(() => {
     if (!history?.length) return null;
@@ -146,7 +147,7 @@ export default function ExerciseDetailPage() {
               key={m.id}
               className="rounded-pill bg-fill px-3 py-1 text-caption font-medium text-label-secondary"
             >
-              {m.name}
+              {shortMuscleName(m.name)}
             </span>
           ))}
         </div>
@@ -332,7 +333,7 @@ function ExerciseEditForm({
         >
           {muscles.map((m) => (
             <option key={m.id} value={m.id}>
-              {m.name}
+              {shortMuscleName(m.name)}
             </option>
           ))}
         </select>
@@ -383,7 +384,7 @@ function ExerciseEditForm({
                       : "bg-fill text-label-secondary",
                   )}
                 >
-                  {m.name}
+                  {shortMuscleName(m.name)}
                 </button>
               );
             })}

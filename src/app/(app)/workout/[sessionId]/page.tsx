@@ -24,7 +24,7 @@ import {
 import type { SetPatch } from "@/hooks/use-workout-session";
 import { usePatchWorkout, useWorkout } from "@/hooks/use-workouts";
 import { getLastSet } from "@/lib/api/exercises";
-import { formatElapsed } from "@/lib/format";
+import { formatElapsed, shortMuscleName } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Set, WorkoutExercise, WorkoutSession } from "@/types";
 import { Reorder, useDragControls } from "framer-motion";
@@ -92,7 +92,7 @@ export default function WorkoutSessionPage() {
     [exercises],
   );
   const exerciseMuscle = useMemo(() => {
-    const muscleNames = new Map(muscles?.map((m) => [m.id, m.name]));
+    const muscleNames = new Map(muscles?.map((m) => [m.id, shortMuscleName(m.name)]));
     return new Map(
       exercises?.map((e) => [e.id, muscleNames.get(e.muscle_id) ?? ""]),
     );

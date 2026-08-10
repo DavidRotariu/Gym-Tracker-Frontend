@@ -1,6 +1,8 @@
 "use client";
 
 import { useExercises } from "@/hooks/use-exercises";
+import { useMuscles } from "@/hooks/use-muscles";
+import { muscleImage } from "@/lib/format";
 import { useEffect } from "react";
 
 const PREFETCHED_KEY = "overload_media_prefetched";
@@ -41,22 +43,22 @@ async function prefetchAll(urls: string[]) {
 }
 
 /**
- * Warms the browser's HTTP cache for every exercise clip right after login,
- * so opening the picker later hits a warm local cache instead of a
- * several-hundred-KB fetch on the spot. Runs once per browser session and
- * skips itself on save-data/2G connections. Muscle illustrations aren't
- * included — they're local files under public/muscles/, already served
- * cacheably by Next, so there's no remote fetch cost to warm.
+ * Warms the browser's HTTP cache for every muscle illustration and exercise
+ * clip right after login, so opening the picker later hits a warm local
+ * cache instead of paying for it on the spot. Runs once per browser session
+ * and skips itself on save-data/2G connections.
  */
 export function VideoPrefetcher() {
+  const { data: muscles } = useMuscles();
   const { data: exercises } = useExercises();
 
   useEffect(() => {
-    if (!exercises) return;
+    if (!muscles || !exercises) return;
     if (sessionStorage.getItem(PREFETCHED_KEY)) return;
     if (shouldSkip()) return;
 
     const urls = [
+      ...muscles.map((m) => muscleImage(m.name)),
       ...exercises.map((e) => e.video_url),
       ...exercises.map((e) => e.thumbnail_url),
     ].filter((u): u is string => !!u);

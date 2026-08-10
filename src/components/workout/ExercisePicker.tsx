@@ -5,7 +5,7 @@ import { MediaThumb } from "@/components/ui/MediaThumb";
 import { Sheet } from "@/components/ui/Sheet";
 import { useExercises, useLastSet } from "@/hooks/use-exercises";
 import { useMuscles } from "@/hooks/use-muscles";
-import { formatDay, isTailMuscle, muscleImage } from "@/lib/format";
+import { formatDay, isTailMuscle, muscleImage, shortMuscleName } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Exercise } from "@/types";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -56,7 +56,9 @@ export function ExercisePicker({
 }: ExercisePickerProps) {
   const { data: muscles } = useMuscles();
   const { data: exercises, isLoading } = useExercises();
-  const [selectedMuscleIds, setSelectedMuscleIds] = useState<Set<string>>(new Set());
+  /** One muscle at a time — picking another swaps the selection rather
+   *  than adding to it. */
+  const [selectedMuscleId, setSelectedMuscleId] = useState<string | null>(null);
   const [lastByMuscle, setLastByMuscle] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
   const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null);
@@ -67,24 +69,19 @@ export function ExercisePicker({
 
   useEffect(() => {
     if (!open) {
-      setSelectedMuscleIds(new Set());
+      setSelectedMuscleId(null);
       setQuery("");
       setPreviewExercise(null);
     }
   }, [open]);
 
   const muscleName = useMemo(
-    () => new Map(muscles?.map((m) => [m.id, m.name])),
+    () => new Map(muscles?.map((m) => [m.id, shortMuscleName(m.name)])),
     [muscles],
   );
 
   function toggleMuscle(id: string) {
-    setSelectedMuscleIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    setSelectedMuscleId((prev) => (prev === id ? null : id));
   }
 
   /** Every muscle is browsable; the split's own muscles just float to the
@@ -112,7 +109,7 @@ export function ExercisePicker({
     return (exercises ?? [])
       .filter((e) => {
         if (q && !e.name.toLowerCase().includes(q)) return false;
-        if (selectedMuscleIds.size > 0 && !selectedMuscleIds.has(e.muscle_id)) return false;
+        if (selectedMuscleId && e.muscle_id !== selectedMuscleId) return false;
         return true;
       })
       .sort((a, b) => {
@@ -120,7 +117,7 @@ export function ExercisePicker({
         const bLast = lastByMuscle[b.muscle_id] === b.id ? 0 : 1;
         return aLast - bLast;
       });
-  }, [exercises, query, selectedMuscleIds, lastByMuscle]);
+  }, [exercises, query, selectedMuscleId, lastByMuscle]);
 
   function choose(exercise: { id: string; muscle_id: string }) {
     rememberLast(exercise.muscle_id, exercise.id);
@@ -205,7 +202,10 @@ export function ExercisePicker({
   }
 
   return (
-    <Sheet open={open} onClose={onClose} title={title}>
+    // Fixed height, not content-driven — a 1-2 result search would otherwise
+    // shrink the sheet down to fit them, which on mobile drops its (now
+    // much higher) bottom edge behind the keyboard instead of staying put.
+    <Sheet open={open} onClose={onClose} title={title} className="h-[88vh]">
       <div className="pb-3">
         <input
           type="search"
@@ -228,7 +228,7 @@ export function ExercisePicker({
                 </div>
               ))
             : orderedMuscles.map((m) => {
-                const selected = selectedMuscleIds.has(m.id);
+                const selected = selectedMuscleId === m.id;
                 const inSplit = allowedMuscleIds?.includes(m.id) ?? false;
                 return (
                   <button
@@ -239,27 +239,33 @@ export function ExercisePicker({
                     aria-label={m.name}
                     className="flex w-16 shrink-0 cursor-pointer flex-col items-center gap-1.5 active:opacity-70"
                   >
-                    <span
-                      className={cn(
-                        "relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-pill bg-fill",
-                        selected && "ring-2 ring-accent-ink",
-                      )}
-                    >
-                      <MediaThumb
-                        src={muscleImage(m.name)}
-                        alt=""
-                        static
-                        fallback={
-                          <span className="text-caption font-bold text-label-tertiary">
-                            {m.name.slice(0, 1)}
-                          </span>
-                        }
-                        className="size-full object-cover"
-                      />
+                    {/* The dot lives outside the circle's own overflow-hidden
+                        (needed to clip the muscle image round) — inside it,
+                        the mask cut the dot off right where it overlaps the
+                        circle's curve instead of sitting on top of it. */}
+                    <span className="relative flex size-14 shrink-0">
+                      <span
+                        className={cn(
+                          "flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-pill bg-fill",
+                          selected && "ring-2 ring-accent-ink",
+                        )}
+                      >
+                        <MediaThumb
+                          src={muscleImage(m.name)}
+                          alt=""
+                          static
+                          fallback={
+                            <span className="text-caption font-bold text-label-tertiary">
+                              {m.name.slice(0, 1)}
+                            </span>
+                          }
+                          className="size-full object-cover"
+                        />
+                      </span>
                       {/* Split-relevant muscles get a quiet dot instead of a
                           ring, so it doesn't get confused with "selected". */}
                       {inSplit && !selected && (
-                        <span className="absolute right-0.5 bottom-0.5 size-3 rounded-pill bg-accent ring-2 ring-background-elevated" />
+                        <span className="absolute right-0.5 bottom-0.5 z-10 size-3 rounded-pill bg-accent ring-2 ring-background-elevated" />
                       )}
                     </span>
                     <span
@@ -268,7 +274,7 @@ export function ExercisePicker({
                         selected ? "text-accent-ink" : "text-label-secondary",
                       )}
                     >
-                      {m.name}
+                      {shortMuscleName(m.name)}
                     </span>
                   </button>
                 );
