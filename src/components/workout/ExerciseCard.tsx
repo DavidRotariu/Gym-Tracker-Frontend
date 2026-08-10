@@ -248,6 +248,7 @@ function AddSetButton({
   return (
     <motion.button
       type="button"
+      data-add-set
       onClick={() => {
         setPulse((n) => n + 1);
         onAdd();

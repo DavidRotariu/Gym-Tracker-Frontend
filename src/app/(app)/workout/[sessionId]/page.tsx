@@ -169,7 +169,14 @@ export default function WorkoutSessionPage() {
       const el = document.getElementById(`we-${next.id}`);
       if (!el) return;
       el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.querySelector<HTMLInputElement>('input[aria-label$="weight"]')?.focus();
+      // A freshly-added exercise has no sets yet — no weight input to land
+      // in, so focus its "Log first set" button instead. Either way
+      // something inside the card ends up focused, which is what actually
+      // drives the focus-dimming on the other cards.
+      const target =
+        el.querySelector<HTMLElement>('input[aria-label$="weight"]') ??
+        el.querySelector<HTMLElement>("[data-add-set]");
+      target?.focus();
     }, 350);
   }
 
