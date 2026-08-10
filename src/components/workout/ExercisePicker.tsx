@@ -6,9 +6,8 @@ import { Sheet } from "@/components/ui/Sheet";
 import { useExercises, useLastSet } from "@/hooks/use-exercises";
 import { useMuscles } from "@/hooks/use-muscles";
 import { formatDay } from "@/lib/format";
-import { staggerContainer, staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import type { Exercise, Muscle } from "@/types";
+import type { Exercise } from "@/types";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -43,9 +42,10 @@ function rememberLast(muscleId: string, exerciseId: string) {
 }
 
 /**
- * Two steps: pick a muscle card, then pick an exercise for it — the one you
- * used last time for that muscle floats to the top, pre-selected in
- * everything but name, so continuing a routine is a single tap.
+ * Muscle circles act as a live filter on one always-visible exercise list,
+ * combined with the search box — tap a muscle (or several) to narrow the
+ * list, type to narrow further, or do neither to browse everything. No
+ * drill-down step: whatever's selected is applied instantly.
  */
 export function ExercisePicker({
   open,
@@ -56,7 +56,7 @@ export function ExercisePicker({
 }: ExercisePickerProps) {
   const { data: muscles } = useMuscles();
   const { data: exercises, isLoading } = useExercises();
-  const [activeMuscle, setActiveMuscle] = useState<Muscle | null>(null);
+  const [selectedMuscleIds, setSelectedMuscleIds] = useState<Set<string>>(new Set());
   const [lastByMuscle, setLastByMuscle] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
   const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null);
@@ -67,7 +67,7 @@ export function ExercisePicker({
 
   useEffect(() => {
     if (!open) {
-      setActiveMuscle(null);
+      setSelectedMuscleIds(new Set());
       setQuery("");
       setPreviewExercise(null);
     }
@@ -78,17 +78,18 @@ export function ExercisePicker({
     [muscles],
   );
 
-  /** Typing searches across every exercise, muscle step or not — clear the
-   *  query to fall back to the muscle-first browse flow. */
-  const searchResults = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return (exercises ?? []).filter((e) => e.name.toLowerCase().includes(q));
-  }, [exercises, query]);
+  function toggleMuscle(id: string) {
+    setSelectedMuscleIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   /** Every muscle is browsable; the split's own muscles just float to the
-   *  top and get an accent highlight, instead of hiding the rest. */
-  const visibleMuscles = useMemo(() => {
+   *  top and get an accent dot, instead of hiding the rest. */
+  const orderedMuscles = useMemo(() => {
     if (!muscles) return [];
     if (!allowedMuscleIds) return muscles;
     const allowed = new Set(allowedMuscleIds);
@@ -99,24 +100,23 @@ export function ExercisePicker({
     });
   }, [muscles, allowedMuscleIds]);
 
-  const exercisesByMuscle = useMemo(() => {
-    const map = new Map<string, typeof exercises>();
-    for (const e of exercises ?? []) {
-      const list = map.get(e.muscle_id) ?? [];
-      list.push(e);
-      map.set(e.muscle_id, list);
-    }
-    return map;
-  }, [exercises]);
-
-  const activeExercises = useMemo(() => {
-    if (!activeMuscle) return [];
-    const list = [...(exercisesByMuscle.get(activeMuscle.id) ?? [])];
-    const lastId = lastByMuscle[activeMuscle.id];
-    if (lastId === undefined) return list;
-    list.sort((a, b) => (a.id === lastId ? -1 : b.id === lastId ? 1 : 0));
-    return list;
-  }, [activeMuscle, exercisesByMuscle, lastByMuscle]);
+  /** Search text and the muscle-circle selection both narrow the same list,
+   *  at once — the exercise last used for a muscle floats to the top of it,
+   *  same "continuing a routine is one tap" shortcut as before. */
+  const visibleExercises = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (exercises ?? [])
+      .filter((e) => {
+        if (q && !e.name.toLowerCase().includes(q)) return false;
+        if (selectedMuscleIds.size > 0 && !selectedMuscleIds.has(e.muscle_id)) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const aLast = lastByMuscle[a.muscle_id] === a.id ? 0 : 1;
+        const bLast = lastByMuscle[b.muscle_id] === b.id ? 0 : 1;
+        return aLast - bLast;
+      });
+  }, [exercises, query, selectedMuscleIds, lastByMuscle]);
 
   function choose(exercise: { id: string; muscle_id: string }) {
     rememberLast(exercise.muscle_id, exercise.id);
@@ -201,22 +201,7 @@ export function ExercisePicker({
   }
 
   return (
-    <Sheet
-      open={open}
-      onClose={onClose}
-      title={activeMuscle ? activeMuscle.name : title}
-      action={
-        activeMuscle ? (
-          <button
-            type="button"
-            onClick={() => setActiveMuscle(null)}
-            className="min-h-11 cursor-pointer px-2 text-body font-semibold text-accent-ink active:opacity-60"
-          >
-            Muscles
-          </button>
-        ) : undefined
-      }
-    >
+    <Sheet open={open} onClose={onClose} title={title}>
       <div className="pb-3">
         <input
           type="search"
@@ -227,102 +212,92 @@ export function ExercisePicker({
         />
       </div>
 
-      {query.trim() ? (
-        <div className="flex flex-col gap-2 pb-2">
-          {searchResults.length === 0 ? (
-            <EmptyState
-              title="No matches"
-              description={`Nothing found for "${query.trim()}".`}
-            />
-          ) : (
-            searchResults.map((exercise) =>
-              renderRow(
-                exercise,
-                lastByMuscle[exercise.muscle_id] === exercise.id,
-                muscleName.get(exercise.muscle_id),
-              ),
-            )
-          )}
-        </div>
-      ) : !activeMuscle ? (
-        <div className="flex flex-col gap-4 pb-2">
-          {isLoading ? (
-            <div className="grid grid-cols-2 gap-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-24 animate-pulse rounded-card bg-fill" />
-              ))}
-            </div>
-          ) : visibleMuscles.length === 0 ? (
-            <EmptyState title="No muscles" description="No muscle groups to pick from." />
-          ) : (
-            <motion.div
-              variants={staggerContainer}
-              initial="hidden"
-              animate="show"
-              className="grid grid-cols-2 gap-3"
-            >
-              {visibleMuscles.map((m) => {
-                const count = exercisesByMuscle.get(m.id)?.length ?? 0;
+      {/* Muscle filter — a horizontal strip of circles, not a browse step:
+          tapping one narrows the list below instead of navigating to it. */}
+      <div className="no-scrollbar -mx-4 mb-3 overflow-x-auto">
+        <div className="flex gap-3 px-4">
+          {isLoading
+            ? Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex w-16 shrink-0 flex-col items-center gap-1.5">
+                  <div className="size-14 animate-pulse rounded-pill bg-fill" />
+                  <div className="h-3 w-10 animate-pulse rounded-full bg-fill" />
+                </div>
+              ))
+            : orderedMuscles.map((m) => {
+                const selected = selectedMuscleIds.has(m.id);
                 const inSplit = allowedMuscleIds?.includes(m.id) ?? false;
                 return (
-                  <motion.button
+                  <button
                     key={m.id}
-                    variants={staggerItem}
                     type="button"
-                    onClick={() => setActiveMuscle(m)}
-                    whileTap={{ scale: 0.96 }}
-                    className={cn(
-                      "relative flex h-24 cursor-pointer flex-col justify-end overflow-hidden rounded-card bg-background-secondary p-3 text-left",
-                      "active:opacity-70",
-                      // A thin *inset* ring (box-shadow) instead of an
-                      // outline — outline draws outside the box and doesn't
-                      // clip to the radius the same way everywhere, so it
-                      // reads as a hard rectangle poking past the rounded
-                      // corners. ring-inset always follows the radius.
-                      inSplit && "ring-1 ring-inset ring-accent-ink/60",
-                    )}
+                    onClick={() => toggleMuscle(m.id)}
+                    aria-pressed={selected}
+                    aria-label={m.name}
+                    className="flex w-16 shrink-0 cursor-pointer flex-col items-center gap-1.5 active:opacity-70"
                   >
-                    <MediaThumb
-                      src={m.pic}
-                      alt=""
-                      fallback={
-                        <span className="text-stat-sm font-bold text-label-tertiary">
-                          {m.name.slice(0, 1)}
-                        </span>
-                      }
-                      className="absolute inset-0 size-full"
-                    />
-                    <div className="relative bg-gradient-to-t from-black/55 via-transparent to-transparent p-2 -m-2 pt-6">
-                      <p className="text-body font-semibold text-label">{m.name}</p>
-                      <p className="text-tab text-label-tertiary">
-                        {count} exercise{count === 1 ? "" : "s"}
-                      </p>
-                    </div>
-                    {inSplit && (
-                      <span className="absolute top-2 right-2 rounded-pill bg-accent px-2 py-1 text-tab font-bold text-accent-foreground uppercase">
-                        In split
-                      </span>
-                    )}
-                  </motion.button>
+                    <span
+                      className={cn(
+                        "relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-pill bg-fill",
+                        selected && "ring-2 ring-accent-ink",
+                      )}
+                    >
+                      <MediaThumb
+                        src={m.pic}
+                        alt=""
+                        static
+                        fallback={
+                          <span className="text-caption font-bold text-label-tertiary">
+                            {m.name.slice(0, 1)}
+                          </span>
+                        }
+                        className="size-full object-cover"
+                      />
+                      {/* Split-relevant muscles get a quiet dot instead of a
+                          ring, so it doesn't get confused with "selected". */}
+                      {inSplit && !selected && (
+                        <span className="absolute right-0.5 bottom-0.5 size-3 rounded-pill bg-accent ring-2 ring-background-elevated" />
+                      )}
+                    </span>
+                    <span
+                      className={cn(
+                        "w-full truncate text-center text-tab font-medium",
+                        selected ? "text-accent-ink" : "text-label-secondary",
+                      )}
+                    >
+                      {m.name}
+                    </span>
+                  </button>
                 );
               })}
-            </motion.div>
-          )}
         </div>
-      ) : (
-        <div className="flex flex-col gap-2 pb-2">
-          {activeExercises.length === 0 && (
-            <EmptyState
-              title="No exercises"
-              description="Nothing catalogued for this muscle yet."
-            />
-          )}
+      </div>
 
-          {activeExercises.map((exercise) =>
-            renderRow(exercise, lastByMuscle[activeMuscle.id] === exercise.id),
-          )}
-        </div>
-      )}
+      {/* The one exercise list — filtered by search text and the muscle
+          selection above, together. */}
+      <div className="flex flex-col gap-2 pb-2">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-14 animate-pulse rounded-control bg-fill" />
+          ))
+        ) : visibleExercises.length === 0 ? (
+          <EmptyState
+            title="No matches"
+            description={
+              query.trim()
+                ? `Nothing found for "${query.trim()}".`
+                : "No exercises for this muscle yet."
+            }
+          />
+        ) : (
+          visibleExercises.map((exercise) =>
+            renderRow(
+              exercise,
+              lastByMuscle[exercise.muscle_id] === exercise.id,
+              muscleName.get(exercise.muscle_id),
+            ),
+          )
+        )}
+      </div>
 
       <ExercisePreview
         exercise={previewExercise}

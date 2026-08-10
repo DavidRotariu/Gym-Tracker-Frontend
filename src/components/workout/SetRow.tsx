@@ -2,10 +2,11 @@
 
 import { SwipeRow } from "@/components/ui/SwipeRow";
 import { SET_TYPE_ORDER, SET_TYPE_SHORT } from "@/components/ui/SetTypeBadge";
+import { useNumericKeypad } from "@/components/workout/NumericKeypad";
 import { cn } from "@/lib/utils";
 import type { Set, SetType } from "@/types";
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 interface SetRowProps {
   set: Set;
@@ -26,6 +27,13 @@ const dotStyles: Record<SetType, string> = {
   myorep: "bg-red-soft text-red",
 };
 
+/**
+ * A button, not a real `<input>` — tapping it opens the shared custom
+ * keypad (NumericKeypad) instead of the OS's decimal keyboard. `draft`
+ * mirrors whatever the keypad last reported so the button keeps showing the
+ * right thing after it closes; the actual live editing state lives in the
+ * keypad provider while it's open.
+ */
 function NumberField({
   value,
   placeholder,
@@ -37,14 +45,17 @@ function NumberField({
   onCommit: (value: number | null) => void;
   label: string;
 }) {
+  const fieldId = useId();
+  const keypad = useNumericKeypad();
   const [draft, setDraft] = useState(value === null ? "" : String(value));
 
   useEffect(() => {
     setDraft(value === null ? "" : String(value));
   }, [value]);
 
-  function commit() {
-    const trimmed = draft.trim();
+  function commit(finalDraft: string) {
+    setDraft(finalDraft);
+    const trimmed = finalDraft.trim();
     if (trimmed === "") {
       onCommit(null);
       return;
@@ -54,22 +65,21 @@ function NumberField({
     else setDraft(value === null ? "" : String(value));
   }
 
+  const active = keypad.activeId === fieldId;
+
   return (
-    <input
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-      }}
-      inputMode="decimal"
-      placeholder={placeholder}
+    <button
+      type="button"
+      onClick={() => keypad.open({ id: fieldId, label, initialValue: draft, onCommit: commit })}
       aria-label={label}
       className={cn(
-        "tabular h-9 w-full min-w-0 rounded-control bg-fill text-center text-body font-semibold text-label",
-        "placeholder:font-normal placeholder:text-label-tertiary",
+        "tabular h-9 w-full min-w-0 cursor-pointer rounded-control bg-fill text-center text-body font-semibold text-label",
+        active && "outline-2 outline-offset-0 outline-blue",
+        draft === "" && "font-normal text-label-tertiary",
       )}
-    />
+    >
+      {draft || placeholder}
+    </button>
   );
 }
 

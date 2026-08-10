@@ -66,29 +66,44 @@ export function useLogSet(sessionId: string) {
   });
 }
 
+export type SetPatch = { id: string; patch: Partial<SetInput> };
+
 /**
  * Optimistic, unlike the other mutations here: editing a set's weight/reps
  * drives same-render follow-on reads (the forward-fill and "Add set" seed
  * in the session page both read `session.exercises[].sets` right off this
  * cache) — waiting for a server round trip before those saw the new value
  * made both feel broken/delayed even though the write itself was fine.
+ *
+ * Takes a *batch* of patches — one call, one cache write, one re-render —
+ * rather than one mutation per set. Forward-filling weight/reps into every
+ * later set touches several sets from a single keystroke's commit; firing
+ * that as N separate mutations means N separate `onMutate`s racing their
+ * own `cancelQueries` and landing in the cache at slightly different ticks,
+ * so the later sets visibly light up one after another instead of together.
+ * Batching collapses that into one atomic update, so a single-set edit and
+ * an N-set forward-fill both just look like "pass an array of length N".
  */
-export function usePatchSet(sessionId: string) {
+export function usePatchSets(sessionId: string) {
   const qc = useQueryClient();
   const queryKey = ["workouts", sessionId];
   return useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: Partial<SetInput> }) =>
-      workoutsApi.patchSet(id, patch),
-    onMutate: async ({ id, patch }) => {
+    mutationFn: (updates: SetPatch[]) =>
+      Promise.all(updates.map(({ id, patch }) => workoutsApi.patchSet(id, patch))),
+    onMutate: async (updates) => {
       await qc.cancelQueries({ queryKey });
       const previous = qc.getQueryData<WorkoutSession>(queryKey);
+      const patchById = new Map(updates.map((u) => [u.id, u.patch]));
       qc.setQueryData<WorkoutSession>(queryKey, (old) =>
         old
           ? {
               ...old,
               exercises: old.exercises.map((we) => ({
                 ...we,
-                sets: we.sets.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+                sets: we.sets.map((s) => {
+                  const patch = patchById.get(s.id);
+                  return patch ? { ...s, ...patch } : s;
+                }),
               })),
             }
           : old,

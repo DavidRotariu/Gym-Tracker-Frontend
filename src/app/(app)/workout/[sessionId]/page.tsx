@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ExerciseCard } from "@/components/workout/ExerciseCard";
 import { ExercisePicker } from "@/components/workout/ExercisePicker";
+import { NumericKeypadProvider } from "@/components/workout/NumericKeypad";
 import { RestTimer } from "@/components/workout/RestTimer";
 import { SupersetGroup } from "@/components/workout/SupersetGroup";
 import { WorkoutSummary } from "@/components/workout/WorkoutSummary";
@@ -15,11 +16,12 @@ import {
   useAddExercise,
   useDeleteSet,
   useLogSet,
-  usePatchSet,
+  usePatchSets,
   useRemoveExercise,
   useRemoveSuperset,
   useSwapExercise,
 } from "@/hooks/use-workout-session";
+import type { SetPatch } from "@/hooks/use-workout-session";
 import { usePatchWorkout, useWorkout } from "@/hooks/use-workouts";
 import { getLastSet } from "@/lib/api/exercises";
 import { formatElapsed } from "@/lib/format";
@@ -27,7 +29,7 @@ import { cn } from "@/lib/utils";
 import type { Set, WorkoutExercise, WorkoutSession } from "@/types";
 import { Reorder, useDragControls } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 /** Stable id for a group (a superset counts as one draggable unit). */
 function groupKey(group: WorkoutExercise[]): string {
@@ -70,7 +72,7 @@ export default function WorkoutSessionPage() {
   const swapExercise = useSwapExercise(sessionId);
   const removeSuperset = useRemoveSuperset(sessionId);
   const logSet = useLogSet(sessionId);
-  const patchSet = usePatchSet(sessionId);
+  const patchSets = usePatchSets(sessionId);
   const deleteSet = useDeleteSet(sessionId);
 
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -154,27 +156,75 @@ export default function WorkoutSessionPage() {
   }
 
   const flatExerciseOrder = useMemo(() => orderedGroups.flat(), [orderedGroups]);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Exactly one exercise is "in focus" at a time — starts on the first,
+  // follows scroll position, and jumps ahead when a set completion finishes
+  // an exercise (see advanceToNextExercise). Every other card dims (see
+  // ExerciseCard's `dimmed` prop / globals.css .exercise-card).
+  const [focusedExerciseId, setFocusedExerciseId] = useState<string | null>(null);
+
+  // Default to the first exercise once the list loads; also recovers if the
+  // currently-focused one gets removed or swapped away mid-session.
+  useEffect(() => {
+    if (flatExerciseOrder.length === 0) {
+      setFocusedExerciseId(null);
+      return;
+    }
+    setFocusedExerciseId((current) =>
+      current && flatExerciseOrder.some((e) => e.id === current)
+        ? current
+        : flatExerciseOrder[0].id,
+    );
+  }, [flatExerciseOrder]);
+
+  // Scroll-spy: whichever card is crossing the vertical center of the
+  // viewport becomes the focused one, so scrolling away hands focus off
+  // even with no tap involved. A thin center band (not the whole viewport)
+  // keeps this to one card at a time for any card taller than ~10% of the
+  // screen, which every exercise card is.
+  useEffect(() => {
+    if (flatExerciseOrder.length === 0) return;
+    const cards =
+      listRef.current?.querySelectorAll<HTMLElement>(".exercise-card") ?? [];
+    if (cards.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const hit = entries.find((entry) => entry.isIntersecting);
+        if (hit) setFocusedExerciseId(hit.target.id.replace("we-", ""));
+      },
+      { rootMargin: "-45% 0px -45% 0px", threshold: 0 },
+    );
+    cards.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [flatExerciseOrder]);
+
+  /** Tapping straight into a card claims focus immediately, rather than
+   *  waiting on the scroll-spy (which only reacts to actual scrolling). */
+  function handleExerciseAreaFocus(e: React.FocusEvent) {
+    const card = (e.target as HTMLElement).closest<HTMLElement>(".exercise-card");
+    if (card) setFocusedExerciseId(card.id.replace("we-", ""));
+  }
 
   /**
    * Once an exercise's last set is checked off, jump straight to the next
-   * one instead of leaving the lifter to scroll and tap back in — same
-   * "one exercise at a time" idea as the focus-dimming on the cards
-   * themselves. A short delay lets the completion animation land first.
+   * one instead of leaving the lifter to scroll and tap back in. A short
+   * delay lets the completion animation land first.
    */
   function advanceToNextExercise(currentWeId: string) {
     const idx = flatExerciseOrder.findIndex((e) => e.id === currentWeId);
     const next = idx === -1 ? undefined : flatExerciseOrder[idx + 1];
     if (!next) return;
+    setFocusedExerciseId(next.id);
     setTimeout(() => {
       const el = document.getElementById(`we-${next.id}`);
       if (!el) return;
       el.scrollIntoView({ behavior: "smooth", block: "center" });
       // A freshly-added exercise has no sets yet — no weight input to land
       // in, so focus its "Log first set" button instead. Either way
-      // something inside the card ends up focused, which is what actually
-      // drives the focus-dimming on the other cards.
+      // something inside the card ends up focused.
       const target =
-        el.querySelector<HTMLElement>('input[aria-label$="weight"]') ??
+        el.querySelector<HTMLElement>('button[aria-label$="weight"]') ??
         el.querySelector<HTMLElement>("[data-add-set]");
       target?.focus();
     }, 350);
@@ -244,9 +294,34 @@ export default function WorkoutSessionPage() {
    * from this carry-forward still picks up reps a moment later. Any field a
    * set already has — typed by hand or carried forward earlier — is left
    * alone, so correcting set 1 after set 3 diverges doesn't stomp it.
+   *
+   * The edit itself and every forward-filled set go out as one batch (see
+   * usePatchSets) — one cache write, one re-render, so all of them change
+   * on screen in the same instant instead of a visible cascade.
    */
   function handleChangeSet(we: WorkoutExercise, setId: string, patch: Partial<Set>) {
-    patchSet.mutate({ id: setId, patch });
+    const updates: SetPatch[] = [{ id: setId, patch }];
+
+    const current = we.sets.find((s) => s.id === setId);
+    if (current) {
+      if (patch.actual_weight !== undefined && patch.actual_weight !== null) {
+        for (const s of we.sets) {
+          if (s.set_number > current.set_number && s.actual_weight === null) {
+            updates.push({ id: s.id, patch: { actual_weight: patch.actual_weight } });
+          }
+        }
+      }
+      if (patch.actual_reps !== undefined && patch.actual_reps !== null) {
+        for (const s of we.sets) {
+          if (s.set_number > current.set_number && s.actual_reps === null) {
+            updates.push({ id: s.id, patch: { actual_reps: patch.actual_reps } });
+          }
+        }
+      }
+    }
+
+    patchSets.mutate(updates);
+
     if (patch.completed === true) {
       // Each exercise carries its own configured rest time, so the timer
       // that pops up after this set matches this exercise, not whatever was
@@ -260,24 +335,6 @@ export default function WorkoutSessionPage() {
       // already being done is what "last set" means.
       const wasLastOpenSet = we.sets.every((s) => s.id === setId || s.completed);
       if (wasLastOpenSet) advanceToNextExercise(we.id);
-    }
-
-    const current = we.sets.find((s) => s.id === setId);
-    if (!current) return;
-
-    if (patch.actual_weight !== undefined && patch.actual_weight !== null) {
-      for (const s of we.sets) {
-        if (s.set_number > current.set_number && s.actual_weight === null) {
-          patchSet.mutate({ id: s.id, patch: { actual_weight: patch.actual_weight } });
-        }
-      }
-    }
-    if (patch.actual_reps !== undefined && patch.actual_reps !== null) {
-      for (const s of we.sets) {
-        if (s.set_number > current.set_number && s.actual_reps === null) {
-          patchSet.mutate({ id: s.id, patch: { actual_reps: patch.actual_reps } });
-        }
-      }
     }
   }
 
@@ -309,7 +366,7 @@ export default function WorkoutSessionPage() {
   const hasExercises = session.exercises.length > 0;
 
   return (
-    <>
+    <NumericKeypadProvider>
       {/* Session bar ---------------------------------------------------- */}
       <div className="fixed inset-x-0 top-0 z-30 mx-auto w-full max-w-[480px] border-b border-separator bg-chrome pt-[env(safe-area-inset-top)] [backdrop-filter:blur(20px)]">
         <div className="flex h-14 items-center gap-3 px-4">
@@ -366,9 +423,11 @@ export default function WorkoutSessionPage() {
           <div className="flex flex-col gap-3">
             <Reorder.Group
               as="div"
+              ref={listRef}
               axis="y"
               values={order}
               onReorder={handleReorder}
+              onFocus={handleExerciseAreaFocus}
               className="workout-exercises flex flex-col gap-3"
             >
               {orderedGroups.map((group) => {
@@ -392,6 +451,9 @@ export default function WorkoutSessionPage() {
                           onSwap={() => setSwapTarget(we)}
                           onDragHandlePointerDown={startDrag}
                           addPending={logSet.isPending}
+                          dimmed={
+                            focusedExerciseId !== null && focusedExerciseId !== we.id
+                          }
                         />
                       ));
 
@@ -454,7 +516,7 @@ export default function WorkoutSessionPage() {
           onDone={() => router.replace(`/history/${sessionId}`)}
         />
       )}
-    </>
+    </NumericKeypadProvider>
   );
 }
 

@@ -314,14 +314,11 @@ body {
   }
 }
 
-/* Mid-workout focus: while logging a set inside one exercise card, dim every
-   other card so the one you're typing into reads as "the" exercise. Pure
-   :has()/:focus-within — no scroll or tap-tracking state needed, and it
-   clears itself the instant focus leaves the list. */
+/* Mid-workout focus: exactly one exercise card reads as "the" one at a time
+   — dimming everyone else. Which card that is comes from JS state (starts
+   on the first exercise, follows scroll position, jumps on set completion —
+   see the session page's focusedExerciseId), not just :focus-within, so it
+   stays lit even when nothing has literal keyboard focus. */
 .exercise-card {
   transition: opacity 200ms ease;
-}
-.workout-exercises:has(.exercise-card:focus-within)
-  .exercise-card:not(:focus-within) {
-  opacity: 0.5;
 }

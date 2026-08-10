@@ -27,6 +27,9 @@ interface ExerciseCardProps {
   onDragHandlePointerDown?: (e: React.PointerEvent) => void;
   readOnly?: boolean;
   addPending?: boolean;
+  /** Dimmed to push focus onto whichever other card currently has it — see
+   *  the session page's scroll-spy/focus tracking. */
+  dimmed?: boolean;
 }
 
 export function ExerciseCard({
@@ -42,6 +45,7 @@ export function ExerciseCard({
   onDragHandlePointerDown,
   readOnly,
   addPending,
+  dimmed,
 }: ExerciseCardProps) {
   const completed = we.sets.filter((s) => s.completed).length;
 
@@ -61,7 +65,10 @@ export function ExerciseCard({
     <Card
       id={`we-${we.id}`}
       flush
-      className="exercise-card flex flex-col overflow-hidden"
+      className={cn(
+        "exercise-card flex flex-col overflow-hidden",
+        dimmed && "opacity-50",
+      )}
     >
       {/* The clip plays for real now (MediaThumb gates playback by on-screen
           visibility, not by omission) at a size where the movement — an
@@ -142,7 +149,10 @@ export function ExerciseCard({
             Today, so it reads as a tag rather than trailing text. */}
         {muscle && (
           <div className="absolute top-2 left-2">
-            <span className="rounded-pill bg-white/15 px-2.5 py-1 text-tab font-bold text-white uppercase backdrop-blur-sm">
+            {/* A light-tinted chip disappears against the white background
+                most demo clips are shot on — dark like the action pill on
+                the other corner, which stays legible over any footage. */}
+            <span className="rounded-pill bg-black/45 px-2.5 py-1 text-tab font-bold text-white uppercase backdrop-blur-sm">
               {muscle}
             </span>
           </div>
