@@ -38,20 +38,6 @@ export function LaunchGate() {
 
   const skip = !loading && (alreadyShown || !suggested);
 
-  // This overlay sits fixed above Home, but Home itself is still mounted
-  // and scrollable underneath — without this, a touch-drag while the gate
-  // is up rubber-bands the page behind it, which reads as a scroll glitch
-  // once the gate closes and Home reveals itself mid-scroll. Same lock
-  // Sheet uses while open.
-  useEffect(() => {
-    if (loading || skip) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, [loading, skip]);
-
   useEffect(() => {
     if (loading) return;
     if (alreadyShown || !suggested) {
