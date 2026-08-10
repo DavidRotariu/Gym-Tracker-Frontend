@@ -2,11 +2,11 @@
 
 import { SwipeRow } from "@/components/ui/SwipeRow";
 import { SET_TYPE_ORDER, SET_TYPE_SHORT } from "@/components/ui/SetTypeBadge";
-import { useNumericKeypad } from "@/components/workout/NumericKeypad";
+import { useNumericKeypad, type KeypadKey } from "@/components/workout/NumericKeypad";
 import { cn } from "@/lib/utils";
 import type { Set, SetType } from "@/types";
 import { motion } from "framer-motion";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 interface SetRowProps {
   set: Set;
@@ -28,11 +28,11 @@ const dotStyles: Record<SetType, string> = {
 };
 
 /**
- * A button, not a real `<input>` — tapping it opens the shared custom
- * keypad (NumericKeypad) instead of the OS's decimal keyboard. `draft`
- * mirrors whatever the keypad last reported so the button keeps showing the
- * right thing after it closes; the actual live editing state lives in the
- * keypad provider while it's open.
+ * A button, not a real `<input>` — tapping it makes the shared custom
+ * keypad (NumericKeypad) active for this field instead of popping the OS's
+ * decimal keyboard. The field owns its draft and writes keypresses straight
+ * into it, so the button itself is the only "display" — no separate number
+ * readout in the keypad to keep in sync.
  */
 function NumberField({
   value,
@@ -48,21 +48,39 @@ function NumberField({
   const fieldId = useId();
   const keypad = useNumericKeypad();
   const [draft, setDraft] = useState(value === null ? "" : String(value));
+  // The keypad calls back through a callback captured once by open(), so it
+  // needs a way to see the *current* draft/value from outside the render
+  // that created it — synced in an effect, never written during render.
+  const draftRef = useRef(draft);
+  const valueRef = useRef(value);
 
   useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
+    valueRef.current = value;
     setDraft(value === null ? "" : String(value));
   }, [value]);
 
-  function commit(finalDraft: string) {
-    setDraft(finalDraft);
-    const trimmed = finalDraft.trim();
+  function commit() {
+    const trimmed = draftRef.current.trim();
     if (trimmed === "") {
       onCommit(null);
       return;
     }
     const parsed = Number(trimmed.replace(",", "."));
     if (Number.isFinite(parsed)) onCommit(Math.max(0, parsed));
-    else setDraft(value === null ? "" : String(value));
+    else setDraft(valueRef.current === null ? "" : String(valueRef.current));
+  }
+
+  function handleKey(key: KeypadKey) {
+    setDraft((prev) => {
+      if (key === "del") return prev.slice(0, -1);
+      if (key === "." && prev.includes(".")) return prev;
+      if (prev.length >= 6) return prev;
+      return prev + key;
+    });
   }
 
   const active = keypad.activeId === fieldId;
@@ -70,7 +88,7 @@ function NumberField({
   return (
     <button
       type="button"
-      onClick={() => keypad.open({ id: fieldId, label, initialValue: draft, onCommit: commit })}
+      onClick={() => keypad.open({ id: fieldId, onKey: handleKey, onCommit: commit })}
       aria-label={label}
       className={cn(
         "tabular h-9 w-full min-w-0 cursor-pointer rounded-control bg-fill text-center text-body font-semibold text-label",

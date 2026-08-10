@@ -10,6 +10,18 @@ import type { Split, WorkoutSession, WorkoutSessionSummary } from "@/types";
  * and a bad/missing muscle name here must not take down the whole
  * GET /exercises response it's embedded in (see formatExercise below).
  */
+/**
+ * These three are catch-alls, not real muscles someone is browsing for —
+ * they always sort to the end of any muscle list/filter, everywhere one is
+ * shown. Matches either the raw API slug or the already-formatted display
+ * name, so it works whether it's checked before or after formatMuscleName.
+ */
+const TAIL_MUSCLES = new Set(["cardio", "full_body", "other"]);
+
+export function isTailMuscle(name: string): boolean {
+  return TAIL_MUSCLES.has(name.toLowerCase().replace(/ /g, "_"));
+}
+
 export function formatMuscleName(name: string | null | undefined): string {
   if (!name) return "";
   const spaced = name.replace(/_/g, " ");

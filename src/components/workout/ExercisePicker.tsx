@@ -5,7 +5,7 @@ import { MediaThumb } from "@/components/ui/MediaThumb";
 import { Sheet } from "@/components/ui/Sheet";
 import { useExercises, useLastSet } from "@/hooks/use-exercises";
 import { useMuscles } from "@/hooks/use-muscles";
-import { formatDay } from "@/lib/format";
+import { formatDay, isTailMuscle } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Exercise } from "@/types";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -88,12 +88,16 @@ export function ExercisePicker({
   }
 
   /** Every muscle is browsable; the split's own muscles just float to the
-   *  top and get an accent dot, instead of hiding the rest. */
+   *  top and get an accent dot, instead of hiding the rest — but cardio /
+   *  full body / other always sort last regardless, even if the split
+   *  happens to call for one of them. */
   const orderedMuscles = useMemo(() => {
     if (!muscles) return [];
-    if (!allowedMuscleIds) return muscles;
-    const allowed = new Set(allowedMuscleIds);
+    const allowed = new Set(allowedMuscleIds ?? []);
     return [...muscles].sort((a, b) => {
+      const aTail = isTailMuscle(a.name) ? 1 : 0;
+      const bTail = isTailMuscle(b.name) ? 1 : 0;
+      if (aTail !== bTail) return aTail - bTail;
       const aIn = allowed.has(a.id) ? 0 : 1;
       const bIn = allowed.has(b.id) ? 0 : 1;
       return aIn - bIn;

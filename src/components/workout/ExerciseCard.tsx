@@ -75,7 +75,7 @@ export function ExerciseCard({
           actual demonstration of the exercise, not a 44px identicon — earns
           its keep mid-workout. Name/muscle/actions overlay it, same
           treatment as the "Up next" hero on Today. */}
-      <div className="relative h-40 w-full shrink-0 bg-fill">
+      <div className="relative h-44 w-full shrink-0 bg-fill">
         <MediaThumb
           src={mediaUrl}
           alt=""
