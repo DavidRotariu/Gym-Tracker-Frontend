@@ -4,8 +4,14 @@ import type { Split, WorkoutSession, WorkoutSessionSummary } from "@/types";
  * The API sends muscle names as raw lowercase slugs ("full_body",
  * "upper_back") — this is the one place that turns one into display text,
  * so every screen shows "Full body" instead of the wire format.
+ *
+ * Guards against null/undefined even though the type says `string`: this
+ * runs on live API data crossing a trust boundary, not just our own mock,
+ * and a bad/missing muscle name here must not take down the whole
+ * GET /exercises response it's embedded in (see formatExercise below).
  */
-export function formatMuscleName(name: string): string {
+export function formatMuscleName(name: string | null | undefined): string {
+  if (!name) return "";
   const spaced = name.replace(/_/g, " ");
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }

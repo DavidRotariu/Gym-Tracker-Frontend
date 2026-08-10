@@ -2,14 +2,21 @@ import { apiRequest } from "./client";
 import { formatMuscleName } from "@/lib/format";
 import type { Exercise, ExerciseHistoryEntry, ExerciseType, LastSet } from "@/types";
 
-/** Muscle names arrive raw/lowercase both standalone (GET /muscles) and
- *  embedded on an Exercise (primary_muscle, secondary_muscles) — format the
- *  embedded copies here since they don't pass through getMuscles(). */
+/**
+ * Muscle names arrive raw/lowercase both standalone (GET /muscles) and
+ * embedded on an Exercise (primary_muscle, secondary_muscles) — format the
+ * embedded copies here since they don't pass through getMuscles().
+ *
+ * `secondary_muscles` defaults to `[]` rather than trusting it's always an
+ * array — this was exactly the bug: a response missing/nulling that field
+ * threw inside this map and failed *every* exercise in the list, not just
+ * the one row, because one bad element crashes the whole batch .map() call.
+ */
 function formatExercise(exercise: Exercise): Exercise {
   return {
     ...exercise,
     primary_muscle: formatMuscleName(exercise.primary_muscle),
-    secondary_muscles: exercise.secondary_muscles.map((m) => ({
+    secondary_muscles: (exercise.secondary_muscles ?? []).map((m) => ({
       ...m,
       name: formatMuscleName(m.name),
     })),
