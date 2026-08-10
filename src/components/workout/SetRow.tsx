@@ -8,6 +8,8 @@ import type { Set, SetType } from "@/types";
 import { motion } from "framer-motion";
 import { useEffect, useId, useRef, useState } from "react";
 
+type NumberFieldKind = "weight" | "reps";
+
 interface SetRowProps {
   set: Set;
   /** Last time this exercise was trained, at the same set number. */
@@ -16,6 +18,14 @@ interface SetRowProps {
   onDelete: () => void;
   /** Read-only rendering for history playback. */
   readOnly?: boolean;
+  /** Live-mirrored text from an earlier set still being typed into (see
+   *  ExerciseCard) — shown in place of this field's own value while set. */
+  weightOverride?: string;
+  repsOverride?: string;
+  /** Every keystroke while this row's weight/reps field is the one being
+   *  typed into, so ExerciseCard can mirror it into later empty sets. */
+  onFieldDraft?: (field: NumberFieldKind, draft: string) => void;
+  onFieldEditEnd?: (field: NumberFieldKind) => void;
 }
 
 /* Set-type dot: tap the set number to cycle. Mapped to iOS system colors,
@@ -39,24 +49,43 @@ function NumberField({
   placeholder,
   onCommit,
   label,
+  override,
+  onDraft,
+  onEditEnd,
 }: {
   value: number | null;
   placeholder: string;
   onCommit: (value: number | null) => void;
   label: string;
+  /** Someone else's live draft, mirrored here while this field is still
+   *  blank (see ExerciseCard) — shown instead of this field's own value. */
+  override?: string;
+  onDraft?: (draft: string) => void;
+  onEditEnd?: () => void;
 }) {
   const fieldId = useId();
   const keypad = useNumericKeypad();
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const [draft, setDraft] = useState(value === null ? "" : String(value));
   // The keypad calls back through a callback captured once by open(), so it
   // needs a way to see the *current* draft/value from outside the render
   // that created it — synced in an effect, never written during render.
   const draftRef = useRef(draft);
   const valueRef = useRef(value);
+  const overrideRef = useRef(override);
+  // Set the moment this field opens with existing text showing (typed,
+  // committed, or mirrored) — the *next* keypress replaces it outright
+  // instead of appending, since opening a field that already has a number
+  // is someone correcting it, not extending it.
+  const replaceOnNextKeyRef = useRef(false);
 
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
+
+  useEffect(() => {
+    overrideRef.current = override;
+  }, [override]);
 
   useEffect(() => {
     valueRef.current = value;
@@ -65,6 +94,7 @@ function NumberField({
 
   function commit() {
     const trimmed = draftRef.current.trim();
+    onEditEnd?.();
     if (trimmed === "") {
       onCommit(null);
       return;
@@ -75,28 +105,59 @@ function NumberField({
   }
 
   function handleKey(key: KeypadKey) {
-    setDraft((prev) => {
-      if (key === "del") return prev.slice(0, -1);
-      if (key === "." && prev.includes(".")) return prev;
-      if (prev.length >= 6) return prev;
-      return prev + key;
-    });
+    const prev = draftRef.current;
+    let next: string;
+    if (replaceOnNextKeyRef.current) {
+      replaceOnNextKeyRef.current = false;
+      next = key === "del" ? "" : key === "." ? "0." : key;
+    } else if (key === "del") {
+      next = prev.slice(0, -1);
+    } else if (key === "." && prev.includes(".")) {
+      next = prev;
+    } else if (prev.length >= 6) {
+      next = prev;
+    } else {
+      next = prev + key;
+    }
+    setDraft(next);
+    draftRef.current = next;
+    onDraft?.(next);
+  }
+
+  function openField() {
+    // Seed the field's own draft from whatever's actually showing —
+    // including a mirrored value it never locally typed — so typing,
+    // backspace, and commit all act on what the lifter can see.
+    const shown = overrideRef.current ?? draftRef.current;
+    if (shown !== draftRef.current) {
+      setDraft(shown);
+      draftRef.current = shown;
+    }
+    replaceOnNextKeyRef.current = shown !== "";
+    keypad.open({ id: fieldId, onKey: handleKey, onCommit: commit });
+    // Safari/iOS doesn't focus a <button> on tap the way it does a real
+    // <input> — without this, tapping a weight/reps field never bubbles a
+    // focus event, so the session page's scroll-spy (onFocus, see
+    // handleExerciseAreaFocus) never learns this card is now the active one.
+    buttonRef.current?.focus();
   }
 
   const active = keypad.activeId === fieldId;
+  const shown = override ?? draft;
 
   return (
     <button
+      ref={buttonRef}
       type="button"
-      onClick={() => keypad.open({ id: fieldId, onKey: handleKey, onCommit: commit })}
+      onClick={openField}
       aria-label={label}
       className={cn(
         "tabular h-9 w-full min-w-0 cursor-pointer rounded-control bg-fill text-center text-body font-semibold text-label",
         active && "outline-2 outline-offset-0 outline-blue",
-        draft === "" && "font-normal text-label-tertiary",
+        shown === "" && "font-normal text-label-tertiary",
       )}
     >
-      {draft || placeholder}
+      {shown || placeholder}
     </button>
   );
 }
@@ -106,7 +167,17 @@ function NumberField({
  * kg · reps · complete. Swipe left to delete. Marking complete is what
  * fires the rest timer (see the parent's onChange handler).
  */
-export function SetRow({ set, previous, onChange, onDelete, readOnly }: SetRowProps) {
+export function SetRow({
+  set,
+  previous,
+  onChange,
+  onDelete,
+  readOnly,
+  weightOverride,
+  repsOverride,
+  onFieldDraft,
+  onFieldEditEnd,
+}: SetRowProps) {
   if (readOnly) {
     const weight = set.actual_weight;
     const reps = set.actual_reps;
@@ -179,6 +250,9 @@ export function SetRow({ set, previous, onChange, onDelete, readOnly }: SetRowPr
         placeholder={previous?.weight != null ? String(previous.weight) : "—"}
         onCommit={(v) => onChange({ actual_weight: v })}
         label={`Set ${set.set_number} weight`}
+        override={weightOverride}
+        onDraft={(d) => onFieldDraft?.("weight", d)}
+        onEditEnd={() => onFieldEditEnd?.("weight")}
       />
 
       <NumberField
@@ -186,6 +260,9 @@ export function SetRow({ set, previous, onChange, onDelete, readOnly }: SetRowPr
         placeholder={previous?.reps != null ? String(previous.reps) : "—"}
         onCommit={(v) => onChange({ actual_reps: v })}
         label={`Set ${set.set_number} reps`}
+        override={repsOverride}
+        onDraft={(d) => onFieldDraft?.("reps", d)}
+        onEditEnd={() => onFieldEditEnd?.("reps")}
       />
 
       <motion.button

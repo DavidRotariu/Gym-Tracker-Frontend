@@ -49,6 +49,25 @@ export function ExerciseCard({
 }: ExerciseCardProps) {
   const completed = we.sets.filter((s) => s.completed).length;
 
+  // Mirrors whichever set's weight/reps field is being typed into, live,
+  // into every *later, still-blank* set of the same field — the actual
+  // commit (and its own forward-fill to persist that) only happens once
+  // the field closes, this is purely the "as you type" preview.
+  const [liveEdit, setLiveEdit] = useState<{
+    setId: string;
+    field: "weight" | "reps";
+    draft: string;
+  } | null>(null);
+
+  function mirrorFor(setId: string, field: "weight" | "reps"): string | undefined {
+    if (!liveEdit || liveEdit.field !== field || liveEdit.setId === setId) return undefined;
+    const activeSet = we.sets.find((s) => s.id === liveEdit.setId);
+    const thisSet = we.sets.find((s) => s.id === setId);
+    if (!activeSet || !thisSet || thisSet.set_number <= activeSet.set_number) return undefined;
+    const committed = field === "weight" ? thisSet.actual_weight : thisSet.actual_reps;
+    return committed === null ? liveEdit.draft : undefined;
+  }
+
   // Last time this exercise was trained, keyed by set number — powers the
   // "Previous" column so logging is a comparison, not a blank form.
   const { data: history } = useExerciseHistory(readOnly ? null : we.exercise_id);
@@ -218,6 +237,14 @@ export function ExerciseCard({
                       readOnly={readOnly}
                       onChange={(patch) => onChangeSet(set.id, patch)}
                       onDelete={() => onDeleteSet(set.id)}
+                      weightOverride={mirrorFor(set.id, "weight")}
+                      repsOverride={mirrorFor(set.id, "reps")}
+                      onFieldDraft={(field, draft) => setLiveEdit({ setId: set.id, field, draft })}
+                      onFieldEditEnd={(field) =>
+                        setLiveEdit((current) =>
+                          current?.setId === set.id && current.field === field ? null : current,
+                        )
+                      }
                     />
                   </motion.div>
                 ))}

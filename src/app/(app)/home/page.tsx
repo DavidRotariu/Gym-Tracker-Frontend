@@ -15,6 +15,7 @@ import {
   currentStreak,
   formatDay,
   formatDuration,
+  muscleImage,
   suggestSplit,
 } from "@/lib/format";
 import { staggerContainer, staggerItem } from "@/lib/motion";
@@ -78,7 +79,7 @@ export default function HomePage() {
     const primary = [...suggested.muscles].sort(
       (a, b) => b.nr_of_exercises - a.nr_of_exercises,
     )[0];
-    return muscles?.find((m) => m.id === primary.muscle_id)?.pic ?? null;
+    return muscleImage(muscles?.find((m) => m.id === primary.muscle_id)?.name);
   }, [suggested, suggestedIcon, muscles]);
 
   async function start(splitId: string | null) {

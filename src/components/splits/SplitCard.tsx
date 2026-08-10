@@ -2,6 +2,7 @@
 
 import { MediaThumb } from "@/components/ui/MediaThumb";
 import { MuscleChips } from "@/components/ui/MuscleChips";
+import { muscleImage } from "@/lib/format";
 import { getSplitIcon } from "@/lib/splitIcon";
 import { cn } from "@/lib/utils";
 import type { Muscle, Split } from "@/types";
@@ -48,7 +49,7 @@ export function SplitCard({ split, muscles, onStart, pending }: SplitCardProps) 
         targetMuscles.length > 0 &&
         (targetMuscles.length === 1 ? (
           <MediaThumb
-            src={targetMuscles[0].pic}
+            src={muscleImage(targetMuscles[0].name)}
             alt=""
             static
             fallback={
@@ -63,7 +64,7 @@ export function SplitCard({ split, muscles, onStart, pending }: SplitCardProps) 
             {targetMuscles.map((m) => (
               <MediaThumb
                 key={m.id}
-                src={m.pic}
+                src={muscleImage(m.name)}
                 alt=""
                 static
                 fallback={

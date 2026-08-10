@@ -5,7 +5,7 @@ import { MediaThumb } from "@/components/ui/MediaThumb";
 import { Sheet } from "@/components/ui/Sheet";
 import { useExercises, useLastSet } from "@/hooks/use-exercises";
 import { useMuscles } from "@/hooks/use-muscles";
-import { formatDay, isTailMuscle } from "@/lib/format";
+import { formatDay, isTailMuscle, muscleImage } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Exercise } from "@/types";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -246,7 +246,7 @@ export function ExercisePicker({
                       )}
                     >
                       <MediaThumb
-                        src={m.pic}
+                        src={muscleImage(m.name)}
                         alt=""
                         static
                         fallback={

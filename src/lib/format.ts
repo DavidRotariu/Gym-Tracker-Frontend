@@ -28,6 +28,17 @@ export function formatMuscleName(name: string | null | undefined): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
+/**
+ * Local anatomical illustration for a muscle — always one of the PNGs in
+ * public/muscles/, never whatever `Muscle.pic` the API happens to send.
+ * Works on either the raw slug ("full_body") or the display name
+ * ("Full body") since getMuscles() formats names before anything sees them.
+ */
+export function muscleImage(name: string | null | undefined): string | null {
+  if (!name) return null;
+  return `/muscles/${name.toLowerCase().replace(/ /g, "_")}.png`;
+}
+
 /** "1h 12m" / "48m" / "—" */
 export function formatDuration(
   startedAt: string,

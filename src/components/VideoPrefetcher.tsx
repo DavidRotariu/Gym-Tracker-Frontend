@@ -1,7 +1,6 @@
 "use client";
 
 import { useExercises } from "@/hooks/use-exercises";
-import { useMuscles } from "@/hooks/use-muscles";
 import { useEffect } from "react";
 
 const PREFETCHED_KEY = "overload_media_prefetched";
@@ -42,22 +41,22 @@ async function prefetchAll(urls: string[]) {
 }
 
 /**
- * Warms the browser's HTTP cache for every muscle illustration and exercise
- * clip right after login, so scrolling or opening the picker later hits a
- * warm local cache instead of a several-hundred-KB fetch on the spot. Runs
- * once per browser session and skips itself on save-data/2G connections.
+ * Warms the browser's HTTP cache for every exercise clip right after login,
+ * so opening the picker later hits a warm local cache instead of a
+ * several-hundred-KB fetch on the spot. Runs once per browser session and
+ * skips itself on save-data/2G connections. Muscle illustrations aren't
+ * included — they're local files under public/muscles/, already served
+ * cacheably by Next, so there's no remote fetch cost to warm.
  */
 export function VideoPrefetcher() {
-  const { data: muscles } = useMuscles();
   const { data: exercises } = useExercises();
 
   useEffect(() => {
-    if (!muscles || !exercises) return;
+    if (!exercises) return;
     if (sessionStorage.getItem(PREFETCHED_KEY)) return;
     if (shouldSkip()) return;
 
     const urls = [
-      ...muscles.map((m) => m.pic),
       ...exercises.map((e) => e.video_url),
       ...exercises.map((e) => e.thumbnail_url),
     ].filter((u): u is string => !!u);
@@ -75,7 +74,7 @@ export function VideoPrefetcher() {
         ? (cb) => requestIdleCallback(cb, { timeout: 5000 })
         : (cb) => setTimeout(cb, 1000);
     idle(() => void prefetchAll(urls));
-  }, [muscles, exercises]);
+  }, [exercises]);
 
   return null;
 }
