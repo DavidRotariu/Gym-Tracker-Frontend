@@ -249,39 +249,46 @@ export default function WorkoutSessionPage() {
    * New sets copy the previous set in this exercise so consecutive logging is
    * two taps; the first set of an exercise falls back to the last time this
    * exercise was trained.
+   *
+   * That fallback is a network fetch (getLastSet) — awaiting it *before*
+   * calling logSet used to hold the whole "Log first set" tap hostage on a
+   * round trip before anything appeared. logSet itself is optimistic (see
+   * useLogSet), so instead this fires the set immediately with whatever seed
+   * is already known synchronously, and — only for a first set, only once
+   * the history fetch lands — patches the weight/reps in a moment later
+   * instead of blocking on them up front.
    */
   async function handleAddSet(we: WorkoutExercise) {
     const previous = [...we.sets].sort((a, b) => b.set_number - a.set_number)[0];
-    const seed = previous
-      ? {
-          weight: previous.actual_weight,
-          reps: previous.actual_reps,
-          rir: previous.actual_rir,
-          type: previous.set_type,
-        }
-      : await getLastSet(we.exercise_id)
-          .catch(() => null)
-          .then((last) => ({
-            weight: last?.actual_weight ?? null,
-            reps: last?.actual_reps ?? null,
-            rir: last?.actual_rir ?? null,
-            type: "standard" as const,
-          }));
 
-    await logSet.mutateAsync({
+    const created = await logSet.mutateAsync({
       workoutExerciseId: we.id,
       input: {
         set_number: we.sets.length + 1,
-        set_type: seed.type,
+        set_type: previous?.set_type ?? "standard",
         target_weight: null,
         target_reps: null,
         target_rir: null,
-        actual_weight: seed.weight,
-        actual_reps: seed.reps,
-        actual_rir: seed.rir,
+        actual_weight: previous?.actual_weight ?? null,
+        actual_reps: previous?.actual_reps ?? null,
+        actual_rir: previous?.actual_rir ?? null,
         completed: false,
       },
     });
+
+    if (previous) return;
+    const last = await getLastSet(we.exercise_id).catch(() => null);
+    if (!last) return;
+    patchSets.mutate([
+      {
+        id: created.id,
+        patch: {
+          actual_weight: last.actual_weight,
+          actual_reps: last.actual_reps,
+          actual_rir: last.actual_rir,
+        },
+      },
+    ]);
   }
 
   /**

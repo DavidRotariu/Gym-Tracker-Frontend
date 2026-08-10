@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as workoutsApi from "@/lib/api/workouts";
 import type { SetInput } from "@/lib/api/workouts";
-import type { WorkoutSession } from "@/types";
+import type { Set, WorkoutSession } from "@/types";
 
 function invalidateSession(qc: ReturnType<typeof useQueryClient>, sessionId: string) {
   qc.invalidateQueries({ queryKey: ["workouts", sessionId] });
@@ -57,12 +57,39 @@ export function useRemoveSuperset(sessionId: string) {
   });
 }
 
+/**
+ * Optimistic, same reasoning as usePatchSets below: "Add set"/"Log first
+ * set" otherwise waits on a full POST round trip before the new row shows
+ * up, which reads as the tap having lagged or done nothing. A placeholder
+ * row (temp id, everything else from `input`) appears in the same tick the
+ * button is pressed; onSettled's invalidate then swaps it for the real one.
+ */
 export function useLogSet(sessionId: string) {
   const qc = useQueryClient();
+  const queryKey = ["workouts", sessionId];
   return useMutation({
     mutationFn: ({ workoutExerciseId, input }: { workoutExerciseId: string; input: SetInput }) =>
       workoutsApi.createSet(workoutExerciseId, input),
-    onSuccess: () => invalidateSession(qc, sessionId),
+    onMutate: async ({ workoutExerciseId, input }) => {
+      await qc.cancelQueries({ queryKey });
+      const previous = qc.getQueryData<WorkoutSession>(queryKey);
+      const optimisticSet: Set = { id: `optimistic-${crypto.randomUUID()}`, completed_at: null, ...input };
+      qc.setQueryData<WorkoutSession>(queryKey, (old) =>
+        old
+          ? {
+              ...old,
+              exercises: old.exercises.map((we) =>
+                we.id === workoutExerciseId ? { ...we, sets: [...we.sets, optimisticSet] } : we,
+              ),
+            }
+          : old,
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) qc.setQueryData(queryKey, context.previous);
+    },
+    onSettled: () => invalidateSession(qc, sessionId),
   });
 }
 
