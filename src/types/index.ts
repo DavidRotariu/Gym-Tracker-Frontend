@@ -42,7 +42,7 @@ export interface Split {
   muscles: SplitMuscle[];
 }
 
-export type SetType = "standard" | "warmup" | "drop" | "failure";
+export type SetType = "standard" | "warmup" | "drop" | "myorep";
 
 export interface Set {
   id: string;

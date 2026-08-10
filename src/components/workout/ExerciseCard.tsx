@@ -58,7 +58,11 @@ export function ExerciseCard({
   }, [history]);
 
   return (
-    <Card flush className="exercise-card flex flex-col overflow-hidden">
+    <Card
+      id={`we-${we.id}`}
+      flush
+      className="exercise-card flex flex-col overflow-hidden"
+    >
       {/* The clip plays for real now (MediaThumb gates playback by on-screen
           visibility, not by omission) at a size where the movement — an
           actual demonstration of the exercise, not a 44px identicon — earns

@@ -225,7 +225,7 @@ function buildHistorySession(
     exerciseId: number;
     supersetWith?: number;
     sets: {
-      type: "warmup" | "standard" | "drop" | "failure";
+      type: "warmup" | "standard" | "drop" | "myorep";
       w: number;
       r: number;
       rir: number;
@@ -334,7 +334,7 @@ export function createSeedData(): MockDB {
             { type: "warmup", w: 60, r: 10, rir: 4 },
             { type: "standard", w: 80, r: 8, rir: 2 },
             { type: "standard", w: 82.5, r: 7, rir: 1 },
-            { type: "failure", w: 75, r: 8, rir: 0 },
+            { type: "myorep", w: 75, r: 8, rir: 0 },
           ],
         },
         {
@@ -363,7 +363,7 @@ export function createSeedData(): MockDB {
           exerciseId: 70,
           sets: [
             { type: "standard", w: 25, r: 12, rir: 1 },
-            { type: "failure", w: 25, r: 10, rir: 0 },
+            { type: "myorep", w: 25, r: 10, rir: 0 },
           ],
         },
       ],
@@ -386,7 +386,7 @@ export function createSeedData(): MockDB {
           exerciseId: 21,
           sets: [
             { type: "standard", w: 0, r: 10, rir: 2 },
-            { type: "failure", w: 0, r: 8, rir: 0 },
+            { type: "myorep", w: 0, r: 8, rir: 0 },
           ],
         },
         {

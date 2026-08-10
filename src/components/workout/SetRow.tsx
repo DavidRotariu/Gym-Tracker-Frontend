@@ -23,7 +23,7 @@ const dotStyles: Record<SetType, string> = {
   standard: "bg-fill text-label-secondary",
   warmup: "bg-orange-soft text-orange",
   drop: "bg-purple-soft text-purple",
-  failure: "bg-red-soft text-red",
+  myorep: "bg-red-soft text-red",
 };
 
 function NumberField({

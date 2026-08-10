@@ -15,7 +15,7 @@ existing API).
   calls with a proper session/history model.
 - Each logged exercise can carry a **target** (planned weight/reps/RIR) and
   the **actual** performance per set, plus a **set type**
-  (standard/warm-up/drop/failure) and optional **superset grouping**.
+  (standard/warm-up/drop/myo-rep) and optional **superset grouping**.
 - No programs, cycles, periodization, gym profiles, or custom exercises in
   this iteration — deliberately out of scope for now.
 
@@ -107,7 +107,7 @@ One exercise picked live during a session.
 | id | integer | PK |
 | workout_exercise_id | integer | FK → WorkoutExercise |
 | set_number | integer | order within the exercise |
-| set_type | enum | `standard` \| `warmup` \| `drop` \| `failure` |
+| set_type | enum | `standard` \| `warmup` \| `drop` \| `myorep` |
 | target_weight | number \| null | planned |
 | target_reps | integer \| null | planned |
 | target_rir | integer \| null | planned reps-in-reserve, 0–6+ |

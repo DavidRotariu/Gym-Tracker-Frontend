@@ -39,8 +39,8 @@ const SET_TYPE_DESCRIPTIONS: { type: SetType; description: string }[] = [
     description: "Straight after a working set, drop the weight and keep going with no rest.",
   },
   {
-    type: "failure",
-    description: "Taken to the point where you can't complete another rep with good form.",
+    type: "myorep",
+    description: "A short rest-pause burst right after a working set — a few more reps without fully resetting.",
   },
 ];
 

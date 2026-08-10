@@ -153,6 +153,26 @@ export default function WorkoutSessionPage() {
     saveOrder(sessionId, next);
   }
 
+  const flatExerciseOrder = useMemo(() => orderedGroups.flat(), [orderedGroups]);
+
+  /**
+   * Once an exercise's last set is checked off, jump straight to the next
+   * one instead of leaving the lifter to scroll and tap back in — same
+   * "one exercise at a time" idea as the focus-dimming on the cards
+   * themselves. A short delay lets the completion animation land first.
+   */
+  function advanceToNextExercise(currentWeId: string) {
+    const idx = flatExerciseOrder.findIndex((e) => e.id === currentWeId);
+    const next = idx === -1 ? undefined : flatExerciseOrder[idx + 1];
+    if (!next) return;
+    setTimeout(() => {
+      const el = document.getElementById(`we-${next.id}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.querySelector<HTMLInputElement>('input[aria-label$="weight"]')?.focus();
+    }, 350);
+  }
+
   async function handleAddExercise(exerciseId: string) {
     if (swapTarget) {
       await swapExercise.mutateAsync({
@@ -226,6 +246,13 @@ export default function WorkoutSessionPage() {
       // last used.
       setRestSeconds(exercises?.find((e) => e.id === we.exercise_id)?.rest_time);
       setRestSignal((n) => n + 1);
+
+      // This set was the last one still open — the exercise is now fully
+      // logged, so move on. `we` is the pre-mutation snapshot, so the set
+      // being completed here still reads as incomplete; every *other* set
+      // already being done is what "last set" means.
+      const wasLastOpenSet = we.sets.every((s) => s.id === setId || s.completed);
+      if (wasLastOpenSet) advanceToNextExercise(we.id);
     }
 
     const current = we.sets.find((s) => s.id === setId);

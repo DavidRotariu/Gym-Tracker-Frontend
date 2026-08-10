@@ -5,7 +5,7 @@ export const SET_TYPE_LABEL: Record<SetType, string> = {
   standard: "Standard",
   warmup: "Warm-up",
   drop: "Drop",
-  failure: "Failure",
+  myorep: "Myo-rep",
 };
 
 /** Compact glyph used inside dense set rows. */
@@ -13,23 +13,23 @@ export const SET_TYPE_SHORT: Record<SetType, string> = {
   standard: "W",
   warmup: "WU",
   drop: "DS",
-  failure: "F",
+  myorep: "MR",
 };
 
 export const SET_TYPE_ORDER: SetType[] = [
   "standard",
   "warmup",
   "drop",
-  "failure",
+  "myorep",
 ];
 
 /* Mapped to iOS system colors semantically: warm-up = orange, drop = purple,
-   failure = red. */
+   myo-rep = red. */
 const styles: Record<SetType, string> = {
   standard: "bg-fill text-label-secondary",
   warmup: "bg-orange-soft text-orange",
   drop: "bg-purple-soft text-purple",
-  failure: "bg-red-soft text-red",
+  myorep: "bg-red-soft text-red",
 };
 
 /**
