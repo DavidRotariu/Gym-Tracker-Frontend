@@ -262,9 +262,11 @@ export function ExercisePicker({
                           className="size-full object-cover"
                         />
                       </span>
-                      {/* Split-relevant muscles get a quiet dot instead of a
-                          ring, so it doesn't get confused with "selected". */}
-                      {inSplit && !selected && (
+                      {/* Split-relevant muscles keep this dot even once
+                          selected — it's "part of the split", independent of
+                          whatever's currently filtering the list, so
+                          selecting it shouldn't make that fact disappear. */}
+                      {inSplit && (
                         <span className="absolute right-0.5 bottom-0.5 z-10 size-3 rounded-pill bg-accent ring-2 ring-background-elevated" />
                       )}
                     </span>
