@@ -10,6 +10,7 @@ import { RestTimer } from "@/components/workout/RestTimer";
 import { SupersetGroup } from "@/components/workout/SupersetGroup";
 import { WorkoutSummary } from "@/components/workout/WorkoutSummary";
 import { useExercises } from "@/hooks/use-exercises";
+import { markExerciseTrained } from "@/hooks/use-favorites";
 import { useMuscles } from "@/hooks/use-muscles";
 import { useSplit } from "@/hooks/use-splits";
 import {
@@ -335,6 +336,11 @@ export default function WorkoutSessionPage() {
       // last used.
       setRestSeconds(exercises?.find((e) => e.id === we.exercise_id)?.rest_time);
       setRestSignal((n) => n + 1);
+
+      // First real set logged for this exercise — favourite it so the
+      // picker's "liked" sort (see ExercisePicker) surfaces it without the
+      // lifter having to hand-favourite everything they already do.
+      markExerciseTrained(we.exercise_id);
 
       // This set was the last one still open — the exercise is now fully
       // logged, so move on. `we` is the pre-mutation snapshot, so the set

@@ -22,7 +22,13 @@ export function useRemoveFavorite() {
 
 const STORAGE_KEY = "overload_favorites";
 
-function readLocal(): string[] {
+/**
+ * The API exposes POST/DELETE /favorites but no GET, so there is no way to
+ * read the current favourites back. We still write through to the server and
+ * mirror the state locally so callers can render it. Drop the mirror once a
+ * GET /favorites endpoint exists.
+ */
+export function readFavoriteIds(): string[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -32,20 +38,33 @@ function readLocal(): string[] {
   }
 }
 
+function writeFavoriteIds(ids: string[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+}
+
 /**
- * The API exposes POST/DELETE /favorites but no GET, so there is no way to
- * read the current favourites back. We still write through to the server and
- * mirror the state locally so the toggle can render. Drop the mirror once a
- * GET /favorites endpoint exists.
+ * Fire-and-forget: favourite an exercise the first time it's actually
+ * trained (a set gets marked complete), so "done before" and "liked" are
+ * the same signal — no separate auto-favourite flag to maintain, and it
+ * reuses the same list the picker sorts/badges by. No-op once the id is
+ * already favourited, so it's safe to call on every set completion.
  */
+export function markExerciseTrained(exerciseId: string) {
+  if (typeof window === "undefined") return;
+  const current = readFavoriteIds();
+  if (current.includes(exerciseId)) return;
+  writeFavoriteIds([...current, exerciseId]);
+  favoritesApi.addFavorite(exerciseId).catch(() => {});
+}
+
 export function useFavorite(exerciseId: string | null) {
   const [favorited, setFavorited] = useState(false);
-  const addFavorite = useAddFavorite();
+  const addFavoriteMutation = useAddFavorite();
   const removeFavorite = useRemoveFavorite();
 
   useEffect(() => {
     if (exerciseId === null) return;
-    setFavorited(readLocal().includes(exerciseId));
+    setFavorited(readFavoriteIds().includes(exerciseId));
   }, [exerciseId]);
 
   const toggle = useCallback(() => {
@@ -54,25 +73,25 @@ export function useFavorite(exerciseId: string | null) {
     const next = !favorited;
     setFavorited(next);
 
-    const local = readLocal();
+    const local = readFavoriteIds();
     const updated = next
       ? [...new Set([...local, exerciseId])]
       : local.filter((id) => id !== exerciseId);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    writeFavoriteIds(updated);
 
-    const mutation = next ? addFavorite : removeFavorite;
+    const mutation = next ? addFavoriteMutation : removeFavorite;
     mutation.mutate(exerciseId, {
       onError: () => {
         // Roll the optimistic toggle back if the server rejected it.
         setFavorited(!next);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(local));
+        writeFavoriteIds(local);
       },
     });
-  }, [exerciseId, favorited, addFavorite, removeFavorite]);
+  }, [exerciseId, favorited, addFavoriteMutation, removeFavorite]);
 
   return {
     favorited,
     toggle,
-    pending: addFavorite.isPending || removeFavorite.isPending,
+    pending: addFavoriteMutation.isPending || removeFavorite.isPending,
   };
 }

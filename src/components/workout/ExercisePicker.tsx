@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { MediaThumb } from "@/components/ui/MediaThumb";
 import { Sheet } from "@/components/ui/Sheet";
 import { useExercises, useLastSet } from "@/hooks/use-exercises";
+import { readFavoriteIds } from "@/hooks/use-favorites";
 import { useMuscles } from "@/hooks/use-muscles";
 import { formatDay, isTailMuscle, muscleImage, shortMuscleName } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -24,23 +25,6 @@ interface ExercisePickerProps {
   title?: string;
 }
 
-const LAST_EXERCISE_KEY = "overload_last_exercise_by_muscle";
-
-function readLastByMuscle(): Record<string, string> {
-  if (typeof window === "undefined") return {};
-  try {
-    return JSON.parse(localStorage.getItem(LAST_EXERCISE_KEY) ?? "{}");
-  } catch {
-    return {};
-  }
-}
-
-function rememberLast(muscleId: string, exerciseId: string) {
-  const current = readLastByMuscle();
-  current[muscleId] = exerciseId;
-  localStorage.setItem(LAST_EXERCISE_KEY, JSON.stringify(current));
-}
-
 /**
  * Muscle circles act as a live filter on one always-visible exercise list,
  * combined with the search box — tap a muscle (or several) to narrow the
@@ -59,12 +43,12 @@ export function ExercisePicker({
   /** One muscle at a time — picking another swaps the selection rather
    *  than adding to it. */
   const [selectedMuscleId, setSelectedMuscleId] = useState<string | null>(null);
-  const [lastByMuscle, setLastByMuscle] = useState<Record<string, string>>({});
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null);
 
   useEffect(() => {
-    if (open) setLastByMuscle(readLastByMuscle());
+    if (open) setFavoriteIds(new Set(readFavoriteIds()));
   }, [open]);
 
   useEffect(() => {
@@ -102,8 +86,9 @@ export function ExercisePicker({
   }, [muscles, allowedMuscleIds]);
 
   /** Search text and the muscle-circle selection both narrow the same list,
-   *  at once — the exercise last used for a muscle floats to the top of it,
-   *  same "continuing a routine is one tap" shortcut as before. */
+   *  at once — liked exercises (favourited by hand, or auto-favourited the
+   *  first time they're actually trained, see markExerciseTrained) float to
+   *  the top, so exercises you already do keep winning the search. */
   const visibleExercises = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (exercises ?? [])
@@ -113,14 +98,13 @@ export function ExercisePicker({
         return true;
       })
       .sort((a, b) => {
-        const aLast = lastByMuscle[a.muscle_id] === a.id ? 0 : 1;
-        const bLast = lastByMuscle[b.muscle_id] === b.id ? 0 : 1;
-        return aLast - bLast;
+        const aLiked = favoriteIds.has(a.id) ? 0 : 1;
+        const bLiked = favoriteIds.has(b.id) ? 0 : 1;
+        return aLiked - bLiked;
       });
-  }, [exercises, query, selectedMuscleId, lastByMuscle]);
+  }, [exercises, query, selectedMuscleId, favoriteIds]);
 
   function choose(exercise: { id: string; muscle_id: string }) {
-    rememberLast(exercise.muscle_id, exercise.id);
     onSelect(exercise.id);
     // Don't rely on the picker sheet's own close to cascade this — close
     // the preview the instant a selection is made, whether that came from
@@ -131,7 +115,7 @@ export function ExercisePicker({
 
   function renderRow(
     exercise: NonNullable<typeof exercises>[number],
-    isLast: boolean,
+    isFavorited: boolean,
     subtitle?: string,
   ) {
     // Plain closures, not hook state — this runs inside a .map(), so a real
@@ -171,7 +155,6 @@ export function ExercisePicker({
         className={cn(
           "flex min-h-14 cursor-pointer items-center gap-3 rounded-control select-none [-webkit-touch-callout:none]",
           "bg-background-secondary py-2 pr-4 pl-2 text-left active:opacity-70",
-          isLast && "ring-1 ring-inset ring-accent-ink/60",
         )}
       >
         <MediaThumb
@@ -192,10 +175,20 @@ export function ExercisePicker({
             </span>
           )}
         </span>
-        {isLast && (
-          <span className="shrink-0 rounded-pill bg-accent-muted px-2 py-1 text-tab font-bold text-accent-ink uppercase">
-            Last time
-          </span>
+        {isFavorited && (
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            className="shrink-0 text-accent-ink"
+            aria-label="Liked"
+          >
+            <path
+              d="M12 4.6c1.6-2 4-2.2 5.7-.8 1.8 1.5 2 4.2.4 6L12 16.5 5.9 9.8c-1.6-1.8-1.4-4.5.4-6 1.7-1.4 4.1-1.2 5.7.8z"
+              fill="currentColor"
+            />
+          </svg>
         )}
       </button>
     );
@@ -304,7 +297,7 @@ export function ExercisePicker({
           visibleExercises.map((exercise) =>
             renderRow(
               exercise,
-              lastByMuscle[exercise.muscle_id] === exercise.id,
+              favoriteIds.has(exercise.id),
               muscleName.get(exercise.muscle_id),
             ),
           )
