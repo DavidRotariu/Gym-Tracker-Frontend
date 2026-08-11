@@ -19,13 +19,28 @@ import {
   shortMuscleName,
   suggestSplit,
 } from "@/lib/format";
-import { staggerContainer, staggerItem } from "@/lib/motion";
 import { getSplitIcon } from "@/lib/splitIcon";
 import { cn } from "@/lib/utils";
+import type { Split } from "@/types";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
+
+/** "5 exercises · Lats & biceps" — total exercise count plus the split's
+ *  top muscle(s) by exercise share, so the card summarizes at a glance
+ *  instead of listing every muscle chip. */
+function splitSummary(split: Split, muscleLookup: Map<string, string>): string {
+  const exerciseCount = split.muscles.reduce(
+    (sum, m) => sum + m.nr_of_exercises,
+    0,
+  );
+  const topMuscles = [...split.muscles]
+    .sort((a, b) => b.nr_of_exercises - a.nr_of_exercises)
+    .slice(0, 2)
+    .map((m) => muscleLookup.get(m.muscle_id) ?? `#${m.muscle_id}`);
+  return `${exerciseCount} exercise${exerciseCount === 1 ? "" : "s"} · ${topMuscles.join(" & ")}`;
+}
 
 export default function HomePage() {
   const router = useRouter();
@@ -70,6 +85,7 @@ export default function HomePage() {
   );
 
   const streak = useMemo(() => currentStreak(history), [history]);
+  const lastWorkout = completed[0];
 
   /** The split's own icon takes priority; otherwise fall back to the muscle
    *  this split calls for most, so the card always has some art. */
@@ -109,10 +125,12 @@ export default function HomePage() {
       />
 
       <div className="flex flex-col gap-8">
-        {/* Up next -------------------------------------------------------- */}
+        {/* Recommended ------------------------------------------------------ */}
         {suggested ? (
           <section className="flex flex-col gap-3">
-            <p className="text-kicker text-label-tertiary uppercase">Up next</p>
+            <p className="text-kicker text-label-tertiary uppercase">
+              Recommended for you
+            </p>
             <motion.div
               initial={{ opacity: 0, scale: 0.97, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -131,7 +149,7 @@ export default function HomePage() {
                 <button
                   onClick={() => start(suggested.id)}
                   disabled={startWorkout.isPending}
-                  aria-label={`Start ${suggested.name}`}
+                  aria-label={`Start ${suggested.name} now`}
                   className={cn(
                     "absolute top-4 right-4 flex size-12 cursor-pointer items-center justify-center rounded-pill",
                     "bg-accent text-accent-foreground",
@@ -143,23 +161,13 @@ export default function HomePage() {
                   </svg>
                 </button>
 
-                <div className="absolute inset-x-0 bottom-0 flex flex-col gap-3 p-4">
+                <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 p-4">
                   <h2 className="min-w-0 truncate font-stat text-stat-sm text-white">
                     {suggested.name}
                   </h2>
-                  <ul className="flex flex-wrap gap-2">
-                    {suggested.muscles.map((m) => (
-                      <li
-                        key={m.muscle_id}
-                        className="rounded-pill bg-white/15 px-3 py-1 text-caption font-medium text-white backdrop-blur-sm"
-                      >
-                        {muscleLookup.get(m.muscle_id) ?? `#${m.muscle_id}`}
-                        <span className="tabular ml-1 text-white/70">
-                          ×{m.nr_of_exercises}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                  <p className="text-caption font-medium text-white/80">
+                    {splitSummary(suggested, muscleLookup)}
+                  </p>
                 </div>
               </Card>
             </motion.div>
@@ -180,21 +188,23 @@ export default function HomePage() {
           </Card>
         )}
 
-        {/* Recent --------------------------------------------------------- */}
+        {/* Last workout ----------------------------------------------------- */}
         <section className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-kicker text-label-tertiary uppercase">Recent</h2>
+            <h2 className="text-kicker text-label-tertiary uppercase">
+              Last workout
+            </h2>
             {completed.length > 0 && (
               <Link
                 href="/history"
-                className="text-caption font-semibold text-accent-ink"
+                className="text-caption font-semibold text-label-secondary"
               >
                 See all
               </Link>
             )}
           </div>
 
-          {completed.length === 0 ? (
+          {!lastWorkout ? (
             <Card flush>
               <EmptyState
                 title="Nothing logged yet"
@@ -202,33 +212,22 @@ export default function HomePage() {
               />
             </Card>
           ) : (
-            <motion.div
-              variants={staggerContainer}
-              initial="hidden"
-              animate="show"
-              className="flex flex-col gap-2"
-            >
-              {completed.slice(0, 3).map((session) => (
-                <motion.div key={session.id} variants={staggerItem}>
-                  <Link href={`/history/${session.id}`}>
-                    <Card className="flex min-h-11 items-center justify-between gap-4 active:opacity-70">
-                      <div className="min-w-0">
-                        <p className="truncate text-body font-medium text-label">
-                          {session.split_id
-                            ? (splitNames.get(session.split_id) ?? "Workout")
-                            : "Ad-hoc workout"}
-                        </p>
-                        <p className="text-subhead text-label-secondary">
-                          {formatDay(session.started_at)} ·{" "}
-                          {formatDuration(session.started_at, session.completed_at)}
-                        </p>
-                      </div>
-                      <Chevron />
-                    </Card>
-                  </Link>
-                </motion.div>
-              ))}
-            </motion.div>
+            <Link href={`/history/${lastWorkout.id}`}>
+              <Card className="flex min-h-11 items-center justify-between gap-4 active:opacity-70">
+                <div className="min-w-0">
+                  <p className="truncate text-body font-medium text-label">
+                    {lastWorkout.split_id
+                      ? (splitNames.get(lastWorkout.split_id) ?? "Workout")
+                      : "Ad-hoc workout"}
+                  </p>
+                  <p className="text-subhead text-label-secondary">
+                    {formatDay(lastWorkout.started_at)} ·{" "}
+                    {formatDuration(lastWorkout.started_at, lastWorkout.completed_at)}
+                  </p>
+                </div>
+                <Chevron />
+              </Card>
+            </Link>
           )}
         </section>
       </div>
@@ -253,7 +252,7 @@ export default function HomePage() {
               : setPickerOpen(true)
           }
         >
-          {inProgress ? "Resume workout" : "Start workout"}
+          {inProgress ? "Resume workout" : "Choose split"}
         </Button>
       </div>
 
@@ -333,7 +332,7 @@ function StartSheet({
   pending: boolean;
 }) {
   return (
-    <Sheet open={open} onClose={onClose} title="Start workout">
+    <Sheet open={open} onClose={onClose} title="Choose split">
       <div className="flex flex-col gap-2">
         {splits?.map((split) => (
           <button

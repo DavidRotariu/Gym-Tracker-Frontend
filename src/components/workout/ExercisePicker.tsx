@@ -15,6 +15,9 @@ import { createPortal } from "react-dom";
 
 const LONG_PRESS_MS = 450;
 
+/** Equipment badges — a name-substring filter, not a real taxonomy field. */
+const EQUIPMENT_FILTERS = ["Machine", "Cable", "Dumbbell"] as const;
+
 interface ExercisePickerProps {
   open: boolean;
   onClose: () => void;
@@ -43,6 +46,10 @@ export function ExercisePicker({
   /** One muscle at a time — picking another swaps the selection rather
    *  than adding to it. */
   const [selectedMuscleId, setSelectedMuscleId] = useState<string | null>(null);
+  /** Same one-at-a-time toggle as the muscle circles. */
+  const [selectedEquipment, setSelectedEquipment] = useState<(typeof EQUIPMENT_FILTERS)[number] | null>(
+    null,
+  );
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null);
@@ -54,6 +61,7 @@ export function ExercisePicker({
   useEffect(() => {
     if (!open) {
       setSelectedMuscleId(null);
+      setSelectedEquipment(null);
       setQuery("");
       setPreviewExercise(null);
     }
@@ -66,6 +74,10 @@ export function ExercisePicker({
 
   function toggleMuscle(id: string) {
     setSelectedMuscleId((prev) => (prev === id ? null : id));
+  }
+
+  function toggleEquipment(name: (typeof EQUIPMENT_FILTERS)[number]) {
+    setSelectedEquipment((prev) => (prev === name ? null : name));
   }
 
   /** Every muscle is browsable; the split's own muscles just float to the
@@ -95,6 +107,8 @@ export function ExercisePicker({
       .filter((e) => {
         if (q && !e.name.toLowerCase().includes(q)) return false;
         if (selectedMuscleId && e.muscle_id !== selectedMuscleId) return false;
+        if (selectedEquipment && !e.name.toLowerCase().includes(selectedEquipment.toLowerCase()))
+          return false;
         return true;
       })
       .sort((a, b) => {
@@ -102,7 +116,7 @@ export function ExercisePicker({
         const bLiked = favoriteIds.has(b.id) ? 0 : 1;
         return aLiked - bLiked;
       });
-  }, [exercises, query, selectedMuscleId, favoriteIds]);
+  }, [exercises, query, selectedMuscleId, selectedEquipment, favoriteIds]);
 
   function choose(exercise: { id: string; muscle_id: string }) {
     onSelect(exercise.id);
@@ -207,6 +221,28 @@ export function ExercisePicker({
           placeholder="Search exercises"
           className="h-11 w-full rounded-control bg-fill px-4 text-body text-label placeholder:text-label-tertiary focus:outline-2 focus:outline-offset-0 focus:outline-blue"
         />
+      </div>
+
+      {/* Equipment badges — same name-substring filter as typing "cable"
+          into search, just one tap instead. */}
+      <div className="mb-3 flex gap-2">
+        {EQUIPMENT_FILTERS.map((name) => {
+          const selected = selectedEquipment === name;
+          return (
+            <button
+              key={name}
+              type="button"
+              onClick={() => toggleEquipment(name)}
+              aria-pressed={selected}
+              className={cn(
+                "rounded-pill px-3 py-1.5 text-tab font-bold uppercase active:opacity-70",
+                selected ? "bg-accent-ink text-white" : "bg-fill text-label-secondary",
+              )}
+            >
+              {name}
+            </button>
+          );
+        })}
       </div>
 
       {/* Muscle filter — a horizontal strip of circles, not a browse step:

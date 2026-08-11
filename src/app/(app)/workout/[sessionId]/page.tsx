@@ -23,7 +23,7 @@ import {
   useSwapExercise,
 } from "@/hooks/use-workout-session";
 import type { SetPatch } from "@/hooks/use-workout-session";
-import { usePatchWorkout, useWorkout } from "@/hooks/use-workouts";
+import { useDeleteWorkout, usePatchWorkout, useWorkout } from "@/hooks/use-workouts";
 import { getLastSet } from "@/lib/api/exercises";
 import { formatElapsed, shortMuscleName } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -68,6 +68,7 @@ export default function WorkoutSessionPage() {
   const { data: muscles } = useMuscles();
 
   const patchWorkout = usePatchWorkout(sessionId);
+  const deleteWorkout = useDeleteWorkout();
   const addExercise = useAddExercise(sessionId);
   const removeExercise = useRemoveExercise(sessionId);
   const swapExercise = useSwapExercise(sessionId);
@@ -362,6 +363,18 @@ export default function WorkoutSessionPage() {
     });
   }
 
+  function discard() {
+    if (!session) return;
+    if (!window.confirm("Discard this workout? Everything logged so far will be lost."))
+      return;
+    // Navigate first, mutate after — this page's own useWorkout(sessionId)
+    // query would otherwise get invalidated out from under it (deleteWorkout
+    // invalidates the whole ["workouts"] prefix, this session's key
+    // included) and refetch a now-404ing workout while still mounted.
+    router.push("/home");
+    deleteWorkout.mutate(session.id);
+  }
+
   if (isLoading || !session) {
     return (
       <div className="flex flex-col gap-3 pt-[calc(env(safe-area-inset-top)+64px)]">
@@ -405,6 +418,24 @@ export default function WorkoutSessionPage() {
               {formatElapsed(session.started_at, now)}
             </p>
           </div>
+
+          <button
+            type="button"
+            onClick={discard}
+            disabled={deleteWorkout.isPending}
+            aria-label="Discard workout"
+            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-pill text-red active:bg-fill disabled:pointer-events-none disabled:opacity-40"
+          >
+            <svg width="16" height="18" viewBox="0 0 16 18" fill="none">
+              <path
+                d="M1 4h14M6 4V2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2m4 0-.7 11.2a2 2 0 0 1-2 1.8H5.7a2 2 0 0 1-2-1.8L3 4"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
 
           <Button size="sm" onClick={finish} disabled={patchWorkout.isPending}>
             Finish
