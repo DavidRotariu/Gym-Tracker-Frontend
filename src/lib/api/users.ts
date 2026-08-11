@@ -1,4 +1,4 @@
-import { apiRequest, apiRequestBlob } from "./client";
+import { apiRequest, apiRequestBlob, ApiRequestError } from "./client";
 
 export function uploadQr(file: File) {
   const form = new FormData();
@@ -17,18 +17,20 @@ export function getQrImage() {
 export function uploadProfilePicture(file: File) {
   const form = new FormData();
   form.append("file", file);
-  return apiRequest<{ profile_picture_url: string }>("/users/profile-picture", {
+  return apiRequest<{ success: boolean; profile_pic: string }>("/users/profile-picture", {
     method: "POST",
     body: form,
   });
 }
 
-/** Resolves to null when the user has no picture set (server returns 204). */
+/** Raw picture bytes, like getQrImage. Resolves to null when the user has no picture set (server returns 404). */
 export async function getProfilePicture() {
-  const result = await apiRequest<{ profile_picture_url: string } | undefined>(
-    "/users/profile-picture",
-  );
-  return result ?? null;
+  try {
+    return await apiRequestBlob("/users/profile-picture");
+  } catch (err) {
+    if (err instanceof ApiRequestError && err.status === 404) return null;
+    throw err;
+  }
 }
 
 export function deleteProfilePicture() {

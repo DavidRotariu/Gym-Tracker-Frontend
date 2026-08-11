@@ -45,11 +45,26 @@ export function useUploadQr() {
   return useMutation({ mutationFn: (file: File) => usersApi.uploadQr(file) });
 }
 
+/** Fetches the profile picture blob and exposes an object URL for <img src>. */
 export function useProfilePicture() {
-  return useQuery({
+  const query = useQuery({
     queryKey: ["profile-picture"],
     queryFn: () => usersApi.getProfilePicture(),
   });
+  const blob = query.data;
+
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!blob) {
+      setUrl(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(blob);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [blob]);
+
+  return url;
 }
 
 export function useUploadProfilePicture() {

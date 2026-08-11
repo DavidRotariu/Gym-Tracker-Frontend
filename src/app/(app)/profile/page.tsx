@@ -48,7 +48,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const { preference, setPreference } = useTheme();
-  const { data: profilePicture } = useProfilePicture();
+  const profilePictureUrl = useProfilePicture();
   const uploadPicture = useUploadProfilePicture();
   const deletePicture = useDeleteProfilePicture();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -90,10 +90,10 @@ export default function ProfilePage() {
             aria-label="Change profile picture"
             className="relative flex size-14 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-pill bg-accent font-display text-large-title text-accent-foreground"
           >
-            {profilePicture?.profile_picture_url ? (
+            {profilePictureUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
-                src={profilePicture.profile_picture_url}
+                src={profilePictureUrl}
                 alt=""
                 className="size-full object-cover"
               />
@@ -116,7 +116,7 @@ export default function ProfilePage() {
               {user?.email}
             </p>
           </div>
-          {profilePicture?.profile_picture_url && (
+          {profilePictureUrl && (
             <button
               type="button"
               onClick={() => deletePicture.mutate()}
