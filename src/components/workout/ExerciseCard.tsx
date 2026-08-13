@@ -5,7 +5,7 @@ import { MediaThumb } from "@/components/ui/MediaThumb";
 import { SetRow } from "@/components/workout/SetRow";
 import { useExerciseHistory } from "@/hooks/use-exercises";
 import { cn } from "@/lib/utils";
-import type { Set, WorkoutExercise } from "@/types";
+import type { ExerciseType, Set, WorkoutExercise } from "@/types";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -17,6 +17,8 @@ interface ExerciseCardProps {
   /** Prefer the video clip at this size — falls back to the still if the
    *  exercise has no video yet. */
   mediaUrl?: string | null;
+  /** Governs which fields sets in this card log — see SetRow. */
+  exerciseType?: ExerciseType;
   onChangeSet: (setId: string, patch: Partial<Set>) => void;
   onDeleteSet: (setId: string) => void;
   onAddSet: () => void;
@@ -37,6 +39,7 @@ export function ExerciseCard({
   name,
   muscle,
   mediaUrl,
+  exerciseType,
   onChangeSet,
   onDeleteSet,
   onAddSet,
@@ -200,16 +203,25 @@ export function ExerciseCard({
         {we.sets.length > 0 && (
           <div className="flex flex-col gap-2">
             {!readOnly && (
-              <div className="grid grid-cols-[32px_1fr_64px_56px_44px] gap-2 px-2">
+              <div
+                className={cn(
+                  "grid gap-2 px-2",
+                  exerciseType !== "body_weight" && exerciseType !== "timer"
+                    ? "grid-cols-[32px_1fr_64px_56px_44px]"
+                    : "grid-cols-[32px_1fr_64px_44px]",
+                )}
+              >
                 <span />
                 <span className="text-tab font-medium text-label-tertiary uppercase">
                   Previous
                 </span>
+                {exerciseType !== "body_weight" && exerciseType !== "timer" && (
+                  <span className="text-center text-tab font-medium text-label-tertiary uppercase">
+                    Kg
+                  </span>
+                )}
                 <span className="text-center text-tab font-medium text-label-tertiary uppercase">
-                  Kg
-                </span>
-                <span className="text-center text-tab font-medium text-label-tertiary uppercase">
-                  Reps
+                  {exerciseType === "timer" ? "Sec" : "Reps"}
                 </span>
                 <span />
               </div>
@@ -235,6 +247,7 @@ export function ExerciseCard({
                       set={set}
                       previous={previousBySetNumber.get(set.set_number)}
                       readOnly={readOnly}
+                      exerciseType={exerciseType}
                       onChange={(patch) => onChangeSet(set.id, patch)}
                       onDelete={() => onDeleteSet(set.id)}
                       weightOverride={mirrorFor(set.id, "weight")}

@@ -408,6 +408,7 @@ function StreakBadge({ streak }: { streak: number }) {
           </motion.span>
         </AnimatePresence>
       </span>
+      <span className="text-caption font-bold text-label">streak</span>
     </div>
   );
 }

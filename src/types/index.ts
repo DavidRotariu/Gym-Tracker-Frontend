@@ -10,7 +10,7 @@ export interface Muscle {
   pic: string | null;
 }
 
-export type ExerciseType = "body_weight" | "weighted" | "negative";
+export type ExerciseType = "body_weight" | "weighted" | "negative" | "timer";
 
 export interface Exercise {
   id: string;

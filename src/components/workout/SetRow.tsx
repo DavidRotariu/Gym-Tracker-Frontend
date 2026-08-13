@@ -4,7 +4,7 @@ import { SwipeRow } from "@/components/ui/SwipeRow";
 import { SET_TYPE_ORDER, SET_TYPE_SHORT } from "@/components/ui/SetTypeBadge";
 import { useNumericKeypad, type KeypadKey } from "@/components/workout/NumericKeypad";
 import { cn } from "@/lib/utils";
-import type { Set, SetType } from "@/types";
+import type { ExerciseType, Set, SetType } from "@/types";
 import { motion } from "framer-motion";
 import { useEffect, useId, useRef, useState } from "react";
 
@@ -18,6 +18,10 @@ interface SetRowProps {
   onDelete: () => void;
   /** Read-only rendering for history playback. */
   readOnly?: boolean;
+  /** Governs which fields this row logs: weighted/negative show kg + reps,
+   *  body_weight shows reps only, timer shows seconds only (stored in the
+   *  same actual_reps field — there's no separate duration column). */
+  exerciseType?: ExerciseType;
   /** Live-mirrored text from an earlier set still being typed into (see
    *  ExerciseCard) — shown in place of this field's own value while set. */
   weightOverride?: string;
@@ -36,6 +40,23 @@ const dotStyles: Record<SetType, string> = {
   drop: "bg-purple-soft text-purple",
   myorep: "bg-red-soft text-red",
 };
+
+/** weighted/negative log kg + reps; body_weight logs reps only; timer logs
+ *  seconds only (still stored in actual_reps — there's no duration column). */
+function showsWeight(exerciseType?: ExerciseType): boolean {
+  return exerciseType !== "body_weight" && exerciseType !== "timer";
+}
+
+function formatSet(
+  weight: number | null,
+  reps: number | null,
+  exerciseType: ExerciseType | undefined,
+  empty: string,
+): string {
+  if (exerciseType === "timer") return `${reps ?? empty}s`;
+  if (exerciseType === "body_weight") return `${reps ?? empty} reps`;
+  return `${weight ?? empty} kg × ${reps ?? empty}`;
+}
 
 /**
  * A button, not a real `<input>` — tapping it makes the shared custom
@@ -173,16 +194,21 @@ export function SetRow({
   onChange,
   onDelete,
   readOnly,
+  exerciseType,
   weightOverride,
   repsOverride,
   onFieldDraft,
   onFieldEditEnd,
 }: SetRowProps) {
+  const showWeight = showsWeight(exerciseType);
+
   if (readOnly) {
     const weight = set.actual_weight;
     const reps = set.actual_reps;
     const summary =
-      weight === null && reps === null ? "Not logged" : `${weight ?? 0} kg × ${reps ?? 0}`;
+      weight === null && reps === null
+        ? "Not logged"
+        : formatSet(weight, reps, exerciseType, "0");
 
     return (
       <div
@@ -206,6 +232,7 @@ export function SetRow({
 
   const next = SET_TYPE_ORDER[(SET_TYPE_ORDER.indexOf(set.set_type) + 1) % SET_TYPE_ORDER.length];
   const hasPrevious = previous?.weight != null || previous?.reps != null;
+  const isTimer = exerciseType === "timer";
 
   function copyPrevious() {
     if (!hasPrevious) return;
@@ -215,7 +242,8 @@ export function SetRow({
   const row = (
     <div
       className={cn(
-        "grid min-h-12 grid-cols-[32px_1fr_64px_56px_44px] items-center gap-2 px-2 transition-colors duration-200",
+        "grid min-h-12 items-center gap-2 px-2 transition-colors duration-200",
+        showWeight ? "grid-cols-[32px_1fr_64px_56px_44px]" : "grid-cols-[32px_1fr_64px_44px]",
         set.completed ? "bg-green-soft" : "bg-background",
       )}
     >
@@ -235,31 +263,33 @@ export function SetRow({
         type="button"
         onClick={copyPrevious}
         disabled={!hasPrevious}
-        aria-label={
-          hasPrevious
-            ? `Copy previous: ${previous!.weight ?? "—"} kg × ${previous!.reps ?? "—"}`
-            : "No previous set"
-        }
+        aria-label={hasPrevious ? `Copy previous: ${formatSet(previous!.weight, previous!.reps, exerciseType, "—")}` : "No previous set"}
         className="tabular truncate text-left text-caption text-label-tertiary disabled:cursor-default active:opacity-60"
       >
-        {hasPrevious ? `${previous!.weight ?? "—"} kg × ${previous!.reps ?? "—"}` : "—"}
+        {hasPrevious ? formatSet(previous!.weight, previous!.reps, exerciseType, "—") : "—"}
       </button>
 
-      <NumberField
-        value={set.actual_weight}
-        placeholder={previous?.weight != null ? String(previous.weight) : "—"}
-        onCommit={(v) => onChange({ actual_weight: v })}
-        label={`Set ${set.set_number} weight`}
-        override={weightOverride}
-        onDraft={(d) => onFieldDraft?.("weight", d)}
-        onEditEnd={() => onFieldEditEnd?.("weight")}
-      />
+      {showWeight && (
+        <NumberField
+          value={set.actual_weight}
+          placeholder={previous?.weight != null ? String(previous.weight) : "—"}
+          onCommit={(v) =>
+            onChange({
+              actual_weight: exerciseType === "negative" && v !== null ? -Math.abs(v) : v,
+            })
+          }
+          label={`Set ${set.set_number} weight`}
+          override={weightOverride}
+          onDraft={(d) => onFieldDraft?.("weight", d)}
+          onEditEnd={() => onFieldEditEnd?.("weight")}
+        />
+      )}
 
       <NumberField
         value={set.actual_reps}
         placeholder={previous?.reps != null ? String(previous.reps) : "—"}
         onCommit={(v) => onChange({ actual_reps: v })}
-        label={`Set ${set.set_number} reps`}
+        label={`Set ${set.set_number} ${isTimer ? "seconds" : "reps"}`}
         override={repsOverride}
         onDraft={(d) => onFieldDraft?.("reps", d)}
         onEditEnd={() => onFieldEditEnd?.("reps")}

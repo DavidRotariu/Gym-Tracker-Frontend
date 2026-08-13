@@ -349,6 +349,7 @@ function ExerciseEditForm({
           <option value="weighted">Weighted</option>
           <option value="body_weight">Body weight</option>
           <option value="negative">Negative</option>
+          <option value="timer">Timer</option>
         </select>
       </div>
 

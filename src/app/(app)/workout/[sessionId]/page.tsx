@@ -107,6 +107,10 @@ export default function WorkoutSessionPage() {
     () => new Map(exercises?.map((e) => [e.id, e.muscle_id])),
     [exercises],
   );
+  const exerciseType = useMemo(
+    () => new Map(exercises?.map((e) => [e.id, e.exercise_type])),
+    [exercises],
+  );
 
   /** Consecutive exercises sharing a superset_group_id render as one group. */
   const groups = useMemo(() => {
@@ -495,6 +499,7 @@ export default function WorkoutSessionPage() {
                           name={exerciseNames.get(we.exercise_id) ?? "Exercise"}
                           muscle={exerciseMuscle.get(we.exercise_id)}
                           mediaUrl={exerciseMedia.get(we.exercise_id)}
+                          exerciseType={exerciseType.get(we.exercise_id)}
                           onChangeSet={(setId, patch) => handleChangeSet(we, setId, patch)}
                           onDeleteSet={(setId) => deleteSet.mutate(setId)}
                           onAddSet={() => handleAddSet(we)}
