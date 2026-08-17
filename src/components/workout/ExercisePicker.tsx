@@ -21,7 +21,7 @@ const EQUIPMENT_FILTERS = ["Machine", "Cable", "Dumbbell"] as const;
 interface ExercisePickerProps {
   open: boolean;
   onClose: () => void;
-  onSelect: (exerciseId: string) => void;
+  onSelect: (exerciseId: string) => void | Promise<void>;
   /** Restrict to the muscles the current split calls for. */
   allowedMuscleIds?: string[];
   /** Sheet title when no muscle is picked yet. */
@@ -53,6 +53,11 @@ export function ExercisePicker({
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null);
+  /** Set while onSelect's own request is in flight — blocks a second tap
+   *  landing on top of it and lets a failed add leave the sheet open
+   *  instead of silently vanishing (see choose() below). */
+  const [addingId, setAddingId] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) setFavoriteIds(new Set(readFavoriteIds()));
@@ -64,6 +69,8 @@ export function ExercisePicker({
       setSelectedEquipment(null);
       setQuery("");
       setPreviewExercise(null);
+      setAddingId(null);
+      setAddError(null);
     }
   }, [open]);
 
@@ -118,13 +125,25 @@ export function ExercisePicker({
       });
   }, [exercises, query, selectedMuscleId, selectedEquipment, favoriteIds]);
 
-  function choose(exercise: { id: string; muscle_id: string }) {
-    onSelect(exercise.id);
+  async function choose(exercise: { id: string; muscle_id: string }) {
+    if (addingId) return; // one add in flight at a time
     // Don't rely on the picker sheet's own close to cascade this — close
     // the preview the instant a selection is made, whether that came from
     // the preview's own "Select" button or a fresh tap on the row behind it.
     setPreviewExercise(null);
-    onClose();
+    setAddingId(exercise.id);
+    setAddError(null);
+    try {
+      await onSelect(exercise.id);
+      onClose();
+    } catch {
+      // Close the picker on ANY failure used to look identical to a
+      // successful add from the outside — the exercise just never showed
+      // up, no error, nothing to retry. Stay open and say so instead.
+      setAddError("Couldn't add that exercise. Try again.");
+    } finally {
+      setAddingId(null);
+    }
   }
 
   function renderRow(
@@ -151,9 +170,12 @@ export function ExercisePicker({
       if (pressTimer) clearTimeout(pressTimer);
     }
 
+    const adding = addingId === exercise.id;
+
     return (
       <button
         key={exercise.id}
+        disabled={addingId !== null}
         onPointerDown={startPress}
         onPointerUp={endPress}
         onPointerLeave={endPress}
@@ -169,6 +191,8 @@ export function ExercisePicker({
         className={cn(
           "flex min-h-14 cursor-pointer items-center gap-3 rounded-control select-none [-webkit-touch-callout:none]",
           "bg-background-secondary py-2 pr-4 pl-2 text-left active:opacity-70",
+          "disabled:cursor-default",
+          addingId !== null && (adding ? "opacity-70" : "opacity-40"),
         )}
       >
         <MediaThumb
@@ -221,6 +245,7 @@ export function ExercisePicker({
           placeholder="Search exercises"
           className="h-11 w-full rounded-control bg-fill px-4 text-body text-label placeholder:text-label-tertiary focus:outline-2 focus:outline-offset-0 focus:outline-blue"
         />
+        {addError && <p className="mt-2 text-caption text-red">{addError}</p>}
       </div>
 
       {/* Equipment badges — same name-substring filter as typing "cable"
