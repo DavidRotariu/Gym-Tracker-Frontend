@@ -10,6 +10,13 @@ export interface Muscle {
   pic: string | null;
 }
 
+/** A logged gym payment — expires_at is computed server-side as paid_at + 29
+ *  days (a 30-day membership, counted inclusively). */
+export interface Membership {
+  paid_at: string;
+  expires_at: string;
+}
+
 export type ExerciseType = "body_weight" | "weighted" | "negative" | "timer";
 
 export interface Exercise {

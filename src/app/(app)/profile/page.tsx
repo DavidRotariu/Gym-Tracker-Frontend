@@ -5,17 +5,23 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardList } from "@/components/ui/Card";
 import { LargeTitle } from "@/components/ui/LargeTitle";
 import { SET_TYPE_LABEL, SetTypeDot } from "@/components/ui/SetTypeBadge";
+import { StatDisplay } from "@/components/ui/StatDisplay";
+import { TextField } from "@/components/ui/TextField";
 import type { SetType } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
 import {
+  useDeleteMembership,
   useDeleteProfilePicture,
+  useLogMembershipPayment,
+  useMembership,
   useProfilePicture,
   useUploadProfilePicture,
 } from "@/hooks/use-users";
+import { daysUntil, formatMembershipDate } from "@/lib/format";
 import { resetDemoData } from "@/lib/mock/reset";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
 
@@ -82,6 +88,9 @@ export default function ProfilePage() {
       <LargeTitle title="Profile" />
 
       <div className="flex flex-col gap-8">
+        {/* Membership ------------------------------------------------------ */}
+        <MembershipSection />
+
         {/* Account -------------------------------------------------------- */}
         <Card className="flex items-center gap-4">
           <button
@@ -212,5 +221,97 @@ export default function ProfilePage() {
         </Button>
       </div>
     </>
+  );
+}
+
+function todayInputValue(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Payment date is logged by hand (no gym integration) — the backend just
+ * stores paid_at and returns expires_at = paid_at + 29 days, a 30-day
+ * membership counted inclusively, verified against real gym receipts.
+ */
+function MembershipSection() {
+  const { data: membership, isLoading } = useMembership();
+  const logPayment = useLogMembershipPayment();
+  const deleteMembership = useDeleteMembership();
+  const [paidAt, setPaidAt] = useState(todayInputValue);
+
+  const daysLeft = membership ? daysUntil(membership.expires_at) : null;
+  const expired = daysLeft !== null && daysLeft < 0;
+
+  function handleLogPayment() {
+    if (!paidAt) return;
+    logPayment.mutate(paidAt);
+  }
+
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="px-1 text-kicker text-label-tertiary uppercase">
+        Membership
+      </h2>
+      <Card className="flex flex-col gap-4">
+        {!isLoading && (
+          <div className="flex items-start justify-between gap-3">
+            {!membership || daysLeft === null ? (
+              <p className="text-body text-label-secondary">
+                No payment logged yet.
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-col gap-1">
+                  <StatDisplay
+                    value={expired ? "Expired" : daysLeft}
+                    unit={expired ? undefined : daysLeft === 1 ? "day left" : "days left"}
+                    label={
+                      expired
+                        ? `${Math.abs(daysLeft)} day${Math.abs(daysLeft) === 1 ? "" : "s"} overdue`
+                        : "Membership"
+                    }
+                  />
+                  <p
+                    className={cn(
+                      "text-caption",
+                      expired ? "text-red" : "text-label-secondary",
+                    )}
+                  >
+                    {expired ? "Expired" : "Valid until"}{" "}
+                    {formatMembershipDate(membership.expires_at)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => deleteMembership.mutate()}
+                  disabled={deleteMembership.isPending}
+                  className="shrink-0 text-caption font-medium text-red active:opacity-60 disabled:opacity-40"
+                >
+                  Remove
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-end gap-3">
+          <TextField
+            label="Log a payment"
+            type="date"
+            value={paidAt}
+            max={todayInputValue()}
+            onChange={(e) => setPaidAt(e.target.value)}
+            className="flex-1"
+          />
+          <Button
+            size="md"
+            onClick={handleLogPayment}
+            disabled={logPayment.isPending || !paidAt}
+          >
+            Log
+          </Button>
+        </div>
+      </Card>
+    </section>
   );
 }

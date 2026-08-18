@@ -96,6 +96,24 @@ export function formatDay(date: string): string {
   });
 }
 
+/** Whole calendar days from today to a "YYYY-MM-DD" date — negative once past. */
+export function daysUntil(date: string): number {
+  const startOf = (x: Date) =>
+    new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  return Math.round((startOf(new Date(`${date}T00:00:00`)) - startOf(new Date())) / 86400000);
+}
+
+/** "4 Aug" / "4 Aug 2027" once it's no longer the current year. */
+export function formatMembershipDate(date: string): string {
+  const d = new Date(`${date}T00:00:00`);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: sameYear ? undefined : "numeric",
+  });
+}
+
 export function formatTime(date: string): string {
   return new Date(date).toLocaleTimeString(undefined, {
     hour: "numeric",

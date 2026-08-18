@@ -4,6 +4,7 @@ import type {
   Exercise,
   ExerciseHistoryEntry,
   LastSet,
+  Membership,
   Set,
   Split,
   WorkoutExercise,
@@ -58,6 +59,7 @@ export const handlers = [
       password: body.password,
       qr_code_url: null,
       profile_picture_url: null,
+      membership_paid_at: null,
     });
     saveDb(db);
     return HttpResponse.json(
@@ -569,7 +571,59 @@ export const handlers = [
     profilePictures.delete(userId);
     return new HttpResponse(null, { status: 204 });
   }),
+
+  http.post("/users/membership", async ({ request }) => {
+    const userId = requireAuth(request);
+    if (isErr(userId)) return userId;
+    const db = getDb();
+    const user = db.users.find((u) => u.id === userId);
+    if (!user) return errorResponse(404, "User not found.");
+    const body = (await request.json()) as { paid_at: string };
+    user.membership_paid_at = body.paid_at;
+    saveDb(db);
+    const membership: Membership = {
+      paid_at: body.paid_at,
+      expires_at: membershipExpiry(body.paid_at),
+    };
+    return HttpResponse.json(membership);
+  }),
+
+  http.get("/users/membership", ({ request }) => {
+    const userId = requireAuth(request);
+    if (isErr(userId)) return userId;
+    const db = getDb();
+    const user = db.users.find((u) => u.id === userId);
+    if (!user?.membership_paid_at) return errorResponse(404, "No payment logged yet.");
+    const membership: Membership = {
+      paid_at: user.membership_paid_at,
+      expires_at: membershipExpiry(user.membership_paid_at),
+    };
+    return HttpResponse.json(membership);
+  }),
+
+  http.delete("/users/membership", ({ request }) => {
+    const userId = requireAuth(request);
+    if (isErr(userId)) return userId;
+    const db = getDb();
+    const user = db.users.find((u) => u.id === userId);
+    if (!user) return errorResponse(404, "User not found.");
+    user.membership_paid_at = null;
+    saveDb(db);
+    return new HttpResponse(null, { status: 204 });
+  }),
 ];
+
+/**
+ * A 30-day membership, counted inclusively — the expiry date is still a
+ * valid day (verified against real receipts: Jun 8 -> Jul 7, Aug 4 -> Sep 2,
+ * Apr 30 -> May 29). Computed entirely in UTC — mixing a local-time
+ * constructor with toISOString()'s UTC output silently shifts the result by
+ * a day depending on the server's timezone.
+ */
+function membershipExpiry(paidAt: string): string {
+  const [y, m, d] = paidAt.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + 29)).toISOString().slice(0, 10);
+}
 
 function stripUser<T extends { user_id: string }>(obj: T): Omit<T, "user_id"> {
   const { user_id, ...rest } = obj;

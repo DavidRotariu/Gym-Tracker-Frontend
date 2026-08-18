@@ -11,6 +11,7 @@ export interface MockUser extends User {
   password: string;
   qr_code_url: string | null;
   profile_picture_url: string | null;
+  membership_paid_at: string | null;
 }
 
 export interface MockDB {
@@ -505,6 +506,7 @@ export function createSeedData(): MockDB {
         password: "demo1234",
         qr_code_url: null,
         profile_picture_url: null,
+        membership_paid_at: null,
       },
     ],
     muscles: MUSCLES,

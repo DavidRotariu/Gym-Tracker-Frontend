@@ -82,3 +82,26 @@ export function useDeleteProfilePicture() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["profile-picture"] }),
   });
 }
+
+export function useMembership() {
+  return useQuery({
+    queryKey: ["membership"],
+    queryFn: () => usersApi.getMembership(),
+  });
+}
+
+export function useLogMembershipPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (paidAt: string) => usersApi.logMembershipPayment(paidAt),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["membership"] }),
+  });
+}
+
+export function useDeleteMembership() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => usersApi.deleteMembership(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["membership"] }),
+  });
+}
