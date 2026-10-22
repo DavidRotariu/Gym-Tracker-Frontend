@@ -55,7 +55,8 @@ function formatSet(
 ): string {
   if (exerciseType === "timer") return `${reps ?? empty}s`;
   if (exerciseType === "body_weight") return `${reps ?? empty} reps`;
-  return `${weight ?? empty} kg × ${reps ?? empty}`;
+  const sign = exerciseType === "negative" && weight ? "−" : "";
+  return `${sign}${weight ?? empty} kg × ${reps ?? empty}`;
 }
 
 /**
@@ -73,7 +74,10 @@ function NumberField({
   override,
   onDraft,
   onEditEnd,
+  prefix = "",
 }: {
+  /** Display-only (e.g. "−" for negative exercises); never part of the stored number. */
+  prefix?: string;
   value: number | null;
   placeholder: string;
   onCommit: (value: number | null) => void;
@@ -178,7 +182,7 @@ function NumberField({
         shown === "" && "font-normal text-label-tertiary",
       )}
     >
-      {shown || placeholder}
+      {shown ? prefix + shown : placeholder}
     </button>
   );
 }
@@ -273,11 +277,8 @@ export function SetRow({
         <NumberField
           value={set.actual_weight}
           placeholder={previous?.weight != null ? String(previous.weight) : "—"}
-          onCommit={(v) =>
-            onChange({
-              actual_weight: exerciseType === "negative" && v !== null ? -Math.abs(v) : v,
-            })
-          }
+          prefix={exerciseType === "negative" ? "−" : ""}
+          onCommit={(v) => onChange({ actual_weight: v })}
           label={`Set ${set.set_number} weight`}
           override={weightOverride}
           onDraft={(d) => onFieldDraft?.("weight", d)}

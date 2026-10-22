@@ -24,6 +24,8 @@ export interface Exercise {
   name: string;
   muscle_id: string;
   exercise_type: ExerciseType;
+  /** Legacy field the API still populates when thumbnail_url is null. */
+  pic?: string | null;
   /** Small still, cloud-hosted — icon-sized uses (search rows, lists). */
   thumbnail_url: string | null;
   /** Demo clip, cloud-hosted — card and bigger-view uses. */

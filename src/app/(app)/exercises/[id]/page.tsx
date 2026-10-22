@@ -234,10 +234,10 @@ export default function ExerciseDetailPage() {
       )}
 
       <Sheet open={editOpen} onClose={() => setEditOpen(false)} title="Edit exercise">
-        {exercise && (
+        {exercise && muscles && (
           <ExerciseEditForm
             exercise={exercise}
-            muscles={muscles ?? []}
+            muscles={muscles}
             onSaved={() => setEditOpen(false)}
           />
         )}
@@ -263,7 +263,13 @@ function ExerciseEditForm({
   const [muscleId, setMuscleId] = useState(exercise.muscle_id);
   const [exerciseType, setExerciseType] = useState<ExerciseType>(exercise.exercise_type);
   const [secondaryMuscleIds, setSecondaryMuscleIds] = useState(
-    new Set(exercise.secondary_muscles.map((m) => m.id)),
+    new Set(
+      muscles
+        .filter((mu) =>
+          exercise.secondary_muscles.some((s) => (s.id ? s.id === mu.id : s.name === mu.name)),
+        )
+        .map((mu) => mu.id),
+    ),
   );
   const [equipment, setEquipment] = useState(exercise.equipment ?? "");
   const [tips, setTips] = useState(exercise.tips ?? "");

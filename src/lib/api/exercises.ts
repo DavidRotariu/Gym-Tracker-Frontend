@@ -15,11 +15,17 @@ import type { Exercise, ExerciseHistoryEntry, ExerciseType, LastSet } from "@/ty
 function formatExercise(exercise: Exercise): Exercise {
   return {
     ...exercise,
+    // API still returns thumbnails under the legacy `pic` field for most
+    // rows, with thumbnail_url left null — fall back to it so images show.
+    thumbnail_url: exercise.thumbnail_url ?? exercise.pic ?? null,
     primary_muscle: formatMuscleName(exercise.primary_muscle),
-    secondary_muscles: (exercise.secondary_muscles ?? []).map((m) => ({
-      ...m,
-      name: formatMuscleName(m.name),
-    })),
+    // The API sends these as plain name strings ("glutes"), not Muscle
+    // objects — wrap them so callers get {name}; ids are resolved by name
+    // against GET /muscles where needed (see the edit form).
+    secondary_muscles: (exercise.secondary_muscles ?? []).map((m) => {
+      const muscle = typeof m === "string" ? { id: "", name: m, pic: null } : m;
+      return { ...muscle, name: formatMuscleName(muscle.name) };
+    }),
   };
 }
 
