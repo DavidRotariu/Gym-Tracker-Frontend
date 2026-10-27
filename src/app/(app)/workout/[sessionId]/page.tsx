@@ -289,8 +289,8 @@ export default function WorkoutSessionPage() {
     });
 
     if (previous) return;
-    const history = await getExerciseHistory(we.exercise_id, { limit: 1 }).catch(() => null);
-    const last = history?.[0]?.sets.find((s) => s.set_number === setNumber);
+    const history = await getExerciseHistory(we.exercise_id, { limit: 2 }).catch(() => null);
+    const last = history?.find((h) => h.workout_session_id !== sessionId)?.sets.find((s) => s.set_number === setNumber);
     if (!last) return;
     patchSets.mutate([
       {
@@ -500,6 +500,7 @@ export default function WorkoutSessionPage() {
                           muscle={exerciseMuscle.get(we.exercise_id)}
                           mediaUrl={exerciseMedia.get(we.exercise_id)}
                           exerciseType={exerciseType.get(we.exercise_id)}
+                          sessionId={sessionId}
                           onChangeSet={(setId, patch) => handleChangeSet(we, setId, patch)}
                           onDeleteSet={(setId) => deleteSet.mutate(setId)}
                           onAddSet={() => handleAddSet(we)}

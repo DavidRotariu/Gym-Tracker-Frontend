@@ -243,10 +243,16 @@ export function SetRow({
     onChange({ actual_weight: previous!.weight, actual_reps: previous!.reps });
   }
 
+  // Placeholder row (see useLogSet) — the server doesn't know this id yet, so
+  // any edit would PATCH a 404 and roll straight back. Hold input until the
+  // real row replaces it (a beat later).
+  const unsaved = set.id.startsWith("optimistic-");
+
   const row = (
     <div
       className={cn(
         "grid min-h-12 items-center gap-2 px-2 transition-colors duration-200",
+        unsaved && "pointer-events-none opacity-70",
         showWeight ? "grid-cols-[32px_1fr_64px_56px_44px]" : "grid-cols-[32px_1fr_64px_44px]",
         set.completed ? "bg-green-soft" : "bg-background",
       )}

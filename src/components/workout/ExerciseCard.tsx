@@ -19,6 +19,8 @@ interface ExerciseCardProps {
   mediaUrl?: string | null;
   /** Governs which fields sets in this card log — see SetRow. */
   exerciseType?: ExerciseType;
+  /** The workout being logged — excluded from the "Previous" lookup. */
+  sessionId?: string;
   onChangeSet: (setId: string, patch: Partial<Set>) => void;
   onDeleteSet: (setId: string) => void;
   onAddSet: () => void;
@@ -40,6 +42,7 @@ export function ExerciseCard({
   muscle,
   mediaUrl,
   exerciseType,
+  sessionId,
   onChangeSet,
   onDeleteSet,
   onAddSet,
@@ -76,12 +79,14 @@ export function ExerciseCard({
   const { data: history } = useExerciseHistory(readOnly ? null : we.exercise_id);
   const previousBySetNumber = useMemo(() => {
     const map = new Map<number, { weight: number | null; reps: number | null }>();
-    const lastEntry = history?.[0];
+    // The in-progress workout can show up in its own history as soon as it
+    // has sets — skip it, or "Previous" turns into what you just logged.
+    const lastEntry = history?.find((h) => h.workout_session_id !== sessionId);
     for (const s of lastEntry?.sets ?? []) {
       map.set(s.set_number, { weight: s.actual_weight, reps: s.actual_reps });
     }
     return map;
-  }, [history]);
+  }, [history, sessionId]);
 
   return (
     <Card
