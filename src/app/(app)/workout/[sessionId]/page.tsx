@@ -14,6 +14,7 @@ import { markExerciseTrained } from "@/hooks/use-favorites";
 import { useMuscles } from "@/hooks/use-muscles";
 import { useSplit } from "@/hooks/use-splits";
 import {
+  exerciseKeyAlias,
   useAddExercise,
   useDeleteSet,
   useLogSet,
@@ -40,7 +41,12 @@ function isSaved(s: Set): boolean {
 /** Stable id for a group (a superset counts as one draggable unit). */
 function groupKey(group: WorkoutExercise[]): string {
   const gid = group[0].superset_group_id;
-  return group.length > 1 && gid !== null ? `ss-${gid}` : group[0].id;
+  return group.length > 1 && gid !== null ? `ss-${gid}` : keyOf(group[0]);
+}
+
+/** React key / drag id that survives the optimistic → real id swap (see exerciseKeyAlias). */
+function keyOf(we: WorkoutExercise): string {
+  return exerciseKeyAlias.get(we.id) ?? we.id;
 }
 
 // ponytail: there's no reorder endpoint on the backend (only add/remove/swap),
@@ -195,11 +201,45 @@ export default function WorkoutSessionPage() {
       setFocusedExerciseId(null);
       return;
     }
-    setFocusedExerciseId((current) =>
-      current && flatExerciseOrder.some((e) => e.id === current)
-        ? current
-        : flatExerciseOrder[0].id,
-    );
+    setFocusedExerciseId((current) => {
+      if (current && flatExerciseOrder.some((e) => e.id === current)) return current;
+      // The focused card was optimistic and just got its real id — follow it
+      // rather than snapping back to the first exercise.
+      const renamed = flatExerciseOrder.find((e) => exerciseKeyAlias.get(e.id) === current);
+      return renamed ? renamed.id : flatExerciseOrder[0].id;
+    });
+  }, [flatExerciseOrder]);
+
+  // A just-added exercise: once its card is in the DOM, scroll to it and make
+  // it the focused card. Runs once for the optimistic card; the later swap to
+  // the real id only re-points focus (the card is already on screen).
+  const justAdded = useRef<{ orderIndex: number; scrolled: boolean } | null>(null);
+  useEffect(() => {
+    const target = justAdded.current;
+    if (!target) return;
+    const we = flatExerciseOrder.find((e) => e.order_index === target.orderIndex);
+    if (!we) return;
+    setFocusedExerciseId(we.id);
+    if (!target.scrolled) {
+      target.scrolled = true;
+      // The picker is still sliding away and holds the body scroll lock
+      // (overflow:hidden swallows scrollIntoView) — wait for it to release.
+      // Not cleaned up on re-render: the optimistic → real swap re-runs this
+      // effect and must not cancel the pending scroll.
+      let tries = 0;
+      const go = () => {
+        if (document.body.style.overflow === "hidden" && tries++ < 20) {
+          setTimeout(go, 100);
+          return;
+        }
+        // Looked up by order_index, not id — the id changes on the swap.
+        document
+          .querySelector(`.exercise-card[data-order-index="${target.orderIndex}"]`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      };
+      setTimeout(go, 150);
+    }
+    if (!we.id.startsWith("optimistic-")) justAdded.current = null;
   }, [flatExerciseOrder]);
 
   // Scroll-spy: the card nearest the vertical center of the *visible* area
@@ -273,20 +313,24 @@ export default function WorkoutSessionPage() {
   }
 
   async function handleAddExercise(exerciseId: string) {
+    // Both are optimistic (see the hooks): fire and return so the picker
+    // closes on the tap instead of waiting on the network. A failure rolls
+    // the cache back and surfaces through the error toast.
     if (swapTarget) {
-      await swapExercise.mutateAsync({
-        workoutExerciseId: swapTarget.id,
-        exerciseId,
-      });
+      const target = swapTarget;
       setSwapTarget(null);
+      swapExercise.mutate(
+        { workoutExerciseId: target.id, exerciseId },
+        { onError: showError },
+      );
       return;
     }
-    await addExercise.mutateAsync({
-      exerciseId,
-      // Next free slot, not `length` — removing an exercise leaves a gap, and
-      // length would then collide with an existing order_index forever.
-      orderIndex: Math.max(-1, ...(session?.exercises.map((e) => e.order_index) ?? [])) + 1,
-    });
+    // Next free slot, not `length` — removing an exercise leaves a gap, and
+    // length would then collide with an existing order_index forever.
+    const orderIndex =
+      Math.max(-1, ...(session?.exercises.map((e) => e.order_index) ?? [])) + 1;
+    justAdded.current = { orderIndex, scrolled: false };
+    addExercise.mutate({ exerciseId, orderIndex }, { onError: showError });
   }
 
   /**
@@ -546,7 +590,7 @@ export default function WorkoutSessionPage() {
                     {(startDrag) => {
                       const cards = group.map((we) => (
                         <ExerciseCard
-                          key={we.id}
+                          key={keyOf(we)}
                           workoutExercise={we}
                           name={exerciseNames.get(we.exercise_id) ?? "Exercise"}
                           muscle={exerciseMuscle.get(we.exercise_id)}
@@ -559,6 +603,7 @@ export default function WorkoutSessionPage() {
                           onRemove={() => removeExercise.mutate(we.id, { onError: showError })}
                           onSwap={() => setSwapTarget(we)}
                           onDragHandlePointerDown={startDrag}
+                          onActivate={() => setFocusedExerciseId(we.id)}
                           addPending={
                             logSet.isPending && logSet.variables?.workoutExerciseId === we.id
                           }

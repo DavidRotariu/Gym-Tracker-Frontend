@@ -1,23 +1,57 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as workoutsApi from "@/lib/api/workouts";
 import type { SetInput } from "@/lib/api/workouts";
-import type { Set, WorkoutSession } from "@/types";
+import type { Set, WorkoutExercise, WorkoutSession } from "@/types";
 
 function invalidateSession(qc: ReturnType<typeof useQueryClient>, sessionId: string) {
   qc.invalidateQueries({ queryKey: ["workouts", sessionId] });
 }
 
+/**
+ * Optimistic rows are swapped for the server's real ones a beat later, and a
+ * new id means a new React key — i.e. the row/card unmounts and remounts,
+ * replaying its entrance (or exit + enter) animation. These record
+ * real id → the optimistic id it replaced so the UI can keep using the
+ * original as its *key* and the swap is invisible.
+ */
+export const setKeyAlias = new Map<string, string>();
+export const exerciseKeyAlias = new Map<string, string>();
+
 export function useAddExercise(sessionId: string) {
   const qc = useQueryClient();
+  const queryKey = ["workouts", sessionId];
   return useMutation({
     mutationFn: ({ exerciseId, orderIndex }: { exerciseId: string; orderIndex: number }) =>
       workoutsApi.addWorkoutExercise(sessionId, exerciseId, orderIndex),
-    onSuccess: () => invalidateSession(qc, sessionId),
+    // The card appears in the same tick as the tap; the POST catches up.
+    onMutate: async ({ exerciseId, orderIndex }) => {
+      await qc.cancelQueries({ queryKey });
+      const previous = qc.getQueryData<WorkoutSession>(queryKey);
+      const optimistic: WorkoutExercise = {
+        id: `optimistic-${crypto.randomUUID()}`,
+        exercise_id: exerciseId,
+        order_index: orderIndex,
+        superset_group_id: null,
+        sets: [],
+      };
+      qc.setQueryData<WorkoutSession>(queryKey, (old) =>
+        old ? { ...old, exercises: [...old.exercises, optimistic] } : old,
+      );
+      return { previous, optimisticId: optimistic.id };
+    },
+    onSuccess: (created, _vars, context) => {
+      if (context) exerciseKeyAlias.set(created.id, context.optimisticId);
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) qc.setQueryData(queryKey, context.previous);
+    },
+    onSettled: () => invalidateSession(qc, sessionId),
   });
 }
 
 export function useSwapExercise(sessionId: string) {
   const qc = useQueryClient();
+  const queryKey = ["workouts", sessionId];
   return useMutation({
     mutationFn: ({
       workoutExerciseId,
@@ -26,7 +60,25 @@ export function useSwapExercise(sessionId: string) {
       workoutExerciseId: string;
       exerciseId: string;
     }) => workoutsApi.swapWorkoutExercise(sessionId, workoutExerciseId, exerciseId),
-    onSuccess: () => invalidateSession(qc, sessionId),
+    onMutate: async ({ workoutExerciseId, exerciseId }) => {
+      await qc.cancelQueries({ queryKey });
+      const previous = qc.getQueryData<WorkoutSession>(queryKey);
+      qc.setQueryData<WorkoutSession>(queryKey, (old) =>
+        old
+          ? {
+              ...old,
+              exercises: old.exercises.map((we) =>
+                we.id === workoutExerciseId ? { ...we, exercise_id: exerciseId, sets: [] } : we,
+              ),
+            }
+          : old,
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) qc.setQueryData(queryKey, context.previous);
+    },
+    onSettled: () => invalidateSession(qc, sessionId),
   });
 }
 
@@ -84,7 +136,10 @@ export function useLogSet(sessionId: string) {
             }
           : old,
       );
-      return { previous };
+      return { previous, optimisticId: optimisticSet.id };
+    },
+    onSuccess: (created, _vars, context) => {
+      if (context) setKeyAlias.set(created.id, context.optimisticId);
     },
     onError: (_err, _vars, context) => {
       if (context?.previous) qc.setQueryData(queryKey, context.previous);

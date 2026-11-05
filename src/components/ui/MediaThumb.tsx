@@ -54,6 +54,13 @@ export function MediaThumb({
   useEffect(() => {
     const el = videoRef.current;
     if (!el || !wantsMotion) return;
+    // React sets `muted` as a DOM property, never as the HTML attribute, and
+    // mobile browsers decide audio-session behaviour from the attribute — so
+    // a "muted" clip could still grab audio focus and pause the user's music
+    // the moment it started playing (e.g. after a set scrolls the next card in).
+    el.defaultMuted = true;
+    el.muted = true;
+    el.setAttribute("muted", "");
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) el.play().catch(() => {});

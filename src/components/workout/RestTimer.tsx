@@ -33,6 +33,42 @@ function writeStored(state: StoredTimer) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+/**
+ * One short two-note chime when the rest ends — nothing plays while it runs.
+ * Web Audio with the page's audio session set to "ambient" (Safari) so it
+ * mixes over the user's music instead of pausing it; the context is created
+ * lazily on the first tap, since browsers refuse audio before a gesture.
+ */
+let audioCtx: AudioContext | null = null;
+function unlockAudio() {
+  try {
+    const nav = navigator as Navigator & { audioSession?: { type: string } };
+    if (nav.audioSession) nav.audioSession.type = "ambient";
+    audioCtx ??= new AudioContext();
+    if (audioCtx.state === "suspended") void audioCtx.resume();
+  } catch {
+    /* no audio available — the vibration below still fires */
+  }
+}
+
+function ring() {
+  navigator.vibrate?.([120, 60, 120]);
+  const ctx = audioCtx;
+  if (!ctx || ctx.state !== "running") return;
+  const t = ctx.currentTime;
+  [880, 1175].forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, t + i * 0.16);
+    gain.gain.exponentialRampToValueAtTime(0.25, t + i * 0.16 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.16 + 0.14);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t + i * 0.16);
+    osc.stop(t + i * 0.16 + 0.15);
+  });
+}
+
 interface RestTimerProps {
   /** Bump to (re)start the timer — the session screen does this when a set
    *  is marked complete. */
@@ -60,6 +96,11 @@ export function RestTimer({ startSignal, restSeconds }: RestTimerProps) {
   const durationRef = useRef(duration);
   durationRef.current = duration;
   const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    document.addEventListener("pointerdown", unlockAudio, { once: true });
+    return () => document.removeEventListener("pointerdown", unlockAudio);
+  }, []);
 
   // Resume whatever was running (or paused) when this last unmounted —
   // covers both a full browser close and just navigating away and back.
@@ -124,6 +165,9 @@ export function RestTimer({ startSignal, restSeconds }: RestTimerProps) {
   // into the stopped state once instead of re-deriving "expired" everywhere.
   useEffect(() => {
     if (endAt !== null && remaining === 0) {
+      // Only a countdown that actually ran out rings — dismiss/restart paths
+      // clear endAt themselves and never reach here.
+      if (Date.now() - endAt < 5000) ring();
       setEndAt(null);
       setPausedRemaining(0);
       writeStored({ duration, endAt: null, pausedRemaining: 0 });

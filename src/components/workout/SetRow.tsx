@@ -211,6 +211,29 @@ export function SetRow({
 }: SetRowProps) {
   const showWeight = showsWeight(exerciseType);
 
+  // Born optimistic = just added by the user (not loaded from the server), so
+  // it gets the "new row" tint once. The row instance survives the optimistic →
+  // real id swap (stable key in ExerciseCard), so this stays true, harmlessly.
+  const [isNew] = useState(() => set.id.startsWith("optimistic-"));
+  // Completion feedback: a green edge sweep across the row + a ring bursting
+  // out of the check, each for a moment after ticking a set off.
+  const [flash, setFlash] = useState(false);
+  const [burst, setBurst] = useState(0);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+    },
+    [],
+  );
+  function celebrate() {
+    navigator.vibrate?.(15);
+    setBurst((n) => n + 1);
+    setFlash(true);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlash(false), 700);
+  }
+
   if (readOnly) {
     const weight = set.actual_weight;
     const reps = set.actual_reps;
@@ -257,6 +280,8 @@ export function SetRow({
     <div
       className={cn(
         "grid min-h-12 items-center gap-2 px-2 transition-colors duration-200",
+        isNew && "set-new",
+        flash && "set-done",
         unsaved && "pointer-events-none opacity-70",
         showWeight ? "grid-cols-[32px_1fr_64px_56px_44px]" : "grid-cols-[32px_1fr_64px_44px]",
         set.completed ? "bg-green-soft" : "bg-background",
@@ -309,7 +334,8 @@ export function SetRow({
 
       <motion.button
         type="button"
-        onClick={() =>
+        onClick={() => {
+          if (!set.completed) celebrate();
           onChange({
             completed: !set.completed,
             completed_at: set.completed ? null : new Date().toISOString(),
@@ -322,8 +348,8 @@ export function SetRow({
             ...(!set.completed && set.actual_reps === null && previous?.reps != null
               ? { actual_reps: previous.reps }
               : {}),
-          })
-        }
+          });
+        }}
         aria-pressed={set.completed}
         aria-label={
           set.completed
@@ -331,9 +357,20 @@ export function SetRow({
             : `Mark set ${set.set_number} complete — starts the rest timer`
         }
         animate={set.completed ? { scale: [1, 1.3, 1] } : { scale: 1 }}
+        whileTap={{ scale: 0.85 }}
         transition={{ duration: 0.34, ease: [0.34, 1.56, 0.64, 1] }}
-        className="flex size-11 shrink-0 cursor-pointer items-center justify-center"
+        className="relative flex size-11 shrink-0 cursor-pointer items-center justify-center"
       >
+        {set.completed && burst > 0 && (
+          <motion.span
+            key={burst}
+            aria-hidden
+            initial={{ scale: 0.7, opacity: 0.7 }}
+            animate={{ scale: 2, opacity: 0 }}
+            transition={{ duration: 0.55, ease: "easeOut" }}
+            className="pointer-events-none absolute size-8 rounded-pill border-2 border-green"
+          />
+        )}
         <span
           className={cn(
             "flex size-8 items-center justify-center rounded-pill transition-colors duration-150",

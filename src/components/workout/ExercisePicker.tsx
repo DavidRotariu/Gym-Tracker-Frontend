@@ -133,10 +133,14 @@ export function ExercisePicker({
     setPreviewExercise(null);
     setAddingId(exercise.id);
     setAddError(null);
+    navigator.vibrate?.(10);
     try {
       await onSelect(exercise.id);
       onClose();
+      // addingId stays set on success: the row's ✓ keeps showing while the
+      // sheet slides away (the !open effect clears it afterwards).
     } catch (err) {
+      setAddingId(null);
       // Close the picker on ANY failure used to look identical to a
       // successful add from the outside — the exercise just never showed
       // up, no error, nothing to retry. Stay open and say so instead — with
@@ -147,8 +151,6 @@ export function ExercisePicker({
           ? err.message
           : "Couldn't add that exercise. Try again.",
       );
-    } finally {
-      setAddingId(null);
     }
   }
 
@@ -215,7 +217,7 @@ export function ExercisePicker({
           "flex min-h-14 cursor-pointer items-center gap-3 rounded-control select-none [-webkit-touch-callout:none]",
           "bg-background-secondary py-2 pr-4 pl-2 text-left active:opacity-70",
           "disabled:cursor-default",
-          addingId !== null && (adding ? "opacity-70" : "opacity-40"),
+          addingId !== null && (adding ? "ring-2 ring-accent" : "opacity-40"),
         )}
       >
         <MediaThumb
@@ -236,7 +238,25 @@ export function ExercisePicker({
             </span>
           )}
         </span>
-        {isFavorited && (
+        {adding ? (
+          <motion.span
+            initial={{ scale: 0.3, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 520, damping: 22 }}
+            className="flex size-7 shrink-0 items-center justify-center rounded-pill bg-accent text-accent-foreground"
+            aria-label="Added"
+          >
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
+              <path
+                d="M4.5 10.5l3.6 3.6L15.5 6"
+                stroke="currentColor"
+                strokeWidth="2.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </motion.span>
+        ) : isFavorited && (
           <svg
             width="18"
             height="18"
