@@ -159,7 +159,12 @@ function NumberField({
       draftRef.current = shown;
     }
     replaceOnNextKeyRef.current = shown !== "";
-    keypad.open({ id: fieldId, onKey: handleKey, onCommit: commit });
+    keypad.open({
+      id: fieldId,
+      onKey: handleKey,
+      onCommit: commit,
+      target: buttonRef.current,
+    });
     // Safari/iOS doesn't focus a <button> on tap the way it does a real
     // <input> — without this, tapping a weight/reps field never bubbles a
     // focus event, so the session page's scroll-spy (onFocus, see
@@ -308,6 +313,15 @@ export function SetRow({
           onChange({
             completed: !set.completed,
             completed_at: set.completed ? null : new Date().toISOString(),
+            // The blank fields show the previous session's numbers as
+            // placeholders; completing without typing means "same as that",
+            // not "0 kg × 0" — log what the row visibly suggests.
+            ...(!set.completed && set.actual_weight === null && showWeight && previous?.weight != null
+              ? { actual_weight: previous.weight }
+              : {}),
+            ...(!set.completed && set.actual_reps === null && previous?.reps != null
+              ? { actual_reps: previous.reps }
+              : {}),
           })
         }
         aria-pressed={set.completed}

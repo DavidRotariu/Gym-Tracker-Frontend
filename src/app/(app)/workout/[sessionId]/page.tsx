@@ -32,6 +32,11 @@ import { Reorder, useDragControls } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+/** Placeholder rows (see useLogSet) the server doesn't know yet — PATCHing one 404s and rolls the whole batch back. */
+function isSaved(s: Set): boolean {
+  return !s.id.startsWith("optimistic-");
+}
+
 /** Stable id for a group (a superset counts as one draggable unit). */
 function groupKey(group: WorkoutExercise[]): string {
   const gid = group[0].superset_group_id;
@@ -83,6 +88,19 @@ export default function WorkoutSessionPage() {
   const [restSeconds, setRestSeconds] = useState<number | undefined>(undefined);
   const [summary, setSummary] = useState<WorkoutSession | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  // Failed set/exercise actions used to vanish silently (the optimistic row
+  // just rolled back), which read as "the button doesn't work".
+  const addingSet = useRef(new globalThis.Set<string>());
+  const [actionError, setActionError] = useState<string | null>(null);
+  const errorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function showError(err: unknown) {
+    setActionError(err instanceof Error && err.message ? err.message : "Something went wrong.");
+    if (errorTimer.current) clearTimeout(errorTimer.current);
+    errorTimer.current = setTimeout(() => setActionError(null), 4000);
+  }
+  useEffect(() => () => {
+    if (errorTimer.current) clearTimeout(errorTimer.current);
+  }, []);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -184,25 +202,43 @@ export default function WorkoutSessionPage() {
     );
   }, [flatExerciseOrder]);
 
-  // Scroll-spy: whichever card is crossing the vertical center of the
-  // viewport becomes the focused one, so scrolling away hands focus off
-  // even with no tap involved. A thin center band (not the whole viewport)
-  // keeps this to one card at a time for any card taller than ~10% of the
-  // screen, which every exercise card is.
+  // Scroll-spy: the card nearest the vertical center of the *visible* area
+  // (below the fixed session bar) becomes the focused one. Computed from card
+  // rects on scroll rather than an IntersectionObserver band: the band could
+  // straddle the gap between two cards and pick the DOM-first one instead of
+  // the one actually under the center, could never select the last card when
+  // scrolled to the bottom, and only reported crossings, so focus could be
+  // left on a card that had scrolled away.
   useEffect(() => {
     if (flatExerciseOrder.length === 0) return;
-    const cards =
-      listRef.current?.querySelectorAll<HTMLElement>(".exercise-card") ?? [];
-    if (cards.length === 0) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const hit = entries.find((entry) => entry.isIntersecting);
-        if (hit) setFocusedExerciseId(hit.target.id.replace("we-", ""));
-      },
-      { rootMargin: "-45% 0px -45% 0px", threshold: 0 },
-    );
-    cards.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const cards =
+        listRef.current?.querySelectorAll<HTMLElement>(".exercise-card") ?? [];
+      const center = (56 + window.innerHeight) / 2; // 56 = fixed session bar
+      let best: HTMLElement | null = null;
+      let bestDist = Infinity;
+      cards.forEach((el) => {
+        const r = el.getBoundingClientRect();
+        const dist = center < r.top ? r.top - center : center > r.bottom ? center - r.bottom : 0;
+        if (dist < bestDist) {
+          best = el;
+          bestDist = dist;
+        }
+      });
+      if (best) setFocusedExerciseId((best as HTMLElement).id.replace("we-", ""));
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(update);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, [flatExerciseOrder]);
 
   /** Tapping straight into a card claims focus immediately, rather than
@@ -247,7 +283,9 @@ export default function WorkoutSessionPage() {
     }
     await addExercise.mutateAsync({
       exerciseId,
-      orderIndex: session?.exercises.length ?? 0,
+      // Next free slot, not `length` — removing an exercise leaves a gap, and
+      // length would then collide with an existing order_index forever.
+      orderIndex: Math.max(-1, ...(session?.exercises.map((e) => e.order_index) ?? [])) + 1,
     });
   }
 
@@ -270,8 +308,22 @@ export default function WorkoutSessionPage() {
    * 2-set exercise would seed set 1 from last workout's set 2.
    */
   async function handleAddSet(we: WorkoutExercise) {
+    // Two taps in the same frame both read the same stale `we.sets` and POST
+    // the same set_number; the button's `disabled` only lands a render later.
+    if (addingSet.current.has(we.id)) return;
+    addingSet.current.add(we.id);
+    try {
+      await addSetOnce(we);
+    } finally {
+      addingSet.current.delete(we.id);
+    }
+  }
+
+  async function addSetOnce(we: WorkoutExercise) {
     const previous = [...we.sets].sort((a, b) => b.set_number - a.set_number)[0];
-    const setNumber = we.sets.length + 1;
+    // Next free number, not `length + 1` — deleting a middle set leaves a gap
+    // and length + 1 would then duplicate an existing set_number.
+    const setNumber = Math.max(0, ...we.sets.map((s) => s.set_number)) + 1;
 
     const created = await logSet.mutateAsync({
       workoutExerciseId: we.id,
@@ -326,21 +378,21 @@ export default function WorkoutSessionPage() {
     if (current) {
       if (patch.actual_weight !== undefined && patch.actual_weight !== null) {
         for (const s of we.sets) {
-          if (s.set_number > current.set_number && s.actual_weight === null) {
+          if (isSaved(s) && s.set_number > current.set_number && s.actual_weight === null) {
             updates.push({ id: s.id, patch: { actual_weight: patch.actual_weight } });
           }
         }
       }
       if (patch.actual_reps !== undefined && patch.actual_reps !== null) {
         for (const s of we.sets) {
-          if (s.set_number > current.set_number && s.actual_reps === null) {
+          if (isSaved(s) && s.set_number > current.set_number && s.actual_reps === null) {
             updates.push({ id: s.id, patch: { actual_reps: patch.actual_reps } });
           }
         }
       }
     }
 
-    patchSets.mutate(updates);
+    patchSets.mutate(updates, { onError: showError });
 
     if (patch.completed === true) {
       // Each exercise carries its own configured rest time, so the timer
@@ -502,12 +554,14 @@ export default function WorkoutSessionPage() {
                           exerciseType={exerciseType.get(we.exercise_id)}
                           sessionId={sessionId}
                           onChangeSet={(setId, patch) => handleChangeSet(we, setId, patch)}
-                          onDeleteSet={(setId) => deleteSet.mutate(setId)}
-                          onAddSet={() => handleAddSet(we)}
-                          onRemove={() => removeExercise.mutate(we.id)}
+                          onDeleteSet={(setId) => deleteSet.mutate(setId, { onError: showError })}
+                          onAddSet={() => handleAddSet(we).catch(showError)}
+                          onRemove={() => removeExercise.mutate(we.id, { onError: showError })}
                           onSwap={() => setSwapTarget(we)}
                           onDragHandlePointerDown={startDrag}
-                          addPending={logSet.isPending}
+                          addPending={
+                            logSet.isPending && logSet.variables?.workoutExerciseId === we.id
+                          }
                           dimmed={
                             focusedExerciseId !== null && focusedExerciseId !== we.id
                           }
@@ -540,6 +594,17 @@ export default function WorkoutSessionPage() {
           </div>
         )}
       </div>
+
+      {actionError && (
+        <div
+          role="alert"
+          className="fixed inset-x-0 top-[calc(env(safe-area-inset-top)+64px)] z-40 mx-auto w-full max-w-[480px] px-4"
+        >
+          <p className="rounded-control bg-red px-3 py-2 text-caption font-semibold text-white shadow-sheet">
+            {actionError}
+          </p>
+        </div>
+      )}
 
       {/* Rest timer, pinned above the safe area. */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[480px] px-4 pb-[calc(env(safe-area-inset-bottom)+12px)]">

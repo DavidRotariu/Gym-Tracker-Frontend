@@ -63,11 +63,18 @@ export function SwipeRow({ actions, children, className, bare }: SwipeRowProps) 
 
   const handlers = useSwipeable({
     onSwiping: (e) => {
+      // A mostly-vertical drag is the page scrolling — don't let its sideways
+      // jitter drag the row around under the finger.
+      if (e.dir === "Up" || e.dir === "Down") return;
       // e.deltaX is negative when swiping left.
       const base = openRef.current ? -width : 0;
       x.set(Math.min(0, Math.max(base + e.deltaX, -width - 16)));
     },
     onSwiped: (e) => {
+      if (e.dir === "Up" || e.dir === "Down") {
+        settle(openRef.current ? -width : 0);
+        return;
+      }
       const shouldOpen =
         e.deltaX < -width / 2 || (e.dir === "Left" && e.velocity > 0.4);
       openRef.current = shouldOpen;

@@ -21,6 +21,14 @@ interface SheetProps {
   className?: string;
 }
 
+let scrollLocks = 0;
+function lockBodyScroll() {
+  if (scrollLocks++ === 0) document.body.style.overflow = "hidden";
+}
+function unlockBodyScroll() {
+  if (--scrollLocks === 0) document.body.style.overflow = "";
+}
+
 const SPRING = { type: "spring" as const, damping: 34, stiffness: 380, mass: 0.9 };
 
 /**
@@ -65,18 +73,21 @@ export function Sheet({
 
   useEffect(() => setMounted(true), []);
 
+  // Ref-counted lock: with stacked/overlapping sheets, each one restoring "its"
+  // previous value could put back "hidden" and leave the page unscrollable.
   useEffect(() => {
     if (!open) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    lockBodyScroll();
+    return unlockBodyScroll;
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = previous;
-      window.removeEventListener("keydown", onKey);
-    };
+    return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
   if (!mounted) return null;
@@ -100,7 +111,7 @@ export function Sheet({
             aria-modal="true"
             aria-label={title}
             className={cn(
-              "relative flex max-h-[88vh] w-full max-w-[480px] flex-col",
+              "relative flex max-h-[88dvh] w-full max-w-[480px] flex-col",
               /* 24px top corners; the one place elevation is used. */
               "rounded-t-sheet bg-background-elevated shadow-sheet",
               className,

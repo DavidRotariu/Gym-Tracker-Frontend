@@ -383,6 +383,11 @@ export const handlers = [
     );
     if (!session) return errorResponse(404, "Workout not found.");
     const body = (await request.json()) as { exercise_id: string; order_index: number };
+    // Mirrors the real backend's uniqueness rules so client bugs that send a
+    // colliding index show up in the mock instead of only in production.
+    if (session.exercises.some((e) => e.order_index === body.order_index)) {
+      return errorResponse(409, "You cannot add this exercise.");
+    }
     const we: WorkoutExercise = {
       id: String(db.nextId.workoutExercise++),
       exercise_id: body.exercise_id,
@@ -468,6 +473,9 @@ export const handlers = [
     if (!session) return errorResponse(404, "Exercise not found.");
     const we = session.exercises.find((e) => e.id === weId)!;
     const body = (await request.json()) as Omit<Set, "id" | "completed_at">;
+    if (we.sets.some((s) => s.set_number === body.set_number)) {
+      return errorResponse(409, "You cannot add this set.");
+    }
     const set: Set = {
       id: String(db.nextId.set++),
       completed_at: body.completed ? new Date().toISOString() : null,

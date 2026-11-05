@@ -10,7 +10,7 @@ import { formatDay, isTailMuscle, muscleImage, shortMuscleName } from "@/lib/for
 import { cn } from "@/lib/utils";
 import type { Exercise } from "@/types";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 const LONG_PRESS_MS = 450;
@@ -136,53 +136,76 @@ export function ExercisePicker({
     try {
       await onSelect(exercise.id);
       onClose();
-    } catch {
+    } catch (err) {
       // Close the picker on ANY failure used to look identical to a
       // successful add from the outside — the exercise just never showed
-      // up, no error, nothing to retry. Stay open and say so instead.
-      setAddError("Couldn't add that exercise. Try again.");
+      // up, no error, nothing to retry. Stay open and say so instead — with
+      // the server's own reason when it gave one, not a generic "try again"
+      // that hides a failure retrying can never fix.
+      setAddError(
+        err instanceof Error && err.message && err.message !== "Something went wrong."
+          ? err.message
+          : "Couldn't add that exercise. Try again.",
+      );
     } finally {
       setAddingId(null);
     }
   }
+
+  // One finger, one press: a single shared record in a ref, not per-row
+  // closures. The old closures were rebuilt on every render, so a re-render
+  // mid-press orphaned the live timer (endPress then cleared a different,
+  // null one) and the peek popped open over the list after release. It also
+  // never cancelled on movement, so a slow scroll-start that rested 450ms
+  // opened the peek instead of scrolling.
+  const press = useRef<{
+    timer: ReturnType<typeof setTimeout> | null;
+    long: boolean;
+    x: number;
+    y: number;
+  }>({ timer: null, long: false, x: 0, y: 0 });
+
+  function endPress() {
+    if (press.current.timer) clearTimeout(press.current.timer);
+    press.current.timer = null;
+  }
+  function startPress(e: React.PointerEvent, exercise: Exercise) {
+    endPress();
+    press.current.long = false;
+    press.current.x = e.clientX;
+    press.current.y = e.clientY;
+    press.current.timer = setTimeout(() => {
+      press.current.timer = null;
+      press.current.long = true;
+      setPreviewExercise(exercise);
+    }, LONG_PRESS_MS);
+  }
+  function movePress(e: React.PointerEvent) {
+    if (!press.current.timer) return;
+    if (Math.hypot(e.clientX - press.current.x, e.clientY - press.current.y) > 10) endPress();
+  }
+  useEffect(() => endPress, []);
 
   function renderRow(
     exercise: NonNullable<typeof exercises>[number],
     isFavorited: boolean,
     subtitle?: string,
   ) {
-    // Plain closures, not hook state — this runs inside a .map(), so a real
-    // useState/useRef here would change hook count between renders as the
-    // list length changes. A held-down timer just needs to survive until
-    // pointerup, which a closure captured by this row's own button does
-    // fine without React involved at all.
-    let pressTimer: ReturnType<typeof setTimeout> | null = null;
-    let longPressed = false;
-
-    function startPress() {
-      longPressed = false;
-      pressTimer = setTimeout(() => {
-        longPressed = true;
-        setPreviewExercise(exercise);
-      }, LONG_PRESS_MS);
-    }
-    function endPress() {
-      if (pressTimer) clearTimeout(pressTimer);
-    }
-
     const adding = addingId === exercise.id;
 
     return (
       <button
         key={exercise.id}
         disabled={addingId !== null}
-        onPointerDown={startPress}
+        onPointerDown={(e) => startPress(e, exercise)}
+        onPointerMove={movePress}
         onPointerUp={endPress}
         onPointerLeave={endPress}
         onPointerCancel={endPress}
         onClick={(e) => {
           // The long-press already fired the preview — don't also select.
-          if (longPressed) {
+          if (press.current.long) {
+            press.current.long = false;
             e.preventDefault();
             return;
           }
@@ -236,7 +259,7 @@ export function ExercisePicker({
     // Fixed height, not content-driven — a 1-2 result search would otherwise
     // shrink the sheet down to fit them, which on mobile drops its (now
     // much higher) bottom edge behind the keyboard instead of staying put.
-    <Sheet open={open} onClose={onClose} title={title} className="h-[88vh]">
+    <Sheet open={open} onClose={onClose} title={title} className="h-[88dvh]">
       <div className="pb-3">
         <input
           type="search"

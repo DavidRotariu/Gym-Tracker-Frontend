@@ -100,6 +100,14 @@ export default function HomePage() {
   }, [suggested, suggestedIcon, muscles]);
 
   async function start(splitId: string | null) {
+    // Already mid-workout: starting another would orphan it as a second
+    // "in progress" session. Go back to it instead.
+    if (inProgress) {
+      setPickerOpen(false);
+      router.push(`/workout/${inProgress.id}`);
+      return;
+    }
+    if (startWorkout.isPending) return;
     const session = await startWorkout.mutateAsync(splitId);
     setPickerOpen(false);
     router.push(`/workout/${session.id}`);

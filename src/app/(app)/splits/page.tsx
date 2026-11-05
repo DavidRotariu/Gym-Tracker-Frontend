@@ -10,7 +10,7 @@ import { Sheet } from "@/components/ui/Sheet";
 import { SwipeRow } from "@/components/ui/SwipeRow";
 import { useMuscles } from "@/hooks/use-muscles";
 import { useCreateSplit, useDeleteSplit, useSplits } from "@/hooks/use-splits";
-import { useStartWorkout } from "@/hooks/use-workouts";
+import { useStartWorkout, useWorkoutHistory } from "@/hooks/use-workouts";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -21,11 +21,19 @@ export default function SplitsPage() {
   const { data: splits, isLoading } = useSplits();
   const { data: muscles } = useMuscles();
   const startWorkout = useStartWorkout();
+  const { data: history } = useWorkoutHistory();
   const createSplit = useCreateSplit();
   const deleteSplit = useDeleteSplit();
   const [createOpen, setCreateOpen] = useState(false);
 
   async function start(splitId: string) {
+    // Same as the home screen: resume rather than orphan a second workout.
+    const inProgress = history?.find((s) => !s.completed_at);
+    if (inProgress) {
+      router.push(`/workout/${inProgress.id}`);
+      return;
+    }
+    if (startWorkout.isPending) return;
     const session = await startWorkout.mutateAsync(splitId);
     router.push(`/workout/${session.id}`);
   }
@@ -93,7 +101,11 @@ export default function SplitsPage() {
                 {
                   label: "Delete",
                   variant: "destructive",
-                  onAction: () => deleteSplit.mutate(split.id),
+                  onAction: () => {
+                    if (window.confirm(`Delete "${split.name}"? This can't be undone.`)) {
+                      deleteSplit.mutate(split.id);
+                    }
+                  },
                 },
               ]}
             >

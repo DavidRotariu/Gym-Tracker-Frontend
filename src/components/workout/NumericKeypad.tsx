@@ -20,6 +20,8 @@ interface ActiveField {
    *  keypad has no display of its own to keep in sync. */
   onKey: (key: KeypadKey) => void;
   onCommit: () => void;
+  /** The field's own element, so the page can keep it above the keypad. */
+  target?: HTMLElement | null;
 }
 
 interface KeypadApi {
@@ -81,6 +83,30 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
   // still closes this one here (pointerdown fires before that field's own
   // click), and that field's click handler then opens fresh right after —
   // switching fields "just works" without any special-casing.
+  // The keypad is fixed over the bottom of the screen, so without extra room
+  // the lowest sets (and the whole last card) sit permanently underneath it,
+  // unreachable by scrolling. Pad the page by the panel's height while open,
+  // and nudge the field being edited up into the visible area.
+  const isOpen = field !== null;
+  useEffect(() => {
+    if (!isOpen) return;
+    const h = panelRef.current?.offsetHeight ?? 240;
+    const prev = document.body.style.paddingBottom;
+    document.body.style.paddingBottom = `${h}px`;
+    return () => {
+      document.body.style.paddingBottom = prev;
+    };
+  }, [isOpen]);
+  const activeId = field?.id;
+  useEffect(() => {
+    const el = fieldRef.current?.target;
+    if (!activeId || !el) return;
+    const h = panelRef.current?.offsetHeight ?? 240;
+    const r = el.getBoundingClientRect();
+    const limit = window.innerHeight - h - 12;
+    if (r.bottom > limit) window.scrollBy({ top: r.bottom - limit, behavior: "smooth" });
+  }, [activeId]);
+
   useEffect(() => {
     if (!field) return;
     function handlePointerDown(e: PointerEvent) {

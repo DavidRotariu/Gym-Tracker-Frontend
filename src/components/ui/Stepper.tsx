@@ -44,9 +44,23 @@ export function Stepper({
     [min, max],
   );
 
+  // The hold-repeat interval outlives the render that started it, so it must
+  // read the *current* value from a ref — closing over `value` made every
+  // repeat tick recompute the same "value + 1" and the number never ran up.
+  // `onChange` is parent-controlled; the ref is advanced optimistically so
+  // ticks landing before the parent re-renders still accumulate.
+  const valueRef = useRef(value);
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
   const nudge = useCallback(
-    (direction: 1 | -1) => onChange(clamp((value ?? 0) + direction * step)),
-    [clamp, onChange, step, value],
+    (direction: 1 | -1) => {
+      const next = clamp((valueRef.current ?? 0) + direction * step);
+      valueRef.current = next;
+      onChange(next);
+    },
+    [clamp, onChange, step],
   );
 
   const stopHold = useCallback(() => {
@@ -191,6 +205,13 @@ function HoldButton({
       onPointerUp={onStop}
       onPointerLeave={onStop}
       onPointerCancel={onStop}
+      // Pointer-down drives mouse/touch; a keyboard activation arrives as a
+      // click with detail 0 and would otherwise do nothing at all.
+      onClick={(e) => {
+        if (e.detail !== 0) return;
+        onStart();
+        onStop();
+      }}
       className={cn(
         "flex size-11 shrink-0 cursor-pointer touch-none items-center justify-center rounded-control",
         "bg-background text-label select-none",
