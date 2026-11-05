@@ -279,7 +279,7 @@ export function ExercisePicker({
     // Fixed height, not content-driven — a 1-2 result search would otherwise
     // shrink the sheet down to fit them, which on mobile drops its (now
     // much higher) bottom edge behind the keyboard instead of staying put.
-    <Sheet open={open} onClose={onClose} title={title} className="h-[88dvh]">
+    <Sheet open={open} onClose={onClose} title={title} className="h-[88%]">
       <div className="pb-3">
         <input
           type="search"

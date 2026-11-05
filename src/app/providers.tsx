@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MotionConfig } from "framer-motion";
 import { useEffect, useState } from "react";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { ViewportFix } from "@/components/ViewportFix";
 
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
 
@@ -36,6 +37,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           checks. */}
       <MotionConfig reducedMotion="user">
         <QueryClientProvider client={queryClient}>
+          <ViewportFix />
           {mocksReady ? children : null}
         </QueryClientProvider>
       </MotionConfig>

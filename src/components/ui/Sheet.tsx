@@ -111,9 +111,16 @@ export function Sheet({
             aria-modal="true"
             aria-label={title}
             className={cn(
-              "relative flex max-h-[88dvh] w-full max-w-[480px] flex-col",
+              // % of the fixed container, not dvh: dvh can come out shorter than
+              // the screen on iOS (standalone), which left the sheet floating
+              // above a black strip at the bottom.
+              "relative flex max-h-[88%] w-full max-w-[480px] flex-col",
               /* 24px top corners; the one place elevation is used. */
               "rounded-t-sheet bg-background-elevated shadow-sheet",
+              // Skirt: the sheet's own colour continues below its bottom edge,
+              // so any gap between the container and the screen edge (home
+              // indicator zone) reads as sheet, never as the page's black.
+              "after:absolute after:inset-x-0 after:top-full after:h-40 after:bg-background-elevated after:content-['']",
               className,
             )}
             custom={dismissVelocity}
