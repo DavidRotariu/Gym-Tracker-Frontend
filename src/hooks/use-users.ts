@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
 import { ApiRequestError } from "@/lib/api/client";
 import * as usersApi from "@/lib/api/users";
 
@@ -43,18 +42,20 @@ export function useUploadQr() {
   });
 }
 
-/** An object URL for a blob, revoked when the blob changes or on unmount. */
-function useObjectUrl(blob: Blob | null | undefined) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (!blob) {
-      setUrl(null);
-      return;
-    }
-    const objectUrl = URL.createObjectURL(blob);
-    setUrl(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [blob]);
+// One object URL per blob, created on first use and released when the blob is
+// garbage-collected. Cached by blob (not made in an effect) so render stays
+// pure and StrictMode's double render can't leak or revoke a URL in use.
+const blobUrls = new WeakMap<Blob, string>();
+const blobUrlCleanup = new FinalizationRegistry<string>((url) => URL.revokeObjectURL(url));
+
+function useObjectUrl(blob: Blob | null | undefined): string | null {
+  if (!blob) return null;
+  let url = blobUrls.get(blob);
+  if (!url) {
+    url = URL.createObjectURL(blob);
+    blobUrls.set(blob, url);
+    blobUrlCleanup.register(blob, url);
+  }
   return url;
 }
 

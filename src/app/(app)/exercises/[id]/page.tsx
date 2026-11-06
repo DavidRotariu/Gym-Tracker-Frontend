@@ -72,7 +72,7 @@ export default function ExerciseDetailPage() {
               type="button"
               onClick={() => setEditOpen(true)}
               aria-label="Edit exercise"
-              className="flex size-9 cursor-pointer items-center justify-center rounded-pill text-label-secondary active:bg-fill"
+              className="relative flex size-9 cursor-pointer before:absolute before:-inset-1 before:content-[''] items-center justify-center rounded-pill text-label-secondary active:bg-fill"
             >
               <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
                 <path

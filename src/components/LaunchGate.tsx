@@ -111,7 +111,7 @@ export function LaunchGate() {
           {/* Campaign-poster scale, condensed and black-weight — the same
               hero treatment as the volume number on the finish screen, not
               a scaled-up version of an ordinary heading. */}
-          <h1 className="font-stat text-stat text-label uppercase">
+          <h1 className="font-stat text-stat text-label uppercase [overflow-wrap:anywhere]">
             It&rsquo;s {suggested!.name}!
           </h1>
         </div>

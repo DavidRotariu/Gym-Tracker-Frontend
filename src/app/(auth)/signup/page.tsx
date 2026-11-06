@@ -20,9 +20,14 @@ export default function SignupPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    // The browser's minLength counts spaces, so eight blanks passed.
+    if (password.trim().length < 8) {
+      setError("Use at least 8 characters for your password (not just spaces).");
+      return;
+    }
     setSubmitting(true);
     try {
-      await signup(email, password);
+      await signup(email.trim(), password);
       // A brand-new account has no splits yet, so the launch gate at "/"
       // will just fall straight through to /home on its own.
       router.replace("/");

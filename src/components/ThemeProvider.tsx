@@ -6,7 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useState,
+  useSyncExternalStore,
 } from "react";
 
 export type ThemePreference = "light" | "dark" | "system";
@@ -69,28 +69,45 @@ function apply(theme: ResolvedTheme) {
   setThemeColorMeta(THEME_COLOR[theme]);
 }
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [preference, setPreferenceState] = useState<ThemePreference>("system");
-  const [theme, setTheme] = useState<ResolvedTheme>("dark");
+// The stored preference is an external store (localStorage) read through
+// useSyncExternalStore: "system" on the server and during hydration, the real
+// value right after — no effect that sets state on mount.
+const listeners = new Set<() => void>();
 
-  // Adopt whatever the pre-paint script already decided.
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY) as ThemePreference | null;
-    const pref = stored ?? "system";
-    setPreferenceState(pref);
-    setTheme(pref === "system" ? defaultTheme() : pref);
-  }, []);
+function readPreference(): ThemePreference {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored === "light" || stored === "dark" ? stored : "system";
+  } catch {
+    return "system";
+  }
+}
+
+function subscribe(onChange: () => void) {
+  listeners.add(onChange);
+  window.addEventListener("storage", onChange); // another tab changed it
+  return () => {
+    listeners.delete(onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const preference = useSyncExternalStore(subscribe, readPreference, () => "system" as const);
+  const theme: ResolvedTheme = preference === "system" ? defaultTheme() : preference;
+
+  // The pre-paint script already applied the stored theme; keep the document in
+  // step when another tab changes it.
+  useEffect(() => apply(theme), [theme]);
 
   const setPreference = useCallback((next: ThemePreference) => {
-    setPreferenceState(next);
-    if (next === "system") {
-      localStorage.removeItem(STORAGE_KEY);
-    } else {
-      localStorage.setItem(STORAGE_KEY, next);
+    try {
+      if (next === "system") localStorage.removeItem(STORAGE_KEY);
+      else localStorage.setItem(STORAGE_KEY, next);
+    } catch {
+      /* storage unavailable — the theme still applies for this visit */
     }
-    const resolved = next === "system" ? defaultTheme() : next;
-    setTheme(resolved);
-    apply(resolved);
+    listeners.forEach((l) => l());
   }, []);
 
   const value = useMemo(

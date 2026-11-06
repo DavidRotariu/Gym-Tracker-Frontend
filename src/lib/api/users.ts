@@ -27,7 +27,9 @@ export function uploadProfilePicture(file: File) {
 /** Raw picture bytes, like getQrImage. Resolves to null when the user has no picture set (server returns 404). */
 export async function getProfilePicture() {
   try {
-    return await apiRequestBlob("/users/profile-picture");
+    const blob = await apiRequestBlob("/users/profile-picture");
+    // An empty body (204) means "no picture" too — an empty blob would render as a broken image.
+    return blob.size > 0 ? blob : null;
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 404) return null;
     throw err;

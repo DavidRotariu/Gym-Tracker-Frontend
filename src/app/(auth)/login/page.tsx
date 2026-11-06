@@ -4,18 +4,32 @@ import { AuthWordmark } from "@/components/ui/AuthWordmark";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
 import { useAuth } from "@/hooks/use-auth";
-import { ApiRequestError } from "@/lib/api/client";
+import { ApiRequestError, SESSION_EXPIRED_FLAG } from "@/lib/api/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+const DEMO = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
+
+function wasSessionExpired() {
+  try {
+    return sessionStorage.getItem(SESSION_EXPIRED_FLAG) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
-  const [email, setEmail] = useState("demo@overload.app");
-  const [password, setPassword] = useState("demo1234");
+  // Demo credentials are a convenience of the mock build only — in a real
+  // build they'd fight password autofill and invite signing in to a shared account.
+  const [email, setEmail] = useState(DEMO ? "demo@overload.app" : "");
+  const [password, setPassword] = useState(DEMO ? "demo1234" : "");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Read once on mount; cleared on a successful sign-in below.
+  const [expired] = useState(wasSessionExpired);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -23,6 +37,11 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(email, password);
+      try {
+        sessionStorage.removeItem(SESSION_EXPIRED_FLAG);
+      } catch {
+        /* ignore */
+      }
       // Back to where an expired session left off (e.g. mid-workout), else
       // "/" — the launch gate (QR + next split), which falls through to
       // /home on its own if it has nothing to show. Same-origin paths only.
@@ -68,6 +87,12 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
+        {expired && !error && (
+          <p role="status" className="text-caption text-label-secondary">
+            Your session expired. Sign in to carry on — anything you changed in the last moment
+            wasn&rsquo;t saved, so check it once you&rsquo;re back.
+          </p>
+        )}
         {error && <p className="text-caption text-red">{error}</p>}
         <Button type="submit" size="lg" block disabled={submitting}>
           {submitting ? "Signing in…" : "Sign in"}

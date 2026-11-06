@@ -13,6 +13,9 @@ import type { Set, WorkoutExercise, WorkoutSession } from "@/types";
 export const setKeyAlias = new Map<string, string>();
 export const exerciseKeyAlias = new Map<string, string>();
 
+const drainTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const DRAIN_DELAY_MS = 400;
+
 /** Shared by every write to one session — see sessionWrite(). */
 export const sessionWriteKey = (sessionId: string) => ["session-write", sessionId];
 
@@ -28,16 +31,28 @@ export const sessionWriteKey = (sessionId: string) => ["session-write", sessionI
  * writes are still queued returns pre-write server state and visibly
  * reverts optimistic values.
  */
-export function sessionWrite(qc: QueryClient, sessionId: string) {
+export function sessionWrite(qc: QueryClient, sessionId: string, failure?: string) {
   const mutationKey = sessionWriteKey(sessionId);
   return {
     mutationKey,
+    // Reported by the app-wide MutationCache handler (providers.tsx).
+    meta: failure ? { failure } : undefined,
     scope: { id: `session-write-${sessionId}` },
     onSettled: () => {
-      // The settling mutation still counts as pending at this point.
-      if (qc.isMutating({ mutationKey }) <= 1) {
-        qc.invalidateQueries({ queryKey: ["workouts", sessionId] });
-      }
+      // Refetch once the burst is over, not every time the queue momentarily
+      // empties: against a fast server a run of quick taps drained the queue
+      // after nearly every write and refetched the whole session each time
+      // (13 GETs for 21 taps). Waiting briefly also lets the next tap join.
+      clearTimeout(drainTimers.get(sessionId));
+      drainTimers.set(
+        sessionId,
+        setTimeout(() => {
+          drainTimers.delete(sessionId);
+          if (qc.isMutating({ mutationKey }) === 0) {
+            qc.invalidateQueries({ queryKey: ["workouts", sessionId] });
+          }
+        }, DRAIN_DELAY_MS),
+      );
     },
   };
 }
@@ -70,7 +85,7 @@ function cancelSession(qc: QueryClient, sessionId: string) {
 export function useAddExercise(sessionId: string) {
   const qc = useQueryClient();
   return useMutation({
-    ...sessionWrite(qc, sessionId),
+    ...sessionWrite(qc, sessionId, "Exercise not added."),
     mutationFn: ({ exerciseId, orderIndex }: { exerciseId: string; orderIndex: number }) =>
       workoutsApi.addWorkoutExercise(sessionId, exerciseId, orderIndex),
     // The card appears in the same tick as the tap; the POST catches up.
@@ -107,7 +122,7 @@ export function useAddExercise(sessionId: string) {
 export function useSwapExercise(sessionId: string) {
   const qc = useQueryClient();
   return useMutation({
-    ...sessionWrite(qc, sessionId),
+    ...sessionWrite(qc, sessionId, "Swap not saved — the exercise is back as it was."),
     mutationFn: ({
       workoutExerciseId,
       exerciseId,
@@ -143,7 +158,7 @@ export function useSwapExercise(sessionId: string) {
 export function useRemoveExercise(sessionId: string) {
   const qc = useQueryClient();
   return useMutation({
-    ...sessionWrite(qc, sessionId),
+    ...sessionWrite(qc, sessionId, "Exercise not removed — it's back."),
     mutationFn: (workoutExerciseId: string) =>
       workoutsApi.deleteWorkoutExercise(sessionId, workoutExerciseId),
     // Optimistic: the card leaves on the tap, so there's nothing left to tap
@@ -169,7 +184,7 @@ export function useRemoveExercise(sessionId: string) {
 export function useCreateSuperset(sessionId: string) {
   const qc = useQueryClient();
   return useMutation({
-    ...sessionWrite(qc, sessionId),
+    ...sessionWrite(qc, sessionId, "Superset not saved."),
     mutationFn: (workoutExerciseIds: string[]) =>
       workoutsApi.createSuperset(sessionId, workoutExerciseIds),
   });
@@ -178,7 +193,7 @@ export function useCreateSuperset(sessionId: string) {
 export function useRemoveSuperset(sessionId: string) {
   const qc = useQueryClient();
   return useMutation({
-    ...sessionWrite(qc, sessionId),
+    ...sessionWrite(qc, sessionId, "Ungroup not saved."),
     mutationFn: (supersetGroupId: number) =>
       workoutsApi.deleteSuperset(sessionId, supersetGroupId),
   });
@@ -194,7 +209,7 @@ export function useRemoveSuperset(sessionId: string) {
 export function useLogSet(sessionId: string) {
   const qc = useQueryClient();
   return useMutation({
-    ...sessionWrite(qc, sessionId),
+    ...sessionWrite(qc, sessionId, "Set not added."),
     mutationFn: ({ workoutExerciseId, input }: { workoutExerciseId: string; input: SetInput }) =>
       workoutsApi.createSet(workoutExerciseId, input),
     onMutate: async ({ workoutExerciseId, input }) => {
@@ -212,16 +227,22 @@ export function useLogSet(sessionId: string) {
     onSuccess: (created, _vars, context) => {
       setKeyAlias.set(created.id, context.optimisticId);
       updateExercises(qc, sessionId, (list) =>
-        list.map((we) => ({
-          ...we,
-          sets: we.sets.map((s) => (s.id === context.optimisticId ? created : s)),
-        })),
+        // Untouched exercises keep their identity, so their cards don't re-render.
+        list.map((we) =>
+          we.sets.some((s) => s.id === context.optimisticId)
+            ? { ...we, sets: we.sets.map((s) => (s.id === context.optimisticId ? created : s)) }
+            : we,
+        ),
       );
     },
     onError: (_err, _vars, context) => {
       if (!context) return;
       updateExercises(qc, sessionId, (list) =>
-        list.map((we) => ({ ...we, sets: we.sets.filter((s) => s.id !== context.optimisticId) })),
+        list.map((we) =>
+          we.sets.some((s) => s.id === context.optimisticId)
+            ? { ...we, sets: we.sets.filter((s) => s.id !== context.optimisticId) }
+            : we,
+        ),
       );
     },
   });
@@ -244,7 +265,7 @@ export type SetPatch = { id: string; patch: Partial<SetInput> };
 export function usePatchSets(sessionId: string) {
   const qc = useQueryClient();
   return useMutation({
-    ...sessionWrite(qc, sessionId),
+    ...sessionWrite(qc, sessionId, "Change not saved — it's been undone."),
     mutationFn: (updates: SetPatch[]) =>
       Promise.all(updates.map(({ id, patch }) => workoutsApi.patchSet(id, patch))),
     onMutate: async (updates) => {
@@ -253,7 +274,7 @@ export function usePatchSets(sessionId: string) {
       // What each patched field held before — the undo for exactly this write.
       const undo: SetPatch[] = [];
       updateExercises(qc, sessionId, (list) =>
-        list.map((we) => ({
+        list.map((we) => !we.sets.some((s) => patchById.has(s.id)) ? we : ({
           ...we,
           sets: we.sets.map((s) => {
             const patch = patchById.get(s.id);
@@ -273,7 +294,7 @@ export function usePatchSets(sessionId: string) {
       if (!context) return;
       const undoById = new Map(context.undo.map((u) => [u.id, u.patch]));
       updateExercises(qc, sessionId, (list) =>
-        list.map((we) => ({
+        list.map((we) => !we.sets.some((s) => undoById.has(s.id)) ? we : ({
           ...we,
           sets: we.sets.map((s) => {
             const prev = undoById.get(s.id);
@@ -296,7 +317,7 @@ export function usePatchSets(sessionId: string) {
 export function useDeleteSet(sessionId: string) {
   const qc = useQueryClient();
   return useMutation({
-    ...sessionWrite(qc, sessionId),
+    ...sessionWrite(qc, sessionId, "Set not deleted — it's back."),
     mutationFn: (id: string) => workoutsApi.deleteSet(id),
     // Optimistic: the row leaves on the tap instead of springing back and
     // sitting there until a refetch (which read as "delete didn't work").
@@ -307,7 +328,9 @@ export function useDeleteSet(sessionId: string) {
         ?.exercises.find((we) => we.sets.some((s) => s.id === id));
       const removed = owner?.sets.find((s) => s.id === id);
       updateExercises(qc, sessionId, (list) =>
-        list.map((we) => ({ ...we, sets: we.sets.filter((s) => s.id !== id) })),
+        list.map((we) =>
+          we.sets.some((s) => s.id === id) ? { ...we, sets: we.sets.filter((s) => s.id !== id) } : we,
+        ),
       );
       return { ownerId: owner?.id, removed };
     },

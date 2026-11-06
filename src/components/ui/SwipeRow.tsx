@@ -24,7 +24,7 @@ interface SwipeRowProps {
 const ACTION_WIDTH = 88;
 
 const actionStyles: Record<NonNullable<SwipeAction["variant"]>, string> = {
-  destructive: "bg-red text-white",
+  destructive: "bg-red-strong text-white",
   accent: "bg-accent text-accent-foreground",
   neutral: "bg-fill-strong text-label",
 };

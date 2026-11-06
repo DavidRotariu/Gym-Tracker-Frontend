@@ -65,7 +65,9 @@ export function WorkoutSummary({
 
   const historyQueries = useQueries({
     queries: exerciseIds.map((id) => ({
-      queryKey: ["exercise-history", id],
+      // Own key: the exercise cards cache the *unbounded* history under
+      // ["exercise-history", id]; sharing it meant whichever loaded first won.
+      queryKey: ["exercise-history", id, "recent-50"],
       queryFn: () => getExerciseHistory(id, { limit: 50 }),
       staleTime: 60_000,
     })),
@@ -120,7 +122,7 @@ export function WorkoutSummary({
           </p>
           {/* Same campaign-poster scale as the launch gate's "It's Push
               Day!" — condensed, black-weight, full caps. */}
-          <h1 className="mt-2 font-stat text-stat text-accent-foreground uppercase">
+          <h1 className="mt-2 font-stat text-stat text-accent-foreground uppercase [overflow-wrap:anywhere]">
             {title}
           </h1>
         </motion.div>

@@ -89,6 +89,16 @@ export function workoutEndTime(session: WorkoutSession, now: number): string {
   return new Date(last).toISOString();
 }
 
+/**
+ * Whether anything was actually done in this session. A session with no
+ * completed set is not a workout — closing one out as "0m" polluted History,
+ * the streak and the counts, so empty ones are deleted instead (see
+ * useStartOrResumeWorkout, the 3h auto-end and Finish on the session page).
+ */
+export function hasCompletedSets(session: WorkoutSession): boolean {
+  return session.exercises.some((we) => we.sets.some((s) => s.completed));
+}
+
 /** Elapsed time as mm:ss / h:mm:ss, for the live session clock. */
 export function formatElapsed(startedAt: string, now: number): string {
   const seconds = Math.max(
@@ -123,12 +133,13 @@ export function formatDay(date: string): string {
 export function daysUntil(date: string): number {
   const startOf = (x: Date) =>
     new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  return Math.round((startOf(new Date(`${date}T00:00:00`)) - startOf(new Date())) / 86400000);
+  // slice: tolerate a full ISO timestamp from the API as well as a bare date.
+  return Math.round((startOf(new Date(`${date.slice(0, 10)}T00:00:00`)) - startOf(new Date())) / 86400000);
 }
 
 /** "4 Aug" / "4 Aug 2027" once it's no longer the current year. */
 export function formatMembershipDate(date: string): string {
-  const d = new Date(`${date}T00:00:00`);
+  const d = new Date(`${date.slice(0, 10)}T00:00:00`);
   const sameYear = d.getFullYear() === new Date().getFullYear();
   return d.toLocaleDateString(undefined, {
     day: "numeric",

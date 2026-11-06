@@ -31,9 +31,11 @@ export function useUpdateSplit() {
   });
 }
 
-export function useDeleteSplit() {
+/** `reportFailure`: toast a failed delete (the list's swipe-delete has no inline error to show it in). */
+export function useDeleteSplit(reportFailure = false) {
   const qc = useQueryClient();
   return useMutation({
+    meta: reportFailure ? { failure: "Split not deleted — it's still there." } : undefined,
     mutationFn: (id: string) => splitsApi.deleteSplit(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["splits"] }),
   });

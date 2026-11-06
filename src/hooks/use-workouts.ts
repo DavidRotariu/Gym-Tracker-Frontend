@@ -1,8 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import * as workoutsApi from "@/lib/api/workouts";
-import { MAX_WORKOUT_MS, workoutEndTime } from "@/lib/format";
+import { MAX_WORKOUT_MS, hasCompletedSets, workoutEndTime } from "@/lib/format";
 import type { WorkoutPatch } from "@/lib/api/workouts";
 import type { WorkoutSessionSummary } from "@/types";
 import { sessionWrite, sessionWriteKey } from "./use-workout-session";
@@ -11,6 +11,15 @@ const historyQuery = {
   queryKey: ["workouts"],
   queryFn: () => workoutsApi.getWorkouts({ limit: 50 }),
 };
+
+/** A finished/deleted workout changes every exercise's "previous" values and PRs. */
+export function invalidateExerciseHistory(qc: QueryClient) {
+  // Mark stale only: whatever is mounted right now (the cards behind the finish
+  // summary, or the page being discarded) is about to go away, so refetching it
+  // would be wasted requests. Anything that mounts later refetches as stale.
+  qc.invalidateQueries({ queryKey: ["exercise-history"], refetchType: "none" });
+  qc.invalidateQueries({ queryKey: ["last-set"], refetchType: "none" });
+}
 
 export function useWorkoutHistory() {
   return useQuery(historyQuery);
@@ -65,16 +74,26 @@ export function useStartOrResumeWorkout() {
     setPending(true);
     setError(null);
     try {
-      const history = await qc.ensureQueryData(historyQuery);
+      // Always ask the server, never trust the cache: ensureQueryData returns a
+      // stale list as-is, so a second tab (or device) that had loaded the list
+      // before a workout was started elsewhere went on to start another one.
+      const history = await qc.fetchQuery({ ...historyQuery, staleTime: 0 });
       let open = history.find((s) => !s.completed_at);
       // Abandoned (past the 3h cap): close it out instead of "resuming" it —
       // opening it would only auto-end it and land on its history page.
       if (open && !isLiveSession(open)) {
         const stale = await workoutsApi.getWorkout(open.id);
-        await workoutsApi.patchWorkout(open.id, {
-          completed_at: workoutEndTime(stale, Date.now()),
-        });
+        // Nothing was logged: that's not a workout, so drop it rather than
+        // saving a "0m" entry that shows in History and counts for the streak.
+        if (hasCompletedSets(stale)) {
+          await workoutsApi.patchWorkout(open.id, {
+            completed_at: workoutEndTime(stale, Date.now()),
+          });
+        } else {
+          await workoutsApi.deleteWorkout(open.id);
+        }
         qc.invalidateQueries({ queryKey: ["workouts"] });
+        invalidateExerciseHistory(qc);
         open = undefined;
       }
       const id = open ? open.id : (await start.mutateAsync(splitId)).id;
@@ -109,8 +128,10 @@ export function usePatchWorkout(id: string) {
     // every edit made before it has reached the server.
     mutationKey: write.mutationKey,
     scope: write.scope,
+    meta: { failure: "Workout not finished — it's still open." },
     mutationFn: (patch: WorkoutPatch) => workoutsApi.patchWorkout(id, patch),
     onSuccess: (_data, patch) => {
+      if (patch.completed_at) invalidateExerciseHistory(qc);
       // The home screen's "Resume workout" button reads the cached list, and
       // that query is inactive while you're on the workout page — invalidating
       // alone leaves a stale in-progress entry showing until refetch lands.
@@ -124,9 +145,20 @@ export function usePatchWorkout(id: string) {
   });
 }
 
-export function useDeleteWorkout() {
+/**
+ * `sessionId` puts the delete in that session's write queue, so a discard
+ * lands after every queued edit instead of racing it (edits sent after a
+ * delete would 404 into error toasts).
+ */
+export function useDeleteWorkout(sessionId?: string) {
   const qc = useQueryClient();
   return useMutation({
+    ...(sessionId ? { mutationKey: sessionWriteKey(sessionId), scope: sessionWrite(qc, sessionId).scope } : {}),
+    meta: {
+      failure: sessionId
+        ? "Workout not discarded — it's still open."
+        : "Workout not deleted — it's still in your history.",
+    },
     mutationFn: (id: string) => workoutsApi.deleteWorkout(id),
     // Drop it from the cached list immediately so a discarded workout can't
     // keep showing up as "in progress" while the delete is in flight.
@@ -145,6 +177,7 @@ export function useDeleteWorkout() {
         list && !list.some((s) => s.id === removed.id) ? [...list, removed] : list,
       );
     },
+    onSuccess: () => invalidateExerciseHistory(qc),
     onSettled: () => qc.invalidateQueries({ queryKey: ["workouts"], exact: true }),
   });
 }

@@ -14,16 +14,17 @@ import { useStartOrResumeWorkout } from "@/hooks/use-workouts";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 export default function SplitsPage() {
   const router = useRouter();
-  const { data: splits, isLoading } = useSplits();
+  const { data: splits, isLoading, isError, refetch, isFetching } = useSplits();
   const { data: muscles } = useMuscles();
   const startWorkout = useStartOrResumeWorkout();
   const createSplit = useCreateSplit();
-  const deleteSplit = useDeleteSplit();
+  const deleteSplit = useDeleteSplit(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const deletingSplits = useRef(new Set<string>());
 
   // Same as the home screen: resume rather than orphan a second workout —
   // and wait for the history list rather than assume nothing's in progress.
@@ -39,7 +40,7 @@ export default function SplitsPage() {
           <button
             onClick={() => setCreateOpen(true)}
             aria-label="New split"
-            className="flex size-9 cursor-pointer items-center justify-center rounded-pill text-accent-ink active:bg-accent-muted"
+            className="relative flex size-9 cursor-pointer before:absolute before:-inset-1 before:content-[''] items-center justify-center rounded-pill text-accent-ink active:bg-accent-muted"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path
@@ -62,6 +63,20 @@ export default function SplitsPage() {
             />
           ))}
         </div>
+      )}
+
+      {isError && !splits && (
+        <Card flush>
+          <EmptyState
+            title="Couldn't load your splits"
+            description="They're safe — we just couldn't reach the server. Check your connection."
+            action={
+              <Button onClick={() => refetch()} disabled={isFetching}>
+                {isFetching ? "Retrying…" : "Try again"}
+              </Button>
+            }
+          />
+        </Card>
       )}
 
       {!isLoading && splits?.length === 0 && (
@@ -95,8 +110,12 @@ export default function SplitsPage() {
                   label: "Delete",
                   variant: "destructive",
                   onAction: () => {
-                    if (window.confirm(`Delete "${split.name}"? This can't be undone.`)) {
-                      deleteSplit.mutate(split.id);
+                    if (
+                      !deletingSplits.current.has(split.id) &&
+                      window.confirm(`Delete "${split.name}"? This can't be undone.`)
+                    ) {
+                      deletingSplits.current.add(split.id);
+                      deleteSplit.mutateAsync(split.id).catch(() => {}).finally(() => deletingSplits.current.delete(split.id));
                     }
                   },
                 },

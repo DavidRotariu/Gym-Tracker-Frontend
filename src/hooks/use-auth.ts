@@ -1,9 +1,11 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useMounted } from "@/hooks/use-mounted";
 import { usePathname, useRouter } from "next/navigation";
 import * as authApi from "@/lib/api/auth";
+import { showToast } from "@/lib/toast";
 import { refreshAccessToken, SESSION_EXPIRED_EVENT } from "@/lib/api/client";
 import type { User } from "@/types";
 
@@ -24,9 +26,21 @@ function clearUserScopedStorage() {
   sessionStorage.removeItem("overload_launch_shown");
 }
 
-function readUser(): User | null {
-  if (typeof window === "undefined") return null;
-  const raw = localStorage.getItem(USER_KEY);
+// The signed-in user lives in localStorage (an external store), read with
+// useSyncExternalStore. Everything that changes it calls notifyAuth().
+const authListeners = new Set<() => void>();
+const notifyAuth = () => authListeners.forEach((l) => l());
+function subscribeAuth(onChange: () => void) {
+  authListeners.add(onChange);
+  window.addEventListener("storage", onChange); // another tab signed in/out
+  return () => {
+    authListeners.delete(onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+const readUserRaw = () => localStorage.getItem(USER_KEY);
+
+function parseUser(raw: string | null): User | null {
   if (!raw) return null;
   try {
     return JSON.parse(raw) as User;
@@ -64,24 +78,45 @@ function scheduleRefresh() {
   // never race a 401-triggered one.
   const delay = Math.max(0, expiresAt - Date.now() - 60_000);
   refreshTimer = setTimeout(async () => {
-    if (await refreshAccessToken()) scheduleRefresh();
-    // else: the next API call's 401 handling ends the session.
+    try {
+      if (await refreshAccessToken()) scheduleRefresh();
+    } catch {
+      // Couldn't reach the server — not a verdict on the session. The next
+      // API call's 401 handling will try again (or end it).
+    }
   }, delay);
 }
 
 export function useAuth() {
   const qc = useQueryClient();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const raw = useSyncExternalStore(subscribeAuth, readUserRaw, () => null);
+  const user = useMemo(() => parseUser(raw), [raw]);
+  // Not known until the client has hydrated (localStorage doesn't exist on the server).
+  const loading = !useMounted();
 
   useEffect(() => {
-    setUser(readUser());
-    setLoading(false);
     scheduleRefresh();
-    const onExpired = () => setUser(null);
-    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
-    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    // The API client clears the session on a failed refresh and announces it.
+    window.addEventListener(SESSION_EXPIRED_EVENT, notifyAuth);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, notifyAuth);
   }, []);
+
+  // Another tab signed out, or in as someone else: this tab must not carry on
+  // showing (or writing as) the old account. localStorage is shared, the query
+  // cache is not — so drop it here too. (Sign-in/out in *this* tab clear it
+  // themselves, below.)
+  const shownId = useRef(user?.id);
+  useEffect(() => {
+    shownId.current = user?.id;
+  }, [user?.id]);
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== null && e.key !== USER_KEY && e.key !== TOKEN_KEY) return;
+      if (parseUser(readUserRaw())?.id !== shownId.current) qc.clear();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [qc]);
 
   const persist = useCallback(
     (res: { access_token: string; refresh_token?: string; user: User }) => {
@@ -95,7 +130,7 @@ export function useAuth() {
       localStorage.setItem(TOKEN_KEY, res.access_token);
       if (res.refresh_token) localStorage.setItem(REFRESH_KEY, res.refresh_token);
       localStorage.setItem(USER_KEY, JSON.stringify(res.user));
-      setUser(res.user);
+      notifyAuth();
       scheduleRefresh();
     },
     [qc],
@@ -119,14 +154,28 @@ export function useAuth() {
     [persist],
   );
 
-  const logout = useCallback(() => {
+  /**
+   * Signs out. Writes still queued or in flight (a set ticked a second ago on
+   * a slow connection) get a moment to reach the server first — clearing the
+   * cache and token under them lost them silently: no error, no rollback
+   * message, just gone. Gives up after 8 s rather than trap someone signed in.
+   */
+  const logout = useCallback(async () => {
+    const deadline = Date.now() + 8000;
+    while (qc.isMutating() > 0 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    if (qc.isMutating() > 0) {
+      // Still unsent (offline, or the server is stalled) — say so rather than drop it quietly.
+      showToast("Signed out before your last changes were saved. Check them when you sign back in.");
+    }
     clearTimeout(refreshTimer);
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(USER_KEY);
     clearUserScopedStorage();
     qc.clear();
-    setUser(null);
+    notifyAuth();
   }, [qc]);
 
   return { user, loading, login, signup, logout };

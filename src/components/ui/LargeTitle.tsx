@@ -99,7 +99,7 @@ export function LargeTitle({
             {eyebrow}
           </p>
         )}
-        <h1 className="font-display text-large-title text-label">{title}</h1>
+        <h1 className="font-display text-large-title text-label [overflow-wrap:anywhere]">{title}</h1>
       </motion.div>
     </>
   );

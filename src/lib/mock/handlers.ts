@@ -18,10 +18,28 @@ function errorResponse(status: number, message: string) {
   return HttpResponse.json({ error: { code: String(status), message } }, { status });
 }
 
+/**
+ * Demo token model, so the client's refresh flow can be exercised:
+ *   access token   mock-token-<id>~<epoch>   valid only while epoch === overload_mock_valid_epoch
+ *   refresh token  mock-refresh-<id>-<nonce> single-use (rotates on every refresh)
+ * Bump overload_mock_valid_epoch from the console to "expire" every access
+ * token at once; set overload_mock_refresh_invalid = "1" to expire the refresh
+ * token too. overload_mock_refresh_calls counts calls to /auth/refresh.
+ */
+const validEpoch = () => localStorage.getItem("overload_mock_valid_epoch") ?? "0";
+const issueAccess = (id: string) => `mock-token-${id}~${validEpoch()}`;
+function issueRefresh(id: string) {
+  const nonce = crypto.randomUUID().slice(0, 8);
+  localStorage.setItem(`overload_mock_refresh_nonce_${id}`, nonce);
+  return `mock-refresh-${id}-${nonce}`;
+}
+
 function auth(request: Request): string | null {
   const header = request.headers.get("Authorization");
-  const match = header?.match(/^Bearer mock-token-(.+)$/);
-  return match ? match[1] : null;
+  const match = header?.match(/^Bearer mock-token-([^~]+)(?:~(.+))?$/);
+  if (!match) return null;
+  if ((match[2] ?? "0") !== validEpoch()) return null;
+  return match[1];
 }
 
 function requireAuth(request: Request): string | HttpResponse<JsonBodyType> {
@@ -41,7 +59,7 @@ function isErr(v: unknown): v is HttpResponse<JsonBodyType> {
 const qrFiles = new Map<string, Blob>();
 
 // Same in-memory-only caveat as qrFiles above.
-const profilePictures = new Map<string, string>();
+const profilePictures = new Map<string, Blob>();
 const PROFILE_PICTURE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const PROFILE_PICTURE_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -63,7 +81,7 @@ export const handlers = [
     });
     saveDb(db);
     return HttpResponse.json(
-      { access_token: `mock-token-${id}`, user: { id, email: body.email } },
+      { access_token: issueAccess(id), refresh_token: issueRefresh(id), user: { id, email: body.email } },
       { status: 201 },
     );
   }),
@@ -76,9 +94,25 @@ export const handlers = [
       return errorResponse(401, "Email or password is incorrect.");
     }
     return HttpResponse.json({
-      access_token: `mock-token-${user.id}`,
+      access_token: issueAccess(user.id),
+      refresh_token: issueRefresh(user.id),
       user: { id: user.id, email: user.email },
     });
+  }),
+
+  http.post("/auth/refresh", async ({ request }) => {
+    const n = Number(localStorage.getItem("overload_mock_refresh_calls") ?? 0);
+    localStorage.setItem("overload_mock_refresh_calls", String(n + 1));
+    const body = (await request.json().catch(() => ({}))) as { refresh_token?: string };
+    const m = body.refresh_token?.match(/^mock-refresh-(.+)-([^-]+)$/);
+    if (
+      !m ||
+      localStorage.getItem("overload_mock_refresh_invalid") ||
+      localStorage.getItem(`overload_mock_refresh_nonce_${m[1]}`) !== m[2]
+    ) {
+      return errorResponse(401, "Refresh token is invalid or expired.");
+    }
+    return HttpResponse.json({ access_token: issueAccess(m[1]), refresh_token: issueRefresh(m[1]) });
   }),
 
   http.get("/muscles", () => {
@@ -321,9 +355,12 @@ export const handlers = [
     if (isErr(userId)) return userId;
     const url = new URL(request.url);
     const limit = Number(url.searchParams.get("limit") ?? "50");
+    // Cursor: only sessions that started before this timestamp (older page).
+    const before = url.searchParams.get("before");
     const db = getDb();
     const sessions = db.workoutSessions
       .filter((s) => s.user_id === userId)
+      .filter((s) => !before || new Date(s.started_at).getTime() < new Date(before).getTime())
       .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())
       .slice(0, limit)
       .map(({ id, split_id, started_at, completed_at, notes }) => ({
@@ -560,17 +597,17 @@ export const handlers = [
     if (file.size > PROFILE_PICTURE_MAX_BYTES) {
       return errorResponse(400, "Image must be 5MB or smaller.");
     }
-    const url = URL.createObjectURL(file);
-    profilePictures.set(userId, url);
-    return HttpResponse.json({ profile_picture_url: url });
+    profilePictures.set(userId, file);
+    return HttpResponse.json({ profile_picture_url: "uploaded" });
   }),
 
   http.get("/users/profile-picture", ({ request }) => {
     const userId = requireAuth(request);
     if (isErr(userId)) return userId;
-    const url = profilePictures.get(userId);
-    if (!url) return new HttpResponse(null, { status: 204 });
-    return HttpResponse.json({ profile_picture_url: url });
+    // Raw image bytes, 404 when none — what the client (apiRequestBlob) expects.
+    const blob = profilePictures.get(userId);
+    if (!blob) return errorResponse(404, "No profile picture.");
+    return new HttpResponse(blob, { headers: { "Content-Type": blob.type } });
   }),
 
   http.delete("/users/profile-picture", ({ request }) => {

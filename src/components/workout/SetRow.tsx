@@ -66,6 +66,10 @@ function formatSet(
  * into it, so the button itself is the only "display" — no separate number
  * readout in the keypad to keep in sync.
  */
+const MAX_WEIGHT = 2000; // kg
+const MAX_REPS = 999;
+const MAX_SECONDS = 3600;
+
 function NumberField({
   value,
   placeholder,
@@ -76,12 +80,15 @@ function NumberField({
   onEditEnd,
   prefix = "",
   integer = false,
+  max,
   openRef,
 }: {
   /** Display-only (e.g. "−" for negative exercises); never part of the stored number. */
   prefix?: string;
   /** Whole numbers only (reps, seconds) — no "." key, and no fractions stored. */
   integer?: boolean;
+  /** Largest value accepted — anything above is clamped on commit. */
+  max: number;
   /** Lets the row open this field programmatically (see the ✓ guard). */
   openRef?: React.RefObject<(() => void) | null>;
   value: number | null;
@@ -110,6 +117,14 @@ function NumberField({
   // is someone correcting it, not extending it.
   const replaceOnNextKeyRef = useRef(false);
 
+  // The keypad holds the `commit` captured when this field opened; that commit
+  // must call the *latest* onCommit (it closes over the session's current
+  // sets for the forward-fill), not the one from the render that opened it.
+  const onCommitRef = useRef(onCommit);
+  useEffect(() => {
+    onCommitRef.current = onCommit;
+  });
+
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
@@ -118,9 +133,15 @@ function NumberField({
     overrideRef.current = override;
   }, [override]);
 
+  // A new value from outside (the optimistic write, a rollback, a refetch)
+  // replaces the draft — adjusted while rendering rather than in an effect.
+  const [seenValue, setSeenValue] = useState(value);
+  if (value !== seenValue) {
+    setSeenValue(value);
+    setDraft(value === null ? "" : String(value));
+  }
   useEffect(() => {
     valueRef.current = value;
-    setDraft(value === null ? "" : String(value));
   }, [value]);
 
   function commit() {
@@ -131,14 +152,22 @@ function NumberField({
       setDraft(valueRef.current === null ? "" : String(valueRef.current));
       return;
     }
-    const next = trimmed === "" ? null : Math.max(0, integer ? Math.round(parsed) : parsed);
+    // Whole numbers for reps/seconds, at most 2 decimals for weight, never
+    // negative, never above `max` — values the backend can store.
+    const bounded = Math.min(max, Math.max(0, integer ? Math.round(parsed) : Math.round(parsed * 100) / 100));
+    const next = trimmed === "" ? null : bounded;
     // Opening and closing a field without changing it isn't an edit — don't
     // queue a write for it.
     if (next === valueRef.current) {
       setDraft(next === null ? "" : String(next));
       return;
     }
-    onCommit(next);
+    // Record it now, not when the optimistic value comes back through props:
+    // a second commit before that re-render (press-to-save, then the release
+    // that closes the keypad) would otherwise see a stale value and queue the
+    // same write twice.
+    valueRef.current = next;
+    onCommitRef.current(next);
   }
 
   function handleKey(key: KeypadKey) {
@@ -312,7 +341,7 @@ export function SetRow({
         onClick={() => onChange({ set_type: next })}
         aria-label={`Set ${set.set_number}, type ${set.set_type}. Tap to change type.`}
         className={cn(
-          "flex size-8 cursor-pointer items-center justify-center rounded-pill text-caption font-bold active:opacity-70",
+          "relative flex size-8 cursor-pointer items-center justify-center rounded-pill text-caption font-bold active:opacity-70 before:absolute before:-inset-1.5 before:content-['']",
           dotStyles[set.set_type],
         )}
       >
@@ -333,6 +362,7 @@ export function SetRow({
         <NumberField
           value={set.actual_weight}
           placeholder={previous?.weight != null ? String(previous.weight) : "—"}
+          max={MAX_WEIGHT}
           prefix={exerciseType === "negative" ? "−" : ""}
           onCommit={(v) => onChange({ actual_weight: v })}
           label={`Set ${set.set_number} weight`}
@@ -345,6 +375,7 @@ export function SetRow({
       <NumberField
         value={set.actual_reps}
         integer
+        max={isTimer ? MAX_SECONDS : MAX_REPS}
         openRef={openReps}
         placeholder={previous?.reps != null ? String(previous.reps) : "—"}
         onCommit={(v) => onChange({ actual_reps: v })}
@@ -391,6 +422,9 @@ export function SetRow({
             ? `Set ${set.set_number} complete`
             : `Mark set ${set.set_number} complete — starts the rest timer`
         }
+        // initial={false}: no pop for sets that are *already* complete when the
+        // row mounts (opening the workout, coming back from exercise detail).
+        initial={false}
         animate={set.completed ? { scale: [1, 1.3, 1] } : { scale: 1 }}
         whileTap={{ scale: 0.85 }}
         transition={{ duration: 0.34, ease: [0.34, 1.56, 0.64, 1] }}

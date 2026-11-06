@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ExerciseCard } from "@/components/workout/ExerciseCard";
 import { ExercisePicker } from "@/components/workout/ExercisePicker";
 import { NumericKeypadProvider } from "@/components/workout/NumericKeypad";
-import { RestTimer } from "@/components/workout/RestTimer";
+import { RestTimer, clearRestTimer } from "@/components/workout/RestTimer";
 import { SupersetGroup } from "@/components/workout/SupersetGroup";
 import { WorkoutSummary } from "@/components/workout/WorkoutSummary";
 import { useExercises } from "@/hooks/use-exercises";
@@ -15,6 +15,7 @@ import { useMuscles } from "@/hooks/use-muscles";
 import { useSplit } from "@/hooks/use-splits";
 import {
   exerciseKeyAlias,
+  sessionWriteKey,
   useAddExercise,
   useDeleteSet,
   useLogSet,
@@ -26,15 +27,15 @@ import {
 import type { SetPatch } from "@/hooks/use-workout-session";
 import { useDeleteWorkout, usePatchWorkout, useWorkout } from "@/hooks/use-workouts";
 import { getExerciseHistory } from "@/lib/api/exercises";
-import { MAX_WORKOUT_MS, formatElapsed, shortMuscleName, workoutEndTime } from "@/lib/format";
+import { MAX_WORKOUT_MS, formatElapsed, hasCompletedSets, shortMuscleName, workoutEndTime } from "@/lib/format";
 import { isProgrammaticScroll, scrollIntoViewQuietly } from "@/lib/scroll";
 import { cn } from "@/lib/utils";
 import { ApiRequestError } from "@/lib/api/client";
 import type { Set, WorkoutExercise, WorkoutSession } from "@/types";
-import { useQueryClient } from "@tanstack/react-query";
+import { onlineManager, useIsMutating, useQueryClient } from "@tanstack/react-query";
 import { Reorder, useDragControls } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 /** Placeholder rows (see useLogSet) the server doesn't know yet — PATCHing one 404s and rolls the whole batch back. */
 function isSaved(s: Set): boolean {
@@ -82,6 +83,63 @@ function toPersistIds(groups: WorkoutExercise[][], keys: string[]): string[] {
   return keys.map((k) => pidByKey.get(k) ?? k);
 }
 
+const ignore = () => {};
+const nowMs = () => Date.now();
+
+/** Elapsed time lives in its own component: ticking here re-renders only this
+ *  text, not the whole workout page (every card, set row and drag item). */
+function ElapsedClock({ startedAt }: { startedAt: string }) {
+  const [now, setNow] = useState(nowMs);
+  useEffect(() => {
+    const tick = () => setNow(nowMs());
+    const id = setInterval(tick, 1000);
+    // Timers are throttled while backgrounded — catch up the instant we're back.
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, []);
+  return <>{formatElapsed(startedAt, now)}</>;
+}
+
+/**
+ * Answers "did that save?" — says "Saving…" while writes are queued (after a
+ * short grace, so fast saves don't flash it), "Offline · will sync" when the
+ * browser has them paused for lack of a connection, and nothing once the
+ * server has everything. Also asks before the page is closed with writes
+ * still outstanding.
+ */
+function SaveStatus({ sessionId }: { sessionId: string }) {
+  const mutationKey = sessionWriteKey(sessionId);
+  const pending = useIsMutating({ mutationKey });
+  // Not mutation.isPaused: a write merely waiting its turn in the queue is
+  // "paused" too. Offline means the browser says so.
+  const online = useSyncExternalStore(
+    (cb) => onlineManager.subscribe(cb),
+    () => onlineManager.isOnline(),
+    () => true,
+  );
+  const [showSaving, setShowSaving] = useState(false);
+
+  const busy = pending > 0;
+  useEffect(() => {
+    if (!busy) return;
+    const t = setTimeout(() => setShowSaving(true), 500);
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => {
+      clearTimeout(t);
+      setShowSaving(false);
+      window.removeEventListener("beforeunload", warn);
+    };
+  }, [busy]);
+
+  if (!busy) return null;
+  if (!online) return <span className="text-label-secondary">Offline · will sync</span>;
+  return showSaving ? <span className="text-label-secondary">Saving…</span> : null;
+}
+
 export default function WorkoutSessionPage() {
   const params = useParams<{ sessionId: string }>();
   const router = useRouter();
@@ -94,7 +152,7 @@ export default function WorkoutSessionPage() {
   const { data: muscles } = useMuscles();
 
   const patchWorkout = usePatchWorkout(sessionId);
-  const deleteWorkout = useDeleteWorkout();
+  const deleteWorkout = useDeleteWorkout(sessionId);
   const addExercise = useAddExercise(sessionId);
   const removeExercise = useRemoveExercise(sessionId);
   const swapExercise = useSwapExercise(sessionId);
@@ -108,26 +166,8 @@ export default function WorkoutSessionPage() {
   const [restSignal, setRestSignal] = useState(0);
   const [restSeconds, setRestSeconds] = useState<number | undefined>(undefined);
   const [summary, setSummary] = useState<WorkoutSession | null>(null);
-  const [now, setNow] = useState(() => Date.now());
-  // Failed set/exercise actions used to vanish silently (the optimistic row
-  // just rolled back), which read as "the button doesn't work".
   /** Highest set_number handed out per exercise — see handleAddSet. */
   const issuedSetNumber = useRef(new Map<string, number>());
-  const [actionError, setActionError] = useState<string | null>(null);
-  const errorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  function showError(err: unknown) {
-    setActionError(err instanceof Error && err.message ? err.message : "Something went wrong.");
-    if (errorTimer.current) clearTimeout(errorTimer.current);
-    errorTimer.current = setTimeout(() => setActionError(null), 4000);
-  }
-  useEffect(() => () => {
-    if (errorTimer.current) clearTimeout(errorTimer.current);
-  }, []);
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
 
   // A finished workout isn't editable here — if one is opened anyway (stale
   // "Resume" button, old link), send it to its read-only history page. The
@@ -135,13 +175,41 @@ export default function WorkoutSessionPage() {
   // Past 3 hours it's no longer a live workout: close it out at the last
   // logged set (see workoutEndTime). Once saved, the redirect below sends it
   // to its history page.
-  const autoEnded = useRef(false);
+  //
+  // A timer to the deadline, not a check on a per-second page clock (that
+  // clock re-rendered the whole workout every second). If closing it fails
+  // (the failure is toasted by the mutation) it tries again — it used to
+  // give up for good. A session with nothing completed is deleted, not saved
+  // as a "0m" workout.
+  const { mutateAsync: finishAsync } = patchWorkout;
+  const { mutateAsync: discardAsync } = deleteWorkout;
+  const startedAt = session?.started_at;
+  const isCompleted = !!session?.completed_at;
   useEffect(() => {
-    if (!session || session.completed_at || summary || autoEnded.current) return;
-    if (now - new Date(session.started_at).getTime() <= MAX_WORKOUT_MS) return;
-    autoEnded.current = true;
-    patchWorkout.mutate({ completed_at: workoutEndTime(session, Date.now()) });
-  }, [session, summary, now, patchWorkout]);
+    if (!startedAt || isCompleted || summary) return;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const run = async () => {
+      const latest = qc.getQueryData<WorkoutSession>(["workouts", sessionId]);
+      if (!latest || latest.completed_at) return;
+      try {
+        if (hasCompletedSets(latest)) {
+          await finishAsync({ completed_at: workoutEndTime(latest, nowMs()) });
+        } else {
+          await discardAsync(sessionId);
+          localStorage.removeItem(ORDER_KEY_PREFIX + sessionId);
+          clearRestTimer(sessionId);
+          router.replace("/home");
+        }
+      } catch {
+        retry = setTimeout(run, 30_000);
+      }
+    };
+    const timer = setTimeout(run, Math.max(0, new Date(startedAt).getTime() + MAX_WORKOUT_MS - nowMs()));
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(retry);
+    };
+  }, [startedAt, isCompleted, summary, qc, sessionId, finishAsync, discardAsync, router]);
 
   const alreadyCompleted = !!session?.completed_at && !summary;
   useEffect(() => {
@@ -193,35 +261,33 @@ export default function WorkoutSessionPage() {
     return result;
   }, [session]);
 
-  const [order, setOrder] = useState<string[]>([]);
-
-  // Re-derive display order whenever the group set changes: keep the saved
-  // drag order for groups that still exist, append anything new at the end.
+  // Display order: the lifter's drag order (this session's, kept in
+  // localStorage) for groups that still exist, anything new appended at the end.
+  // Derived during render — `dragOrder` is only set by an actual drag.
   //
   // What's *stored* is each group's server id (persistId), not its render
   // key: an exercise added this session keeps its optimistic id as its key
   // for the page's lifetime (exerciseKeyAlias, memory only), so saving keys
-  // meant the order of every in-session exercise was lost on reload. The
-  // re-save here also swaps a just-confirmed placeholder's id for its real one.
-  useEffect(() => {
-    // Nothing loaded yet — re-saving now would wipe the stored order.
-    if (groups.length === 0) {
-      setOrder([]);
-      return;
-    }
+  // meant the order of every in-session exercise was lost on reload.
+  const [dragOrder, setDragOrder] = useState<string[] | null>(null);
+  const order = useMemo(() => {
+    if (groups.length === 0) return [];
     const keys = groups.map(groupKey);
     const keyByPid = new Map(groups.map((g) => [persistId(g), groupKey(g)]));
-    const saved = readOrder(sessionId);
-    if (!saved) {
-      setOrder(keys);
-      return;
-    }
-    const kept = saved.map((p) => keyByPid.get(p)).filter((k): k is string => !!k);
-    const keptSet = new Set(kept);
-    const next = [...kept, ...keys.filter((k) => !keptSet.has(k))];
-    setOrder(next);
-    saveOrder(sessionId, toPersistIds(groups, next));
-  }, [groups, sessionId]);
+    const stored =
+      dragOrder ??
+      readOrder(sessionId)?.map((p) => keyByPid.get(p)).filter((k): k is string => !!k);
+    const kept = (stored ?? []).filter((k) => keys.includes(k));
+    return [...kept, ...keys.filter((k) => !kept.includes(k))];
+  }, [groups, dragOrder, sessionId]);
+
+  // Re-save when the group set changes, which also swaps a just-confirmed
+  // placeholder's id for its real one. Nothing loaded yet, or never reordered:
+  // nothing to save (an empty list would wipe the stored order).
+  useEffect(() => {
+    if (groups.length === 0 || (!dragOrder && !readOrder(sessionId))) return;
+    saveOrder(sessionId, toPersistIds(groups, order));
+  }, [groups, order, dragOrder, sessionId]);
 
   const orderedGroups = useMemo(() => {
     const byKey = new Map(groups.map((g) => [groupKey(g), g]));
@@ -229,7 +295,7 @@ export default function WorkoutSessionPage() {
   }, [groups, order]);
 
   function handleReorder(next: string[]) {
-    setOrder(next);
+    setDragOrder(next);
     saveOrder(sessionId, toPersistIds(groups, next));
   }
 
@@ -240,23 +306,19 @@ export default function WorkoutSessionPage() {
   // follows scroll position, and jumps ahead when a set completion finishes
   // an exercise (see advanceToNextExercise). Every other card dims (see
   // ExerciseCard's `dimmed` prop / globals.css .exercise-card).
-  const [focusedExerciseId, setFocusedExerciseId] = useState<string | null>(null);
+  const [focusedRaw, setFocusedExerciseId] = useState<string | null>(null);
 
-  // Default to the first exercise once the list loads; also recovers if the
-  // currently-focused one gets removed or swapped away mid-session.
-  useEffect(() => {
-    if (flatExerciseOrder.length === 0) {
-      setFocusedExerciseId(null);
-      return;
-    }
-    setFocusedExerciseId((current) => {
-      if (current && flatExerciseOrder.some((e) => e.id === current)) return current;
-      // The focused card was optimistic and just got its real id — follow it
-      // rather than snapping back to the first exercise.
-      const renamed = flatExerciseOrder.find((e) => exerciseKeyAlias.get(e.id) === current);
-      return renamed ? renamed.id : flatExerciseOrder[0].id;
-    });
-  }, [flatExerciseOrder]);
+  // Defaults to the first exercise once the list loads, and recovers if the
+  // focused one is removed or swapped away mid-session — derived, not synced
+  // by an effect.
+  const focusedExerciseId = (() => {
+    if (flatExerciseOrder.length === 0) return null;
+    if (focusedRaw && flatExerciseOrder.some((e) => e.id === focusedRaw)) return focusedRaw;
+    // The focused card was optimistic and just got its real id — follow it
+    // rather than snapping back to the first exercise.
+    const renamed = flatExerciseOrder.find((e) => exerciseKeyAlias.get(e.id) === focusedRaw);
+    return renamed ? renamed.id : flatExerciseOrder[0].id;
+  })();
 
   // A just-added exercise: once its card is in the DOM, scroll to it and make
   // it the focused card. Runs once for the optimistic card; the later swap to
@@ -385,7 +447,7 @@ export default function WorkoutSessionPage() {
     if (swapTarget) {
       const target = swapTarget;
       setSwapTarget(null);
-      swapExercise.mutateAsync({ workoutExerciseId: target.id, exerciseId }).catch(showError);
+      swapExercise.mutateAsync({ workoutExerciseId: target.id, exerciseId }).catch(ignore);
       return;
     }
     // Next free slot, not `length` — removing an exercise leaves a gap, and
@@ -393,7 +455,7 @@ export default function WorkoutSessionPage() {
     const orderIndex =
       Math.max(-1, ...(session?.exercises.map((e) => e.order_index) ?? [])) + 1;
     justAdded.current = { orderIndex, scrolled: false };
-    addExercise.mutateAsync({ exerciseId, orderIndex }).catch(showError);
+    addExercise.mutateAsync({ exerciseId, orderIndex }).catch(ignore);
   }
 
   /**
@@ -456,10 +518,9 @@ export default function WorkoutSessionPage() {
         (created) => {
           if (!previous) void seedFirstSet(we, created.id, setNumber);
         },
-        (err) => {
+        () => {
           // Re-derive from the cache next time, now that this row is gone.
           issuedSetNumber.current.delete(weId);
-          showError(err);
         },
       );
   }
@@ -525,7 +586,7 @@ export default function WorkoutSessionPage() {
       }
     }
 
-    patchSets.mutateAsync(updates).catch(showError);
+    patchSets.mutateAsync(updates).catch(ignore);
 
     if (patch.completed === true) {
       // Each exercise carries its own configured rest time, so the timer
@@ -552,11 +613,33 @@ export default function WorkoutSessionPage() {
     }
   }
 
+  // Refs, not isPending: that only updates after a re-render, so taps landing in
+  // the same instant (a double-tap) all got through and sent 3 finish PATCHes.
+  const finishing = useRef(false);
+  const discarding = useRef(false);
+
   async function finish() {
-    if (!session) return;
-    // `now` is the page's 1s clock — close enough, and keeps the React
-    // Compiler from flagging Date.now() in this handler as impure.
-    const endedAt = workoutEndTime(session, now);
+    if (!session || finishing.current || discarding.current) return;
+    finishing.current = true;
+    try {
+      await finishInner(session);
+    } finally {
+      finishing.current = false;
+    }
+  }
+
+  async function finishInner(session: WorkoutSession) {
+    // Nothing completed isn't a workout — don't write an empty "0m" entry into
+    // History and the streak; offer to discard it instead.
+    const current = qc.getQueryData<WorkoutSession>(["workouts", sessionId]) ?? session;
+    if (!hasCompletedSets(current)) {
+      if (window.confirm("No sets completed yet, so there's nothing to save. Discard this workout?")) {
+        finishing.current = false; // hand over to discard, which checks it
+        void discard(true);
+      }
+      return;
+    }
+    const endedAt = workoutEndTime(current, nowMs());
     try {
       // patchWorkout shares the session's write queue, so this resolves only
       // after every set edit made before Finish has reached the server.
@@ -566,17 +649,26 @@ export default function WorkoutSessionPage() {
       const latest = qc.getQueryData<WorkoutSession>(["workouts", sessionId]) ?? session;
       setSummary({ ...latest, completed_at: updated?.completed_at ?? endedAt });
       localStorage.removeItem(ORDER_KEY_PREFIX + sessionId); // local-only state, done with
-    } catch (err) {
-      showError(err);
+      clearRestTimer(sessionId);
+    } catch {
+      // Toasted by the mutation; the workout stays open and Finish is live again.
     }
   }
 
   /** Removing an exercise deletes its logged sets with it — ask first when there are any. */
+  const removingExercises = useRef(new Set<string>());
   function confirmRemove(we: WorkoutExercise) {
+    if (removingExercises.current.has(we.id)) return;
     const n = we.sets.length;
     if (n > 0 && !window.confirm(`Remove ${exerciseNames.get(we.exercise_id) ?? "this exercise"} and its ${n} logged set${n === 1 ? "" : "s"}?`))
       return;
-    removeExercise.mutateAsync(we.id).catch(showError);
+    // Same exit-animation window as a deleted set (see handleDeleteSet).
+    if (removingExercises.current.has(we.id)) return;
+    removingExercises.current.add(we.id);
+    removeExercise
+      .mutateAsync(we.id)
+      .catch(ignore)
+      .finally(() => removingExercises.current.delete(we.id));
   }
 
   /** Swapping clears the exercise's sets — ask first when there are any. */
@@ -587,18 +679,49 @@ export default function WorkoutSessionPage() {
     setSwapTarget(we);
   }
 
-  function discard() {
-    if (!session) return;
-    if (!window.confirm("Discard this workout? Everything logged so far will be lost."))
+  /**
+   * Deletes the workout and only then leaves. It used to leave first and
+   * delete in the background, so a failed delete showed nothing and the
+   * workout quietly came back as "Resume". Now a failure toasts, the workout
+   * stays open and Discard works again. The delete shares the session's write
+   * queue, so it lands after every queued edit.
+   */
+  async function discard(skipConfirm = false) {
+    if (!session || discarding.current || finishing.current) return;
+    if (!skipConfirm && !window.confirm("Discard this workout? Everything logged so far will be lost."))
       return;
-    // Navigate first, mutate after — this page's own useWorkout(sessionId)
-    // query would otherwise get invalidated out from under it (deleteWorkout
-    // invalidates the whole ["workouts"] prefix, this session's key
-    // included) and refetch a now-404ing workout while still mounted.
-    router.push("/home");
+    discarding.current = true;
+    try {
+      await deleteWorkout.mutateAsync(session.id);
+    } catch {
+      return; // toasted by the mutation; still open and recoverable
+    } finally {
+      discarding.current = false;
+    }
     localStorage.removeItem(ORDER_KEY_PREFIX + sessionId);
-    deleteWorkout.mutate(session.id);
+    clearRestTimer(sessionId);
+    router.replace("/home");
   }
+
+  // A removed row lingers in the DOM for its exit animation, so it can be
+  // tapped again — a repeat would send a second DELETE (a 404 → error toast).
+  const deletingSets = useRef(new Set<string>());
+  function handleDeleteSet(setId: string) {
+    if (deletingSets.current.has(setId)) return;
+    deletingSets.current.add(setId);
+    deleteSet
+      .mutateAsync(setId)
+      .catch(ignore)
+      .finally(() => deletingSets.current.delete(setId));
+  }
+
+  // The cards are memoised and don't compare their callbacks (see ExerciseCard),
+  // so every handler passed to one goes through this ref — always the current
+  // render's function, whichever render's closure the card happens to hold.
+  const latest = useRef({ handleChangeSet, handleAddSet, handleDeleteSet, confirmRemove, confirmSwap });
+  useEffect(() => {
+    latest.current = { handleChangeSet, handleAddSet, handleDeleteSet, confirmRemove, confirmSwap };
+  });
 
   if (!session && loadError) {
     // No error state used to mean an endless skeleton — and with the session
@@ -655,7 +778,7 @@ export default function WorkoutSessionPage() {
           <button
             onClick={() => router.push("/home")}
             aria-label="Back to home"
-            className="-ml-2 flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-pill text-label-secondary active:bg-fill"
+            className="relative -ml-2 flex size-9 shrink-0 cursor-pointer before:absolute before:-inset-1 before:content-[''] items-center justify-center rounded-pill text-label-secondary active:bg-fill"
           >
             <svg width="12" height="20" viewBox="0 0 12 20" fill="none">
               <path
@@ -670,17 +793,18 @@ export default function WorkoutSessionPage() {
 
           <div className="min-w-0 flex-1">
             <p className="truncate text-body font-semibold text-label">{title}</p>
-            <p className="tabular text-caption text-accent-ink">
-              {formatElapsed(session.started_at, now)}
+            <p className="tabular flex gap-2 text-caption text-accent-ink">
+              <ElapsedClock startedAt={session.started_at} />
+              <SaveStatus sessionId={sessionId} />
             </p>
           </div>
 
           <button
             type="button"
-            onClick={discard}
+            onClick={() => void discard()}
             disabled={deleteWorkout.isPending}
             aria-label="Discard workout"
-            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-pill text-red active:bg-fill disabled:pointer-events-none disabled:opacity-40"
+            className="relative flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-pill text-red before:absolute before:-inset-1 before:content-[''] active:bg-fill disabled:pointer-events-none disabled:opacity-40"
           >
             <svg width="16" height="18" viewBox="0 0 16 18" fill="none">
               <path
@@ -748,11 +872,11 @@ export default function WorkoutSessionPage() {
                           mediaUrl={exerciseMedia.get(we.exercise_id)}
                           exerciseType={exerciseType.get(we.exercise_id)}
                           sessionId={sessionId}
-                          onChangeSet={(setId, patch) => handleChangeSet(we, setId, patch)}
-                          onDeleteSet={(setId) => deleteSet.mutateAsync(setId).catch(showError)}
-                          onAddSet={() => handleAddSet(we.id)}
-                          onRemove={() => confirmRemove(we)}
-                          onSwap={() => confirmSwap(we)}
+                          onChangeSet={(setId, patch) => latest.current.handleChangeSet(we, setId, patch)}
+                          onDeleteSet={(setId) => latest.current.handleDeleteSet(setId)}
+                          onAddSet={() => latest.current.handleAddSet(we.id)}
+                          onRemove={() => latest.current.confirmRemove(we)}
+                          onSwap={() => latest.current.confirmSwap(we)}
                           onDragHandlePointerDown={startDrag}
                           onActivate={() => setFocusedExerciseId(we.id)}
                           dimmed={
@@ -762,7 +886,7 @@ export default function WorkoutSessionPage() {
                       ));
 
                       return group.length > 1 && groupId !== null ? (
-                        <SupersetGroup onUngroup={() => removeSuperset.mutateAsync(groupId).catch(showError)}>
+                        <SupersetGroup onUngroup={() => removeSuperset.mutateAsync(groupId).catch(ignore)}>
                           {cards}
                         </SupersetGroup>
                       ) : (
@@ -788,23 +912,14 @@ export default function WorkoutSessionPage() {
         )}
       </div>
 
-      {actionError && (
-        <div
-          role="alert"
-          // Above the finish summary (z-50) — a write that fails after Finish
-          // must not be hidden under it.
-          className="fixed inset-x-0 top-[calc(env(safe-area-inset-top)+64px)] z-[60] mx-auto w-full max-w-[480px] px-4"
-        >
-          <p className="rounded-control bg-red px-3 py-2 text-caption font-semibold text-white shadow-sheet">
-            {actionError}
-          </p>
-        </div>
-      )}
-
       {/* Rest timer, pinned above the safe area. */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[480px] px-4 pb-[calc(env(safe-area-inset-bottom)+12px)]">
         <div className="pointer-events-auto">
-          <RestTimer sessionId={sessionId} startSignal={restSignal} restSeconds={restSeconds} />
+          {/* Gone with the finish screen: a countdown (and its chime) from a
+              finished workout has no business running on the summary. */}
+          {!summary && (
+            <RestTimer sessionId={sessionId} startSignal={restSignal} restSeconds={restSeconds} />
+          )}
         </div>
       </div>
 

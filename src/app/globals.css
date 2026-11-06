@@ -41,10 +41,12 @@
   /* Labels — primary / secondary / tertiary.
      Tertiary was #a3a3a8 — ~2.5:1 on white, well under the 4.5:1 AA floor
      for the 13px kickers/captions it's actually set in. #76767b keeps it
-     visibly lighter than secondary (5.1:1) while landing at ~4.5:1 itself. */
+     visibly lighter than secondary (5.1:1) while landing at ~4.5:1 itself.
+     Both were re-measured on --background-secondary (#f2f2f7), where cards sit,
+     and darkened to stay above 4.5:1 there too. */
   --label: #111111;
-  --label-secondary: #6e6e73;
-  --label-tertiary: #76767b;
+  --label-secondary: #5c5c61;
+  --label-tertiary: #66666b;
 
   /* Hairline separator (opaque separator) */
   --separator: #c6c6c8;
@@ -57,15 +59,17 @@
   --accent-muted: color-mix(in srgb, var(--accent) 12%, var(--background));
   /* Accent as TEXT or an ICON on a plain background — never --accent itself,
      which is calibrated to be a fill, not ink (~2.9:1 as text on white). */
-  --accent-ink: #c2510a;
+  --accent-ink: #b04a08;
 
   /* iOS system colors, used semantically */
   --blue: #007aff;
   --green: #34c759;
-  --red: #ff3b30;
-  --orange: #ff9500;
+  --red: #d70015; /* text-safe on white and on --red-soft (was #ff3b30, 3.5:1) */
+  /* Fill behind white text (swipe Delete, error toast): --red itself is only 3.4:1 against white. */
+  --red-strong: #d1241b;
+  --orange: #a85a00; /* text-safe on --orange-soft (was #ff9500, 2:1) */
   --yellow: #ffcc00;
-  --purple: #af52de;
+  --purple: #8944ab; /* text-safe on --purple-soft (was #af52de, 3.6:1) */
 
   --green-soft: #e3f8e9;
   --red-soft: #ffe9e7;
@@ -105,7 +109,7 @@
   --label-secondary: #98989e;
   /* Was #5c5c61 — ~3.2:1 on true black, under AA. #747479 lands at ~4.5:1
      while staying dimmer than secondary's 7.3:1. */
-  --label-tertiary: #747479;
+  --label-tertiary: #8a8a90;
 
   --separator: #2a2a2c;
 
@@ -170,6 +174,7 @@
 
   --color-green-soft: var(--green-soft);
   --color-red-soft: var(--red-soft);
+  --color-red-strong: var(--red-strong);
   --color-orange-soft: var(--orange-soft);
   --color-purple-soft: var(--purple-soft);
 

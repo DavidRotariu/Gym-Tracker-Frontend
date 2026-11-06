@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import * as favoritesApi from "@/lib/api/favorites";
 
 export function useAddFavorite() {
@@ -28,18 +28,42 @@ const STORAGE_KEY = "overload_favorites";
  * mirror the state locally so callers can render it. Drop the mirror once a
  * GET /favorites endpoint exists.
  */
-export function readFavoriteIds(): string[] {
-  if (typeof window === "undefined") return [];
+function parseIds(raw: string | null): string[] {
+  if (!raw) return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as string[]) : [];
+    const value: unknown = JSON.parse(raw);
+    // A hand-edited or corrupted value must not take the picker down.
+    return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
   } catch {
     return [];
   }
 }
 
+export function readFavoriteIds(): string[] {
+  if (typeof window === "undefined") return [];
+  return parseIds(localStorage.getItem(STORAGE_KEY));
+}
+
+// The mirror is an external store: components read it with useSyncExternalStore
+// and every write goes through writeFavoriteIds, which notifies them.
+const favListeners = new Set<() => void>();
+
 function writeFavoriteIds(ids: string[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+  } catch {
+    /* storage full/unavailable — favouriting still reaches the server */
+  }
+  favListeners.forEach((l) => l());
+}
+
+function subscribeFavorites(onChange: () => void) {
+  favListeners.add(onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    favListeners.delete(onChange);
+    window.removeEventListener("storage", onChange);
+  };
 }
 
 /**
@@ -58,34 +82,28 @@ export function markExerciseTrained(exerciseId: string) {
 }
 
 export function useFavorite(exerciseId: string | null) {
-  const [favorited, setFavorited] = useState(false);
+  const raw = useSyncExternalStore(
+    subscribeFavorites,
+    () => localStorage.getItem(STORAGE_KEY),
+    () => null,
+  );
+  const favorited = exerciseId !== null && parseIds(raw).includes(exerciseId);
   const addFavoriteMutation = useAddFavorite();
   const removeFavorite = useRemoveFavorite();
-
-  useEffect(() => {
-    if (exerciseId === null) return;
-    setFavorited(readFavoriteIds().includes(exerciseId));
-  }, [exerciseId]);
 
   const toggle = useCallback(() => {
     if (exerciseId === null) return;
 
     const next = !favorited;
-    setFavorited(next);
-
     const local = readFavoriteIds();
-    const updated = next
-      ? [...new Set([...local, exerciseId])]
-      : local.filter((id) => id !== exerciseId);
-    writeFavoriteIds(updated);
+    writeFavoriteIds(
+      next ? [...new Set([...local, exerciseId])] : local.filter((id) => id !== exerciseId),
+    );
 
     const mutation = next ? addFavoriteMutation : removeFavorite;
     mutation.mutate(exerciseId, {
-      onError: () => {
-        // Roll the optimistic toggle back if the server rejected it.
-        setFavorited(!next);
-        writeFavoriteIds(local);
-      },
+      // Roll the optimistic toggle back if the server rejected it.
+      onError: () => writeFavoriteIds(local),
     });
   }, [exerciseId, favorited, addFavoriteMutation, removeFavorite]);
 

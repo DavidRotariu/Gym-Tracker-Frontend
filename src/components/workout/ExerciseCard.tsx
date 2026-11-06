@@ -10,7 +10,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { setKeyAlias } from "@/hooks/use-workout-session";
 import { scrollIntoViewQuietly } from "@/lib/scroll";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 interface ExerciseCardProps {
   workoutExercise: WorkoutExercise;
@@ -40,7 +40,7 @@ interface ExerciseCardProps {
   onActivate?: () => void;
 }
 
-export function ExerciseCard({
+function ExerciseCardImpl({
   workoutExercise: we,
   name,
   muscle,
@@ -84,7 +84,7 @@ export function ExerciseCard({
 
   // Last time this exercise was trained, keyed by set number — powers the
   // "Previous" column so logging is a comparison, not a blank form.
-  const { data: history } = useExerciseHistory(readOnly ? null : we.exercise_id);
+  const { data: history } = useExerciseHistory(readOnly ? null : we.exercise_id, 3);
   const previousBySetNumber = useMemo(() => {
     const map = new Map<number, { weight: number | null; reps: number | null }>();
     // The in-progress workout can show up in its own history as soon as it
@@ -347,6 +347,27 @@ export function ExerciseCard({
     </Card>
   );
 }
+
+/**
+ * Re-renders only when what the card *shows* changes. The callback props are
+ * deliberately not compared: the session page passes fresh inline closures on
+ * every render (which would defeat memo), but they all delegate to the latest
+ * handlers through a ref, so an old closure behaves identically to a new one.
+ * Any caller of this component must keep that property.
+ */
+export const ExerciseCard = memo(
+  ExerciseCardImpl,
+  (a, b) =>
+    a.workoutExercise === b.workoutExercise &&
+    a.name === b.name &&
+    a.muscle === b.muscle &&
+    a.mediaUrl === b.mediaUrl &&
+    a.exerciseType === b.exerciseType &&
+    a.sessionId === b.sessionId &&
+    a.readOnly === b.readOnly &&
+    a.addPending === b.addPending &&
+    a.dimmed === b.dimmed,
+);
 
 /**
  * whileTap fires on pointer-*down*, not click — the press-in feedback is

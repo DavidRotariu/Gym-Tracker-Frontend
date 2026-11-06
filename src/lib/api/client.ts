@@ -34,6 +34,13 @@ function getToken(): string | null {
  */
 let refreshing: Promise<string | null> | null = null;
 
+/**
+ * Resolves to a new access token, or `null` when the session genuinely can't
+ * be renewed (no refresh token on file, or the server rejected it). Throws an
+ * ApiRequestError when it merely couldn't *ask* — no connection, a timeout, a
+ * 5xx — because that says nothing about the session: signing someone out
+ * because their signal dropped mid-refresh would be wrong.
+ */
 export function refreshAccessToken(): Promise<string | null> {
   refreshing ??= doRefresh().finally(() => {
     refreshing = null;
@@ -46,24 +53,35 @@ async function doRefresh(): Promise<string | null> {
   const refreshToken = localStorage.getItem(REFRESH_KEY);
   if (!refreshToken) return null;
 
-  try {
-    const res = await fetch(`${BASE_URL}/auth/refresh`, {
+  const res = await send(
+    `${BASE_URL}/auth/refresh`,
+    {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { access_token: string; refresh_token: string };
-    localStorage.setItem(TOKEN_KEY, data.access_token);
-    localStorage.setItem(REFRESH_KEY, data.refresh_token);
-    return data.access_token;
-  } catch {
-    return null;
-  }
+    },
+    TIMEOUT_MS,
+  );
+  // Rejected: the refresh token is expired, revoked or already spent.
+  if (res.status === 400 || res.status === 401 || res.status === 403) return null;
+  if (!res.ok) throw new ApiRequestError(res.status, String(res.status), statusMessage(res.status));
+
+  const data = (await res.json().catch(() => null)) as {
+    access_token?: string;
+    refresh_token?: string;
+  } | null;
+  if (!data?.access_token) return null;
+  // The user may have signed out (or in as someone else) while this was in
+  // flight — writing the tokens now would resurrect the old session.
+  if (localStorage.getItem(REFRESH_KEY) !== refreshToken) return null;
+  localStorage.setItem(TOKEN_KEY, data.access_token);
+  if (data.refresh_token) localStorage.setItem(REFRESH_KEY, data.refresh_token);
+  return data.access_token;
 }
 
 /** Fired when the session can't be renewed — use-auth listens and signs out. */
 export const SESSION_EXPIRED_EVENT = "overload:session-expired";
+export const SESSION_EXPIRED_FLAG = "overload_session_expired";
 
 /**
  * No usable session left — clear it and let the app route to sign-in
@@ -76,6 +94,13 @@ function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(REFRESH_KEY);
   localStorage.removeItem(USER_KEY);
+  // Tells the sign-in screen why the user landed there (and that the change
+  // they were making was not saved).
+  try {
+    sessionStorage.setItem(SESSION_EXPIRED_FLAG, "1");
+  } catch {
+    /* storage unavailable — the redirect still happens */
+  }
   window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
 }
 
@@ -131,12 +156,13 @@ export async function apiRequest<T>(
     payload = JSON.stringify(body);
   }
 
+  let sentToken: string | null = null;
   if (auth) {
-    const token = getToken();
+    sentToken = getToken();
     // Signed out: don't send a request that can only 401 (e.g. a query
     // refetching while the screen unmounts after logout).
-    if (!token) throw new ApiRequestError(401, "unauthenticated", "You're signed out.");
-    headers["Authorization"] = `Bearer ${token}`;
+    if (!sentToken) throw new ApiRequestError(401, "unauthenticated", "You're signed out.");
+    headers["Authorization"] = `Bearer ${sentToken}`;
   }
 
   const res = await send(`${BASE_URL}${path}`, {
@@ -150,7 +176,11 @@ export async function apiRequest<T>(
   }
 
   if (res.status === 401 && auth && !_retried) {
-    const newToken = await refreshAccessToken();
+    // Another request may already have renewed the token while this one was
+    // in flight — then just retry with it rather than spending a (rotating)
+    // refresh token a second time. Retried once only, so no loops.
+    const current = getToken();
+    const newToken = current && current !== sentToken ? current : await refreshAccessToken();
     if (newToken) {
       return apiRequest<T>(path, { method, body, auth, _retried: true });
     }
@@ -185,8 +215,12 @@ export async function apiRequestBlob(path: string, _retried = false): Promise<Bl
   const res = await send(`${BASE_URL}${path}`, { headers }, TIMEOUT_MS);
   // Same renew-and-retry as apiRequest — without it an expired token made
   // the QR/avatar silently "missing".
-  if (res.status === 401 && !_retried && (await refreshAccessToken())) {
-    return apiRequestBlob(path, true);
+  if (res.status === 401 && !_retried) {
+    const current = getToken();
+    if ((current && current !== token) || (await refreshAccessToken())) {
+      return apiRequestBlob(path, true);
+    }
+    clearSession();
   }
   if (!res.ok) {
     throw new ApiRequestError(res.status, String(res.status), "Couldn't load image.");

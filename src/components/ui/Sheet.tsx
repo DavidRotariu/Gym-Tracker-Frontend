@@ -1,5 +1,6 @@
 "use client";
 
+import { useMounted } from "@/hooks/use-mounted";
 import { cn } from "@/lib/utils";
 import {
   AnimatePresence,
@@ -61,7 +62,7 @@ export function Sheet({
   children,
   className,
 }: SheetProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
   const dragControls = useDragControls();
   const reduceMotion = useReducedMotion();
   // Release velocity from a drag-to-dismiss, handed off to the exit spring
@@ -72,7 +73,6 @@ export function Sheet({
   // whole subtree unmounts on close — a fresh 0 every time the sheet reopens.
   const [dismissVelocity, setDismissVelocity] = useState(0);
 
-  useEffect(() => setMounted(true), []);
 
   // Ref-counted lock: with stacked/overlapping sheets, each one restoring "its"
   // previous value could put back "hidden" and leave the page unscrollable.
@@ -82,13 +82,47 @@ export function Sheet({
     return unlockBodyScroll;
   }, [open]);
 
+  // Keyboard/screen-reader behaviour of a modal: focus moves into the sheet when
+  // it opens and back to what opened it when it closes; Tab stays inside it;
+  // Escape closes it.
+  const dialogRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
+    const opener = document.activeElement as HTMLElement | null;
+    // The dialog mounts with the portal's first render — focus it next frame.
+    const raf = requestAnimationFrame(() => dialogRef.current?.focus({ preventScroll: true }));
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !dialogRef.current) return;
+      const focusable = [
+        ...dialogRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((el) => el.offsetParent !== null);
+      if (focusable.length === 0) {
+        e.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === dialogRef.current)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("keydown", onKey);
+      if (opener && document.contains(opener)) opener.focus({ preventScroll: true });
+    };
   }, [open, onClose]);
 
   if (!mounted) return null;
@@ -100,10 +134,13 @@ export function Sheet({
           <Scrim onClose={onClose} />
 
           <motion.div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-label={title}
+            tabIndex={-1}
             className={cn(
+              "outline-none",
               // % of the fixed container, not dvh: dvh can come out shorter than
               // the screen on iOS (standalone), which left the sheet floating
               // above a black strip at the bottom.

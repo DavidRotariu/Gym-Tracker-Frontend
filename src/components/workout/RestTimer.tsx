@@ -26,6 +26,18 @@ function writeStored(state: StoredTimer) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+/** Forget this session's countdown (Finish / Discard) so it can't reappear or ring. */
+export function clearRestTimer(sessionId: string) {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw && (JSON.parse(raw) as StoredTimer).sessionId === sessionId) {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  } catch {
+    /* unreadable → nothing to clear */
+  }
+}
+
 function readStored(sessionId: string): StoredTimer | null {
   if (typeof window === "undefined") return null;
   try {
@@ -99,31 +111,31 @@ interface RestTimerProps {
  * survives closing the browser entirely, not just switching tabs.
  */
 export function RestTimer({ sessionId, startSignal, restSeconds }: RestTimerProps) {
-  const [duration, setDuration] = useState(90);
-  const [endAt, setEndAt] = useState<number | null>(null);
-  const [pausedRemaining, setPausedRemaining] = useState(0);
+  // Resume whatever was running (or paused) when this last unmounted — covers
+  // both a full browser close and just navigating away and back. Read once,
+  // at mount (this only renders client-side, once the session has loaded).
+  const [restored] = useState(() => {
+    const stored = readStored(sessionId);
+    return {
+      duration: stored?.duration ?? 90,
+      endAt: stored?.endAt != null && stored.endAt > Date.now() ? stored.endAt : null,
+      paused: stored && stored.endAt === null ? stored.pausedRemaining : 0,
+    };
+  });
+  const [duration, setDuration] = useState(restored.duration);
+  const [endAt, setEndAt] = useState<number | null>(restored.endAt);
+  const [pausedRemaining, setPausedRemaining] = useState(restored.paused);
   const [now, setNow] = useState(() => Date.now());
   const durationRef = useRef(duration);
-  durationRef.current = duration;
+  useEffect(() => {
+    durationRef.current = duration;
+  }, [duration]);
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     document.addEventListener("pointerdown", unlockAudio);
     return () => document.removeEventListener("pointerdown", unlockAudio);
   }, []);
-
-  // Resume whatever was running (or paused) when this last unmounted —
-  // covers both a full browser close and just navigating away and back.
-  useEffect(() => {
-    const stored = readStored(sessionId);
-    if (!stored) return;
-    setDuration(stored.duration);
-    if (stored.endAt !== null && stored.endAt > Date.now()) {
-      setEndAt(stored.endAt);
-    } else if (stored.pausedRemaining > 0) {
-      setPausedRemaining(stored.pausedRemaining);
-    }
-  }, [sessionId]);
 
   function start(seconds: number) {
     const next = Date.now() + seconds * 1000;
@@ -151,7 +163,18 @@ export function RestTimer({ sessionId, startSignal, restSeconds }: RestTimerProp
   // tab regains focus/visibility instead of waiting for the next tick.
   useEffect(() => {
     if (endAt === null) return;
-    const tick = () => setNow(Date.now());
+    const tick = () => {
+      const t = Date.now();
+      setNow(t);
+      if (t < endAt) return;
+      // The countdown ran out (while ticking, or while we were away): settle
+      // into the stopped state once. Only a countdown that *just* ran out
+      // rings — dismiss/restart paths clear endAt themselves and never get here.
+      if (t - endAt < 5000) ring();
+      setEndAt(null);
+      setPausedRemaining(0);
+      writeStored({ sessionId, duration: durationRef.current, endAt: null, pausedRemaining: 0 });
+    };
     // `now` only gets refreshed while this effect is running — once a rest
     // period ends, ticking stops and `now` freezes until the next timer
     // starts. Without this, the first render after that next start() still
@@ -168,24 +191,11 @@ export function RestTimer({ sessionId, startSignal, restSeconds }: RestTimerProp
       document.removeEventListener("visibilitychange", tick);
       window.removeEventListener("focus", tick);
     };
-  }, [endAt]);
+  }, [endAt, sessionId]);
 
   const remaining =
     endAt !== null ? Math.max(0, Math.ceil((endAt - now) / 1000)) : pausedRemaining;
   const running = endAt !== null && remaining > 0;
-
-  // The countdown ran out while ticking (or while we were away) — settle
-  // into the stopped state once instead of re-deriving "expired" everywhere.
-  useEffect(() => {
-    if (endAt !== null && remaining === 0) {
-      // Only a countdown that actually ran out rings — dismiss/restart paths
-      // clear endAt themselves and never reach here.
-      if (Date.now() - endAt < 5000) ring();
-      setEndAt(null);
-      setPausedRemaining(0);
-      writeStored({ sessionId, duration, endAt: null, pausedRemaining: 0 });
-    }
-  }, [endAt, remaining, duration, sessionId]);
 
   const visible = running || pausedRemaining > 0;
   const mm = String(Math.floor(remaining / 60)).padStart(2, "0");

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMounted } from "@/hooks/use-mounted";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { MediaThumb } from "@/components/ui/MediaThumb";
 import { PresenceLayer, Scrim, Sheet } from "@/components/ui/Sheet";
@@ -59,12 +60,15 @@ export function ExercisePicker({
   const [addingId, setAddingId] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (open) setFavoriteIds(new Set(readFavoriteIds()));
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) {
+  // Reacts to `open` flipping without an effect (React's "adjust state while
+  // rendering" pattern): refresh the favourites when it opens, and clear the
+  // filters/selection when it closes so the next open starts fresh.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setFavoriteIds(new Set(readFavoriteIds()));
+    } else {
       setSelectedMuscleId(null);
       setSelectedEquipment(null);
       setQuery("");
@@ -72,7 +76,7 @@ export function ExercisePicker({
       setAddingId(null);
       setAddError(null);
     }
-  }, [open]);
+  }
 
   const muscleName = useMemo(
     () => new Map(muscles?.map((m) => [m.id, shortMuscleName(m.name)])),
@@ -114,8 +118,13 @@ export function ExercisePicker({
       .filter((e) => {
         if (q && !e.name.toLowerCase().includes(q)) return false;
         if (selectedMuscleId && e.muscle_id !== selectedMuscleId) return false;
-        if (selectedEquipment && !e.name.toLowerCase().includes(selectedEquipment.toLowerCase()))
-          return false;
+        // Equipment lives in its own field; the name only mentions it for some
+        // exercises ("Cable Fly"), so match either.
+        if (selectedEquipment) {
+          const wanted = selectedEquipment.toLowerCase();
+          if (!e.name.toLowerCase().includes(wanted) && !e.equipment?.toLowerCase().includes(wanted))
+            return false;
+        }
         return true;
       })
       .sort((a, b) => {
@@ -171,6 +180,8 @@ export function ExercisePicker({
     if (press.current.timer) clearTimeout(press.current.timer);
     press.current.timer = null;
   }
+  // Leaving mid-press (picker closed, route changed) must not pop a preview later.
+  useEffect(() => endPress, []);
   function startPress(e: React.PointerEvent, exercise: Exercise) {
     endPress();
     press.current.long = false;
@@ -434,10 +445,9 @@ function ExercisePreview({
   onClose: () => void;
   onSelect: () => void;
 }) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
   const reduceMotion = useReducedMotion();
   const { data: lastSet, isLoading: lastSetLoading } = useLastSet(exercise?.id ?? null);
-  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!exercise) return;

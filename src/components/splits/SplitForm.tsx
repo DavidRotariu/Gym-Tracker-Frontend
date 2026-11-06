@@ -6,7 +6,7 @@ import { TextField } from "@/components/ui/TextField";
 import { useMuscles } from "@/hooks/use-muscles";
 import type { SplitInput } from "@/lib/api/splits";
 import type { SplitMuscle } from "@/types";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 interface SplitFormProps {
   initial?: { name: string; muscles: SplitMuscle[] };
@@ -34,8 +34,12 @@ export function SplitForm({
     0,
   );
 
+  // A ref, so a second submit in the same instant is dropped (state lags a render).
+  const busy = useRef(false);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (busy.current) return;
     if (!name.trim()) {
       setError("Give this split a name.");
       return;
@@ -46,26 +50,30 @@ export function SplitForm({
     }
 
     setError(null);
+    busy.current = true;
     setSubmitting(true);
     try {
       await onSubmit({ name: name.trim(), pic: null, muscles: allocation });
     } catch {
       setError("Couldn't save this split. Try again.");
     } finally {
+      busy.current = false;
       setSubmitting(false);
     }
   }
 
   async function handleDelete() {
-    if (!onDelete || submitting) return;
+    if (!onDelete || submitting || busy.current) return;
     if (!window.confirm(`Delete "${initial?.name ?? name}"? This can't be undone.`)) return;
     setError(null);
+    busy.current = true;
     setSubmitting(true);
     try {
       await onDelete();
     } catch {
       setError("Couldn't delete this split. Try again.");
     } finally {
+      busy.current = false;
       setSubmitting(false);
     }
   }

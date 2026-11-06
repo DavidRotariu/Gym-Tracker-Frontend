@@ -14,10 +14,11 @@ export function useExercises(muscleId?: string) {
   });
 }
 
-export function useExerciseHistory(exerciseId: string | null) {
+/** `limit`: only the most recent N sessions — workout cards need just the last one or two, not a lifetime of history per exercise. */
+export function useExerciseHistory(exerciseId: string | null, limit?: number) {
   return useQuery({
-    queryKey: ["exercise-history", exerciseId],
-    queryFn: () => getExerciseHistory(exerciseId as string),
+    queryKey: limit ? ["exercise-history", exerciseId, limit] : ["exercise-history", exerciseId],
+    queryFn: () => getExerciseHistory(exerciseId as string, limit ? { limit } : undefined),
     enabled: exerciseId !== null,
   });
 }

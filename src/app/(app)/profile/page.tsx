@@ -17,7 +17,6 @@ import {
   useUploadProfilePicture,
 } from "@/hooks/use-users";
 import { daysUntil, formatMembershipDate } from "@/lib/format";
-import { resetDemoData } from "@/lib/mock/reset";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -83,14 +82,21 @@ export default function ProfilePage() {
     });
   }
 
-  function handleLogout() {
-    logout();
+  const [signingOut, setSigningOut] = useState(false);
+  async function handleLogout() {
+    if (signingOut) return;
+    setSigningOut(true);
+    await logout();
     router.replace("/login");
   }
 
   function handleReset() {
-    resetDemoData();
-    setTimeout(() => window.location.reload(), 400);
+    // Loaded on demand so none of the demo database ships in a real build.
+    if (!USE_MOCKS) return;
+    void import("@/lib/mock/reset").then(({ resetDemoData }) => {
+      resetDemoData();
+      setTimeout(() => window.location.reload(), 400);
+    });
   }
 
   const initial = user?.email?.[0]?.toUpperCase() ?? "?";
@@ -184,7 +190,7 @@ export default function ProfilePage() {
                     aria-checked={selected}
                     onClick={() => setPreference(option.value)}
                     className={cn(
-                      "h-8 cursor-pointer rounded-[0.5rem] px-3 text-caption font-semibold transition-colors",
+                      "relative h-8 cursor-pointer rounded-[0.5rem] before:absolute before:-inset-y-1.5 before:inset-x-0 before:content-[''] px-3 text-caption font-semibold transition-colors",
                       selected
                         ? "bg-background text-label shadow-sm"
                         : "text-label-secondary",
@@ -242,16 +248,21 @@ export default function ProfilePage() {
           block
           className="mt-2 text-red"
           onClick={handleLogout}
+          disabled={signingOut}
         >
-          Log out
+          {signingOut ? "Signing out…" : "Log out"}
         </Button>
       </div>
     </>
   );
 }
 
+/** Today's date in the *local* calendar — toISOString() is UTC and put "today" a day off near midnight. */
 function todayInputValue(): string {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
 /** A 30-day membership, ring progress winds down from a full lap at day 0
@@ -281,7 +292,7 @@ const TONE_TEXT: Record<MembershipTone, string> = {
  * membership counted inclusively, verified against real gym receipts.
  */
 function MembershipSection() {
-  const { data: membership, isLoading } = useMembership();
+  const { data: membership, isLoading, isError: membershipLoadFailed, refetch: refetchMembership } = useMembership();
   const logPayment = useLogMembershipPayment();
   const deleteMembership = useDeleteMembership();
   const [paidAt, setPaidAt] = useState(todayInputValue);
@@ -308,7 +319,17 @@ function MembershipSection() {
         Membership
       </h2>
       <Card className="flex flex-col gap-5">
-        {!isLoading && (
+        {membershipLoadFailed && membership === undefined && (
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-caption text-label-secondary">
+              Couldn&rsquo;t load your membership. Check your connection.
+            </p>
+            <Button size="md" variant="secondary" onClick={() => refetchMembership()}>
+              Try again
+            </Button>
+          </div>
+        )}
+        {!isLoading && !(membershipLoadFailed && membership === undefined) && (
           <div className="flex items-center gap-4">
             {!membership || daysLeft === null ? (
               <>
@@ -320,7 +341,7 @@ function MembershipSection() {
                     No payment logged
                   </p>
                   <p className="text-caption text-label-secondary">
-                    Log today's date below to start tracking.
+                    Log today&rsquo;s date below to start tracking.
                   </p>
                 </div>
               </>
@@ -380,7 +401,7 @@ function MembershipSection() {
                   }}
                   disabled={deleteMembership.isPending}
                   aria-label="Remove logged payment"
-                  className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-pill text-label-tertiary active:bg-fill active:text-red disabled:opacity-40"
+                  className="relative flex size-9 shrink-0 cursor-pointer before:absolute before:-inset-1 before:content-[''] items-center justify-center rounded-pill text-label-tertiary active:bg-fill active:text-red disabled:opacity-40"
                 >
                   <TrashIcon />
                 </button>

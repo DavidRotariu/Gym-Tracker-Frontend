@@ -17,7 +17,7 @@ Date: 2026-11-06 · Commit audited: `8e4da28` (main) · No application code was 
 
 ---
 
-## 0. Fix progress (updated after Phase 3)
+## 0. Fix progress (final — updated after Phase 7; the release decision is in section 11)
 
 The original findings below are unchanged. A **Status** line under a finding means it was fixed (✅) or partly fixed (🟡). A finding with no Status line is still open.
 
@@ -26,19 +26,29 @@ The original findings below are unchanged. A **Status** line under a finding mea
 | Phase 2 (commit `af67962`) | Data integrity: write queue, rollbacks, auth/session, start-or-resume, confirmations, input checks | 21 fixed, 2 partly (AUTH-002, PROF-003; PROF-003 completed in Phase 3) | Typecheck, build, and a Node check of the queue; several were later confirmed in the Phase 3 browser run |
 | Phase 3 | Interaction reliability: sheets, swipe rows, keypad, focus, add set and ✓ taps, loading/error states, navigation/scroll, touch handling | 30 fixed, 8 partly | Browser run on the mock backend (now possible thanks to the PWA-001 fix), using simulated latency/failures (see below), plus typecheck and build |
 
-**Still open, by original severity** (partly fixed issues count as open):
+| Phase 4 | State, network and PWA reliability: one app-wide failure toast, empty-workout handling, discard/auto-end recovery, save-status indicator, cache invalidation, history paging, keypad-close jump, clock isolation | 2 fixed (WORKOUT-021, SPLIT-002), 9 partly (AUTH-002, HOME-007, WORKOUT-022, -024, -029, -032, -034, STATE-001, STATE-005); 15 new issues/follow-ups recorded (NEW-006…-015, see section 3.14 and 8) | Browser run at 375×812 on the mock backend with latency, per-route failures, offline and expired-token switches; typecheck, build, 4 unit tests. Details and limits in section 8 |
+
+| Phase 5 | Engineering hardening: refresh-token audit, offline behaviour, video bandwidth, large-workout performance, request efficiency, double-tap safety, multi-tab, logout during saves | 6 original issues fixed (PWA-003, AUTH-005, AUTH-006, PROF-001, WORKOUT-013, PERF-001), WORKOUT-021 completed, AUTH-002 client hardening done and the issue reclassified **blocked by backend**; 10 new issues recorded (NEW-016…-025, section 9) | Browser run at 375×812 on the mock backend (slow, offline, expired, failing, combined, two tabs, 10-exercise workout), plus 9 unit tests. Details and limits in section 9 |
+
+| Phase 6 | Polish and production readiness: lint to zero, accessibility (sheet focus, hit areas), production-bundle check of the demo code, a handful of cheap P3/P4 fixes, README | 7 P3 and 2 P4 fixed (BUILD-001, PICK-004, PICK-005, UI-011, PROF-004, AUTH-010, HOME-006; BUILD-002, WORKOUT-030); 5 more partly fixed; every remaining P3/P4 triaged in section 10 | Full browser smoke at 375×812 plus a 1280×800 layout check, 9 unit tests, typecheck, lint (0 / 0), build, a production-mode bundle scan. **Not done:** a systematic typography/spacing/contrast review and a microcopy sweep (section 10.3) |
+
+| Phase 7 | Final release audit: re-test of the high-risk fixes, the Phase 6 tests that had been skipped, production-bundle check, contrast measurement | 3 new issues found and fixed (NEW-028 stale-cache second workout, NEW-029 avatar remove, NEW-030 contrast); no previously fixed P0/P1/P2 regressed; original counts unchanged | Browser run at 375×812 against the mock backend (section 11.2) |
+
+**Still open, by original severity** (after Phase 7; partly fixed issues count as open) (partly fixed issues count as open):
 
 | | Original | Fixed | Open |
 |---|---|---|---|
-| 🔴 P0 | 5 | 4 | 1: AUTH-002 (partly fixed; needs refresh tokens from the backend) |
-| 🟠 P1 | 14 | 12 | 2: PWA-002 (no offline shell), PWA-003 (prefetches every video) |
-| 🟡 P2 | 51 | 31 | 20 |
-| 🔵 P3 | 42 | 4 | 38 |
-| ⚪ P4 | 9 | 0 | 9 |
+| 🔴 P0 | 5 | 4 | 1: AUTH-002 (**blocked by backend**: the app side is done, see section 9.1) |
+| 🟠 P1 | 14 | 13 | 1: PWA-002 (no offline shell / persisted queue — deliberate, see 9.2) |
+| 🟡 P2 | 51 | 37 | 14 (all classified in section 9.4: 4 deferred to the iPhone pass, 4 deferred product/UX decisions, 3 backend-dependent, 2 blocked by the platform, 1 partly fixed by design) |
+| 🔵 P3 | 42 | 12 | 30 |
+| ⚪ P4 | 9 | 2 | 7 |
 
 **Simulating network problems in the demo build** (added in Phase 3, mock builds only, set from the browser console):
 `localStorage.overload_mock_latency = "1500"` delays every mock API call by 1.5 s.
 `localStorage.overload_mock_fail = "PATCH /sets/"` makes any request matching that regex (on "METHOD /path") return a 500.
+Added in Phase 5: `localStorage.overload_mock_valid_epoch = "1"` expires every access token while `/auth/refresh` still works (the demo now issues rotating refresh tokens), `localStorage.overload_mock_refresh_invalid = "1"` expires the refresh token too, and `overload_mock_refresh_calls` counts refresh requests. The demo database is now shared by all tabs of the app.
+Added in Phase 4: `localStorage.overload_mock_offline = "1"` makes every call fail like a dead connection, and `localStorage.overload_mock_expired = "1"` makes every authenticated call return 401 (expired token). Latency is applied before the failure check, so a failure window can be timed to hit one request in a queue.
 Remove the keys to go back to normal.
 
 ---
@@ -103,7 +113,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed (code path).
 
 #### AUTH-002 · 🔴 P0 · Auth → Token expiry
-- **Status:** 🟡 Partly fixed — Phase 2. Session expiry no longer hard-reloads. It routes to /login?next=… client-side and returns to the same page after sign-in. The backend still needs to issue refresh tokens, and writes that failed with 401 are still lost. *Files:* `src/lib/api/client.ts, src/hooks/use-auth.ts, src/app/(auth)/login/page.tsx`. *Verified:* Static/build only.
+- **Status:** ⛔ Blocked by backend — Phase 5. The app side is complete and tested against a mock that models refresh tokens; what's missing is the API. The deployed API must (1) return `refresh_token` from `POST /auth/login` and `POST /auth/signup`, and (2) implement `POST /auth/refresh` taking `{"refresh_token": "…"}` and returning `{"access_token": "…", "refresh_token": "…"}` (rotation optional; 400/401/403 for a bad token). I did not call the deployed API to check; the code comment in `src/lib/api/auth.ts` says it issues none today. Until then a 401 means the write is lost — the user is told ("Change not saved — it's been undone. Sign in to continue."), sent to sign-in with an explanation, and the server's state is loaded fresh after sign-in. Nothing is replayed (see 9.2 for why). Client behaviour, all covered by `src/lib/api/client.test.ts` and verified in the browser: one refresh at a time however many requests 401 together; each retried exactly once (a second 401 isn't retried); a request that 401s after another already renewed the token retries with the new one instead of spending a rotating refresh token twice; a refresh *rejected* by the server ends the session; a refresh that merely *can't be reached* (offline, timeout, 5xx) does **not** sign the user out; a refresh that finishes after sign-out can't resurrect the session; reload keeps working (tokens are in localStorage and the 401 path renews lazily). *Files:* `src/lib/api/client.ts, src/hooks/use-auth.ts, src/lib/mock/handlers.ts`. *Remaining:* background/foreground relies on the 401 path rather than a visibility-triggered refresh (fine with refresh tokens; irrelevant without).
 - **Problem:** The deployed API issues no refresh token (code comment). When the access token expires, the next request gets a 401. `clearSession()` then does `window.location.href = "/login"`, a hard reload, even in the middle of a workout.
 - **Repro:** Start a workout and wait past the token TTL (or edit `overload_token` to an expired JWT). Tap ✓ on a set.
 - **Expected:** A silent refresh, or at least a re-auth prompt that keeps the workout state.
@@ -129,11 +139,13 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### AUTH-005 · 🟡 P2 · Auth → `useAuth` state model
+- **Status:** ✅ Fixed — Phase 5. `useAuth` listens for `storage` events: signing out in one tab sends the others to sign-in, and a different user signing in clears the other tab's query cache. *Files:* `src/hooks/use-auth.ts`. *Verified (Phase 5):* browser, two tabs — logout in tab A moved tab B to /login. Not exercised: signing in as a different user in one tab while another is open.
 - **Problem:** `user` is local state in each hook instance, read once from localStorage. Logout in Profile doesn't update the layout's instance. There's no `storage` listener, so logging out in another tab or window isn't noticed.
 - **Evidence:** `src/hooks/use-auth.ts:34-71`.
 - **Confidence:** Confirmed.
 
 #### AUTH-006 · 🟡 P2 · Auth → /login
+- **Status:** ✅ Fixed — Phase 5. The demo credentials are pre-filled only when `NEXT_PUBLIC_USE_MOCKS=true`. *Files:* `src/app/(auth)/login/page.tsx`. *Verified (Phase 5):* build and code path; the production-mode login form was not opened.
 - **Problem:** Demo credentials (`demo@overload.app` / `demo1234`) are pre-filled in every build, not only the mock build.
 - **Actual:** It fights iOS password autofill. If that account exists on the real backend, people can sign into a shared account just by tapping Sign in.
 - **Evidence:** `src/app/(auth)/login/page.tsx:15-16`.
@@ -160,6 +172,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### AUTH-010 · 🔵 P3 · Auth → /signup validation
+- **Status:** ✅ Fixed — Phase 6. Sign-up rejects a password that is under 8 characters once trimmed, with a clear message, and trims the email. *Verified:* code and typecheck; the form wasn't submitted in the browser.
 - **Problem:** Validation relies only on the browser's native `required`, `minLength` and `type=email` bubbles. Nothing is trimmed, so a password of 8 spaces passes the client. There's no inline guidance for "≥ 8 characters".
 - **Evidence:** `src/app/(auth)/signup/page.tsx:55-71`.
 - **Confidence:** Confirmed.
@@ -209,6 +222,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### HOME-003 · 🟡 P2 · Home → Recommended card
+- **Status:** Deferred — Phase 5 (UX decision). The floating CTA already reads "Resume workout" when one is open; what the recommended card's ▶ should do then (resume, or ask) is a product call. No data is at risk — the existing session is resumed, not duplicated.
 - **Problem:** "Start Push now" (▶) silently opens an unrelated in-progress workout if one exists.
 - **Repro:** Leave a Legs workout unfinished, then tap ▶ on the recommended Push card.
 - **Actual:** You land in the Legs session with no explanation.
@@ -229,17 +243,19 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### HOME-006 · 🔵 P3 · Home → Header date
+- **Status:** ✅ Fixed — Phase 6. The header date is re-read when the app returns to the foreground. *Verified:* code only (no overnight run).
 - **Problem:** `today` is memoised with `[]`, so in a PWA left alive overnight the header still shows yesterday.
 - **Evidence:** `src/app/(app)/home/page.tsx:58-66`.
 - **Confidence:** Confirmed.
 
 #### HOME-007 · 🔵 P3 · Home → In-progress detection
-- **Status:** 🟡 Partly fixed — Phase 3. Only sessions inside the 3h window count as resumable. Cross-device staleness remains. *Files:* `src/hooks/use-workouts.ts, src/app/(app)/home/page.tsx`. *Verified:* Static/build only.
+- **Status:** 🟡 Partly fixed — Phase 3. Phase 4 deletes (not completes) an empty abandoned session, so it can no longer appear as a "Last workout · 0m". Cross-device staleness remains.
 - **Problem:** `inProgress` is read from the cached history list (30 s stale, top 50 only). It can show "Choose split" while a workout is open on another device, or "Resume" a session that was already finished elsewhere.
 - **Evidence:** `src/app/(app)/home/page.tsx:77`, `src/hooks/use-workouts.ts:6-11`.
 - **Confidence:** Confirmed.
 
 #### HOME-008 · ⚪ P4 · Home → Small polish
+- **Status:** 🟡 Partly fixed — Phase 6. The flame only pulses for a live streak, and the badge is exposed to screen readers as an image with its label. "0 streak" and the raw `#12` muscle ids while loading are unchanged.
 - **Problem:** "0 streak" shows for new users, and the flame pulses forever. While muscles load, the split summary shows raw `#12` ids.
 - **Evidence:** `src/app/(app)/home/page.tsx:41, 386-422`.
 - **Confidence:** Confirmed.
@@ -255,6 +271,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### SPLIT-002 · 🟡 P2 · Splits → Swipe delete
+- **Status:** ✅ Fixed — Phase 4. A failed swipe-delete toasts "Split not deleted — it's still there." and the row stays (it was never removed optimistically). *Files:* `src/hooks/use-splits.ts, src/app/(app)/splits/page.tsx`. *Verified (Phase 4):* browser, with a failure injected on `DELETE /splits/`.
 - **Problem:** The delete isn't optimistic, has no pending state and no onError. The row stays until the refetch, and a failure is silent.
 - **Evidence:** `src/app/(app)/splits/page.tsx:104-108`, `src/hooks/use-splits.ts:34-40`.
 - **Confidence:** Confirmed.
@@ -307,6 +324,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### EX-002 · 🟡 P2 · Exercise → Favourite
+- **Status:** Deferred — Phase 5 (backend). Needs confirmation of whether `GET /exercises` returns the signed-in user's favourite flag; the mock only sets it from `PATCH /exercises/:id`. Favourites are still mirrored in localStorage (cleared on logout).
 - **Problem:** The favourite state comes only from localStorage and ignores `Exercise.favourite` from the API.
 - **Actual:** It's wrong on a new device, after reinstalling or clearing data, and for another user on the same device. Toggling it may POST favourites the server already has.
 - **Evidence:** `src/hooks/use-favorites.ts:31-97`, `src/types/index.ts:37`.
@@ -319,6 +337,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### EX-004 · 🟡 P2 · Exercise → Stats accuracy
+- **Status:** Deferred — Phase 5 (backend). The history entries carry no `completed` flag, so the client can't tell logged sets from placeholders; the fix belongs in the API response.
 - **Problem:** PR, volume and the set count include every history set, including warm-ups and **never-completed** sets. Those are common because "Add set" copies values forward, and the mock history endpoint returns uncompleted sets. Bodyweight and timer exercises show "0 kg" PRs and "0 kg × 12" rows. Negative (assisted) weights display as positive.
 - **Evidence:** `src/app/(app)/exercises/[id]/page.tsx:41-61, 218`; `src/lib/mock/handlers.ts:146-170`.
 - **Confidence:** Highly likely (depends on what the real backend returns).
@@ -435,6 +454,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### WORKOUT-013 · 🟡 P2 · Workout → Keypad stale closures
+- **Status:** ✅ Fixed — Phase 5. The keypad's commit now calls the latest `onCommit` (through a ref) instead of the one captured when the field opened, so the forward-fill sees sets added or saved since. It also records the committed value immediately, which stopped a double write (press-to-save then the release that closes the keypad each queued the same PATCH). *Files:* `src/components/workout/SetRow.tsx`. *Verified (Phase 5):* browser — one PATCH per edit; the forward-fill reached 3 later sets.
 - **Problem:** `keypad.open()` captures `onCommit` from the render in which the field opened, so the commit runs `handleChangeSet(we, …)` with the `we` from that moment. Sets added, or optimistic-to-real id swaps, after the field opened are ignored by the forward-fill.
 - **Evidence:** `src/components/workout/SetRow.tsx:162-167`; `page.tsx:437-458`.
 - **Confidence:** Confirmed.
@@ -470,7 +490,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Highly likely.
 
 #### WORKOUT-018 · 🟡 P2 · Workout → Videos under Reduced Motion or Low Power Mode
-- **Status:** 🟡 Partly fixed — Phase 3. With Reduced Motion or still mode, the video now preloads metadata with a #t=0.1 fragment so a frame shows. Low Power Mode autoplay blocking isn't handled. *Files:* `src/components/ui/MediaThumb.tsx`. *Verified:* Requires iPhone.
+- **Status:** Deferred — Phase 5 (real iPhone). Partly fixed in Phase 3; Low Power Mode and Reduced Motion playback need a device.
 - **Problem:** With Reduced Motion the observer is skipped and there's no poster, so with `preload="none"` nothing ever shows. iOS Low Power Mode blocks autoplay, `play()` rejects silently, and the box stays blank. `thumbnail_url` is never used as a poster.
 - **Evidence:** `src/components/ui/MediaThumb.tsx:47, 56, 93-113`.
 - **Confidence:** Confirmed for Reduced Motion. Requires iPhone for Low Power Mode.
@@ -488,22 +508,25 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### WORKOUT-021 · 🟡 P2 · Workout → Per-second full re-render
+- **Status:** ✅ Fixed — Phase 4 + Phase 5. Phase 4 isolated the 1 s clock. Phase 5 measured the rest of the tree on a 10-exercise / 52-set session (temporary render counters, since removed): one Add set re-rendered **all 10 cards and ~400 set rows** (4 cache commits each), because the mutations rebuilt every exercise object and the page passed new inline callbacks. Fixed by (1) mutations keeping the identity of untouched exercises, (2) `ExerciseCard` memoised on what it shows, with the page's handlers routed through a latest-ref so skipped renders can't use stale closures. Now Add set re-renders 1 card (4 vs 80 renders) and 9 rows (36 vs 400 counted); changing a set type, 2 cards; typing a digit, only the edited card; timer running idle, none. No long tasks (>50 ms) in any of it. *Files:* `src/hooks/use-workout-session.ts, src/components/workout/ExerciseCard.tsx, src/app/(app)/workout/[sessionId]/page.tsx`. *Verified (Phase 5):* browser, desktop Chromium. *Not measured:* real-device frame rate, scroll smoothness, input latency, or heap (a 20-tap burst moved the JS heap 35→53 MB, which one GC can't distinguish from growth — inconclusive).
 - **Problem:** `now` state at the page root ticks every second and re-renders every ExerciseCard, SetRow, Reorder item and SwipeRow. Inline closures defeat any memoisation. This causes jank while scrolling or typing on older iPhones.
 - **Evidence:** `page.tsx:96, 111-114, 604-639`.
 - **Confidence:** Confirmed.
 
 #### WORKOUT-022 · 🟡 P2 · Workout → 3-hour auto-end
+- **Status:** 🟡 Partly fixed — Phase 4. Phase 5 triage: the remaining part (a warning before the 3 h cut-off, and not cutting off a workout that is actively being logged) is a product decision — deferred.
 - **Problem:** At 3 h the workout auto-completes and redirects to history, even while you're actively logging (a long leg day, or chatting between sets). There's no warning. The end time is set to the last *completed* set. If the PATCH fails, the `autoEnded` ref blocks any retry and nothing tells you.
 - **Evidence:** `page.tsx:122-133`; `src/lib/format.ts:78-90`.
 - **Confidence:** Confirmed.
 
 #### WORKOUT-023 · 🟡 P2 · Workout → Navigation away and back
-- **Status:** 🟡 Partly fixed — Phase 3. Back from exercise detail now restores the workout's scroll position (UI-007). The session bar's back button still pushes /home. *Files:* `src/app/(app)/layout.tsx`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3).
+- **Status:** 🟡 Partly fixed — Phase 3. Phase 5 triage: the back button going to Home rather than "back" is a deliberate choice for a focused full-screen screen — deferred as a product decision; scroll restoration works.
 - **Problem:** The back button uses `router.push("/home")` rather than going back. Going to exercise detail and back lands at the top of the workout, because the layout scrolls to the top on every pathname change.
 - **Evidence:** `page.tsx:522`; `src/app/(app)/layout.tsx:19-21`.
 - **Confidence:** Confirmed.
 
 #### WORKOUT-024 · 🟡 P2 · Workout → Discard
+- **Status:** 🟡 Partly fixed — Phase 4. Phase 5 triage: what's left is `window.confirm` looking non-native — a polish item, deferred to the polish phase. All data-safety parts are fixed.
 - **Problem:** Discard uses `window.confirm`, which looks non-native and blocks. It navigates first and deletes second. If the DELETE fails, nothing is shown and the workout reappears as "Resume". The `overload_exercise_order_<id>` key and the rest timer are left behind.
 - **Evidence:** `page.tsx:488-498`; `use-workouts.ts:47-60`.
 - **Confidence:** Confirmed.
@@ -520,6 +543,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### WORKOUT-027 · 🔵 P3 · Workout → Side effects before confirmation
+- **Status:** Open (Phase 4 re-checked: a failed tick still leaves its rest timer running).
 - **Problem:** The rest timer, celebration and auto-favourite fire before the completion PATCH succeeds. If it fails, the tick rolls back but the timer keeps running and the favourite stays.
 - **Evidence:** `page.tsx:460-471`.
 - **Confidence:** Confirmed.
@@ -530,11 +554,13 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### WORKOUT-029 · 🟡 P2 · Workout → Error toast UX
+- **Status:** 🟡 Partly fixed — Phase 4; classified in Phase 5 (see 9.5). Retry buttons were deliberately **not** added: a failed set write is rolled back, so the user's retry is simply repeating the action, and an automatic or button retry of an ordered, optimistic write could apply it after later edits. Remaining: one error at a time.
 - **Problem:** A single 4 s toast at the top with no retry and no dismiss. It shows raw messages (AUTH-008) and is hidden under the summary. A newer error replaces an older one.
 - **Evidence:** `page.tsx:100-110, 658-667`.
 - **Confidence:** Confirmed.
 
 #### WORKOUT-030 · ⚪ P4 · Workout → Checkmark pulse
+- **Status:** ✅ Fixed — Phase 6. The tick's pop animation no longer plays for sets that are already complete when the row mounts (`initial={false}`); it still plays when a set is ticked. *Verified:* typecheck/build and the browser smoke test (ticking works); the animation itself was not inspected frame by frame.
 - **Problem:** `animate={{scale:[1,1.3,1]}}` runs on mount for every completed set (page load, coming back from detail) and on every refetch flip.
 - **Evidence:** `SetRow.tsx:359`.
 - **Confidence:** Confirmed.
@@ -545,16 +571,19 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### WORKOUT-032 · 🔵 P3 · Workout → Finishing with nothing logged
+- **Status:** 🟡 Partly fixed — Phase 4. Finish with no completed sets now offers to discard instead of saving an empty entry. Finishing with some sets unticked still goes through unprompted. *Files:* `src/app/(app)/workout/[sessionId]/page.tsx`. *Verified (Phase 4):* browser (Cancel stays put; OK discards; discard failure then retry).
 - **Problem:** Finish with zero exercises, zero completed sets, or incomplete sets goes through without a prompt, which creates empty history entries.
 - **Evidence:** `page.tsx:481-486`.
 - **Confidence:** Confirmed.
 
 #### WORKOUT-033 · 🔵 P3 · Workout → Summary lost on reload
+- **Status:** Open.
 - **Problem:** The summary exists only in component state. A reload redirects to the history page.
 - **Evidence:** `page.tsx:95, 130-133`.
 - **Confidence:** Confirmed.
 
 #### WORKOUT-034 · 🔵 P3 · Workout → PR detection
+- **Status:** 🟡 Partly fixed — Phase 4. The finish summary's limited history no longer shares a cache key with the cards' unbounded history (`["exercise-history", id, "recent-50"]`), and both are invalidated when a workout is finished or deleted. PR logic (weight only, warm-ups, assisted) is unchanged. *Files:* `src/components/workout/WorkoutSummary.tsx, src/hooks/use-workouts.ts`. *Verified (Phase 4):* browser — exercise detail showed 4 sessions; after finishing a workout it showed 5 on a client-side return inside the 30 s stale window.
 - **Problem:** PRs compare weight only. Warm-ups and incomplete prior sets count, which can understate PRs. Assisted ("negative") exercises are inverted. The summary's `["exercise-history", id]` query (limit 50) shares its key with ExerciseCard's unbounded query, so whichever is cached first wins.
 - **Evidence:** `WorkoutSummary.tsx:66-104`; `ExerciseCard.tsx:83`.
 - **Confidence:** Confirmed.
@@ -589,18 +618,19 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 ### 3.7 Rest timer
 
 #### REST-001 · 🟡 P2 · Rest timer → Global persistence
-- **Status:** ✅ Fixed — Phase 3. The stored rest timer is tagged with its session, and any other session ignores it. *Files:* `src/components/workout/RestTimer.tsx`. *Verified:* Static/build only.
+- **Status:** ✅ Fixed — Phase 3; Phase 4 also clears it on Finish and Discard and removes the timer from the finish summary. *Verified (Phase 4):* browser.
 - **Problem:** `overload_rest_timer` is a single global key, not per session or per user. It survives Finish, Discard and logout, so the next workout (or the next user) opens with a leftover countdown that can still ring.
 - **Evidence:** `RestTimer.tsx:12, 105-116`.
 - **Confidence:** Confirmed.
 
 #### REST-002 · 🟡 P2 · Rest timer → Background or locked phone
+- **Status:** Blocked — platform/infrastructure (Phase 4 verdict stands; Phase 5 did not change it). Needs Web Push (service worker + push subscription + a server scheduling a push for the rest end; iOS 16.4+ installed PWA with notification permission). *Requires iPhone.*
 - **Problem:** The end is only signalled by in-page JS, and `ring()` only fires within 5 s of the end. With the phone locked or the PWA in the background (the normal state between sets), there's no sound, vibration or notification, and it stays silent when you come back.
 - **Evidence:** `RestTimer.tsx:164-175`.
 - **Confidence:** Requires iPhone (the logic itself is confirmed).
 
 #### REST-003 · 🟡 P2 · Rest timer → Audio unlock happens once
-- **Status:** 🟡 Partly fixed — Phase 3. The audio unlock now re-runs on every tap while the context isn't running (it used to run once). *Files:* `src/components/workout/RestTimer.tsx`. *Verified:* Requires iPhone.
+- **Status:** Deferred — Phase 5 (real iPhone). Partly fixed in Phase 3; audio resuming after a lock can only be checked on a device.
 - **Problem:** The AudioContext is unlocked on the first `pointerdown` only (`once: true`). iOS suspends or interrupts it on background or lock, and nothing resumes it, so the chime stops working for the rest of the workout.
 - **Evidence:** `RestTimer.tsx:41-58, 100-104`.
 - **Confidence:** Requires iPhone.
@@ -629,11 +659,13 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### PICK-004 · 🔵 P3 · Picker → Equipment filter
+- **Status:** ✅ Fixed — Phase 6. The equipment filter also matches the exercise's `equipment` field, not just its name. *Verified:* code and typecheck only (the demo data has few equipment values).
 - **Problem:** The filter matches on the exercise *name* and ignores the `equipment` field.
 - **Evidence:** `ExercisePicker.tsx:117-118`.
 - **Confidence:** Confirmed.
 
 #### PICK-005 · 🔵 P3 · Picker → 204 from `/last-set`
+- **Status:** ✅ Fixed — Phase 6. `getLastSet` turns a 204 into `null`, so React Query no longer treats it as an error and retries. *Verified:* code and typecheck.
 - **Problem:** `apiRequest` returns `undefined` on a 204. React Query v5 treats undefined data as an error ("Query data cannot be undefined"), retries once and logs a console error.
 - **Evidence:** `client.ts:96-98`; `mock/handlers.ts:190`; `use-exercises.ts:25-31`.
 - **Confidence:** Confirmed (mock). The real API may differ.
@@ -660,12 +692,13 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### UI-003 · 🟡 P2 · Sheet → iOS scroll lock
-- **Status:** 🟡 Partly fixed — Phase 3. The scrim and header are touch-action:none, so a drag that starts there can't scroll the page. The lock itself is still overflow:hidden on body. *Files:* `src/components/ui/Sheet.tsx`. *Verified:* Requires iPhone.
+- **Status:** Deferred — Phase 5 (real iPhone). Partly fixed in Phase 3; background scroll lock behaviour needs a device.
 - **Problem:** The lock is only `body { overflow:hidden }`. iOS Safari can still scroll or rubber-band the page behind via touches on the scrim, and there's no `position:fixed` lock.
 - **Evidence:** `Sheet.tsx:24-30`.
 - **Confidence:** Requires iPhone.
 
 #### UI-004 · 🔵 P3 · Dialogs → Accessibility
+- **Status:** 🟡 Partly fixed — Phase 6. Every `Sheet` now moves focus into the dialog when it opens, keeps Tab inside it, closes on Escape, and returns focus to what opened it (it already had `role="dialog"`, `aria-modal`, a label and a 44 px Close). *Verified:* browser — focus inside on open, Tab from the last control wraps to the first, Escape closes, focus returns to the "New split" button. Not done: the exercise preview dialog, `inert` on the page behind, a screen-reader run.
 - **Problem:** No focus move, focus trap or focus return in the Sheet or the preview dialog. The background stays reachable by screen readers. Interactive `<div>`s include the drag grabber and the scrims.
 - **Evidence:** `Sheet.tsx`, `ExercisePicker.tsx:453-543`.
 - **Confidence:** Confirmed.
@@ -693,12 +726,13 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### UI-008 · 🟡 P2 · iOS → Status bar in Light theme
+- **Status:** Deferred — Phase 5 (real iPhone). Status-bar colour in Light theme needs a device (and a decision on `black-translucent`).
 - **Problem:** `statusBarStyle: "black-translucent"` always draws white status-bar text. In Light theme the time and battery are white on white.
 - **Evidence:** `src/app/layout.tsx:36-40`.
 - **Confidence:** Requires iPhone (well-known iOS behaviour).
 
 #### UI-009 · 🔵 P3 · iOS → Callouts and text selection
-- **Status:** 🟡 Partly fixed — Phase 3. The exercise-name link in cards no longer shows a callout or selects text. *Files:* `src/components/workout/ExerciseCard.tsx`. *Verified:* Requires iPhone.
+- **Status:** 🟡 Partly fixed — Phase 3. Phase 6 triage: needs a device (deferred to the iPhone pass).
 - **Problem:** Selection and callouts are only disabled on media and picker rows. A long-press on the exercise name `<Link>` in a card opens the iOS link preview, and long-presses on rows select text.
 - **Evidence:** `ExerciseCard.tsx:227-232`; `globals.css` (no global `user-select`).
 - **Confidence:** Requires iPhone.
@@ -710,11 +744,13 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Requires iPhone.
 
 #### UI-011 · 🔵 P3 · Layout → Long names
+- **Status:** ✅ Fixed — Phase 6. The large title, the launch-gate heading and the finish-summary heading break long unbroken names (`overflow-wrap: anywhere`). *Verified:* code only; no overlong name was entered.
 - **Problem:** Long names without spaces overflow horizontally in the `LargeTitle` h1, the LaunchGate "It's {name}!" (uppercase stat font) and the Summary title, which have no `break-words` or truncation.
 - **Evidence:** `LargeTitle.tsx:99`; `LaunchGate.tsx:97-99`; `WorkoutSummary.tsx:123-125`.
 - **Confidence:** Confirmed.
 
 #### UI-012 · ⚪ P4 · Layout → Tap targets under 44 px
+- **Status:** 🟡 Partly fixed — Phase 6. The 36 px header/session-bar buttons (back, discard, QR, new split, exercise back, membership delete), the set-type button and the theme segments now have a 44 px hit area with no visual change (an invisible `::before`). "Copy previous" and the "Remove" avatar link are still small. *Verified:* build and browser smoke (controls still work); hit areas not measured on a device.
 - **Problem:** The theme segmented control (32 px), the session-bar back and discard (36 px), the Home QR and new-split header buttons (36 px), the membership trash (36 px), the "Remove" avatar link and the "Copy previous" text are all under 44 px.
 - **Evidence:** `profile/page.tsx:160, 344`; `workout page:525, 550`.
 - **Confidence:** Confirmed.
@@ -727,12 +763,13 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 ### 3.10 State, cache and history
 
 #### STATE-001 · 🟡 P2 · History → 50-session cap
+- **Status:** 🟡 Partly fixed — Phase 4. Phase 5 triage: blocked on confirming the real API honours the `before` cursor (and its maximum `limit`); Home's streak reading only the latest 50 is a separate, accepted limit until then.
 - **Problem:** `GET /workouts?limit=50` with no pagination. Workout 51 and older are unreachable. "N workouts logged" and the streak are capped by the 50.
 - **Evidence:** `src/hooks/use-workouts.ts:6-11`; `history/page.tsx:48`.
 - **Confidence:** Confirmed.
 
 #### STATE-002 · 🟡 P2 · History → Swipe delete
-- **Status:** ✅ Fixed — Phase 2. History swipe-delete asks for confirmation; a failed delete restores the row. *Files:* `src/app/(app)/history/page.tsx, src/hooks/use-workouts.ts`. *Verified:* Static/build only.
+- **Status:** ✅ Fixed — Phase 2. History swipe-delete asks for confirmation; Phase 4 adds a toast when a delete fails ("Workout not deleted — it's still in your history."). *Verified (Phase 4):* browser.
 - **Problem:** The optimistic removal has no rollback or error message: the row reappears silently on failure. There's no confirmation, so one swipe and tap irreversibly deletes a whole workout.
 - **Evidence:** `history/page.tsx:97`; `use-workouts.ts:47-60`.
 - **Confidence:** Confirmed.
@@ -744,11 +781,13 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### STATE-004 · 🔵 P3 · Memory → Alias maps
+- **Status:** Open — not worth fixing (Phase 6 triage): two small Maps that grow by one entry per added set/exercise until reload.
 - **Problem:** `setKeyAlias` and `exerciseKeyAlias` are module-level Maps that are never cleared, so they grow across workouts until reload.
 - **Evidence:** `use-workout-session.ts:17-18`.
 - **Confidence:** Confirmed.
 
 #### STATE-005 · 🔵 P3 · localStorage → Robustness
+- **Status:** 🟡 Partly fixed — Phase 2/4/6. User-scoped keys are cleared on logout and user change; favourites are shape-checked and their `setItem` is guarded; the theme write is guarded. Still unguarded: the workout order and rest-timer `setItem` calls, and the login `persist()`.
 - **Problem:**
   - No key is namespaced per user.
   - `overload_exercise_order_<sessionId>` is written per session and never deleted.
@@ -760,6 +799,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 ### 3.11 Profile
 
 #### PROF-001 · 🟡 P2 · Profile → Membership date uses UTC
+- **Status:** ✅ Fixed — Phase 5. The default and `max` date use the local calendar, not UTC. *Files:* `src/app/(app)/profile/page.tsx`. *Verified (Phase 5):* code and typecheck only; not tested across a midnight/timezone boundary.
 - **Problem:** `todayInputValue()` uses `toISOString()` (UTC) for both the default and `max`. Ahead of UTC (Europe) in the early hours you can't pick your local "today". Behind UTC in the evening, the default is tomorrow.
 - **Evidence:** `profile/page.tsx:226-228, 357-360`.
 - **Confidence:** Confirmed.
@@ -777,6 +817,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### PROF-004 · 🔵 P3 · Profile → Expiry date parsing
+- **Status:** ✅ Fixed — Phase 6. `daysUntil` and `formatMembershipDate` read the first 10 characters, so a full ISO timestamp from the API no longer yields "NaN days left". *Verified:* code only.
 - **Problem:** `daysUntil` assumes a bare `YYYY-MM-DD`. If the real API sends a full ISO datetime, the screen shows "NaN days left".
 - **Evidence:** `format.ts:123-127`.
 - **Confidence:** Suspected.
@@ -795,17 +836,20 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** **Confirmed live** (black screen plus "[MSW] Failed to register the Service Worker" during this audit).
 
 #### PWA-002 · 🟠 P1 · PWA → No offline support
+- **Status:** Open — deliberate (Phase 5 investigation, see 9.2). Offline *behaviour* is now sound: inside a workout you can keep editing (held and replayed in order, with "Offline · will sync"), and cold-navigating to a screen offline shows a real error with a retry instead of an empty or endless-loading screen (NEW-016). Still not built, on purpose: an app-shell service worker (a cold launch with no signal still gets the browser's offline page) and a persisted write queue (NEW-015). *Backend dependency:* a safe persisted queue needs idempotency keys and a version/precondition on writes. *Requires iPhone:* what iOS does to the PWA and its queue in the background.
 - **Problem:** There's no app service worker or app-shell cache, and React Query isn't persisted.
 - **Actual:** Cold-launching with no signal (a basement gym) shows Safari's offline page. The workout, the QR and history are all unavailable. If the app is killed with unsynced mutations in flight, they're lost.
 - **Evidence:** `public/` (only `mockServiceWorker.js`), `next.config.ts`, `providers.tsx`.
 - **Confidence:** Confirmed (the iOS outcome needs an iPhone).
 
 #### PWA-003 · 🟠 P1 · Perf/Data → VideoPrefetcher
+- **Status:** ✅ Fixed — Phase 5. Investigation: `VideoPrefetcher` fetched every exercise video and thumbnail (4 at a time, once per session, right after login) with `cache: "force-cache"`; the `navigator.connection` guard doesn't exist on Safari. Exercise clips otherwise load lazily (`preload="none"` until an IntersectionObserver sees the card ≥25 % visible). Now it only warms the small, app-hosted muscle illustrations, and skips save-data, 2G and cellular connections where the API exists. *Files:* `src/components/VideoPrefetcher.tsx`. *Verified (Phase 5):* browser, with every demo exercise given a clip URL — opening a 10-exercise workout requested 0 clips on load, 2 once the first frame rendered (the two cards on screen), and 6 after scrolling through ~4 screens; none for the rest. The picker uses the same component and the same gate. *Not verified:* real mp4 sizes, Safari range requests, Low Power Mode (iPhone).
 - **Problem:** Once per app session it downloads **every** exercise video and thumbnail, four at a time, right after login. The cellular check uses `navigator.connection`, which Safari doesn't have, so on iPhone it always runs, including on cellular. That competes with API calls at the gym. Safari's `<video>` uses range requests, which often can't reuse a full `fetch()` cache entry, so the download may be wasted entirely. The hook dependency on `muscles` is missing.
 - **Evidence:** `src/components/VideoPrefetcher.tsx:18-21, 51-79`.
 - **Confidence:** Highly likely.
 
 #### PWA-004 · 🟡 P2 · iOS → No haptics at all
+- **Status:** Blocked — platform. iOS Safari has no `navigator.vibrate`; nothing to fix in the app (a Taptic-style feedback isn't available to web apps).
 - **Problem:** iOS Safari has no `navigator.vibrate`. All haptic feedback (completion, rest end, picker) is silently absent on the target device.
 - **Evidence:** `SetRow.tsx:230`; `RestTimer.tsx:55`; `ExercisePicker.tsx:136`.
 - **Confidence:** Confirmed (platform).
@@ -816,6 +860,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### PERF-001 · 🔵 P3 · Workout → Unbounded history per card
+- **Status:** ✅ Fixed — Phase 5. Workout cards ask for the 3 most recent sessions of an exercise (`limit=3`, own cache key) instead of its whole history; the exercise detail page still loads all of it. *Files:* `src/hooks/use-exercises.ts, src/components/workout/ExerciseCard.tsx`. *Verified (Phase 5):* browser — one request per exercise on opening a workout, none duplicated. *Caveat:* the mock ignores `limit`, and I haven't confirmed the real API's semantics (most recent N sessions assumed, as `seedFirstSet` already did).
 - **Problem:** Each ExerciseCard fetches the full, unlimited exercise history: N requests with unbounded payloads every time the workout opens.
 - **Evidence:** `ExerciseCard.tsx:83`; `use-exercises.ts:17-23`.
 - **Confidence:** Confirmed.
@@ -826,6 +871,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Highly likely.
 
 #### PERF-003 · ⚪ P4 · Perf → Always-running effects
+- **Status:** 🟡 Partly fixed — Phase 6. The streak flame no longer animates forever when the streak is 0. The auth background blob is unchanged (iPhone check).
 - **Problem:** The streak flame pulses forever, and the auth background animates an 85vmax `blur(120px)` blob. Both are GPU-heavy on older iPhones.
 - **Evidence:** `home/page.tsx:392-399`; `AuthBackground.tsx:22-37`.
 - **Confidence:** Confirmed.
@@ -836,6 +882,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Highly likely.
 
 #### BUILD-001 · 🔵 P3 · Build → ESLint fails (18 errors, 4 warnings)
+- **Status:** ✅ Fixed — Phase 6. `npm run lint` is now 0 errors, 0 warnings (was 18 / 4 at the audit, 16 / 2 at the start of Phase 6). No rule is disabled to get there: the `setState`-in-effect patterns became `useSyncExternalStore` (theme, signed-in user, favourites, a `useMounted` hook for portals), "adjust state while rendering" (picker open/close reset, set-row draft) or derived values (workout display order, focused card, rest-timer restore and expiry); the generated `public/mockServiceWorker.js` is now in the ESLint ignore list (it is vendor output); unused config variables removed. The remaining `eslint-disable-next-line` comments are on `<img>` for blob/remote sources and two intentional `exhaustive-deps` cases. *Verified:* lint, typecheck, build, and the browser smoke test (theme, sign-in/out, favourites, rest timer and its restore after reload, saved exercise order after reload, sheets).
 - **Problem:** `npm run lint` exits non-zero. The findings:
   - `react-hooks/immutability`: `use-auth.ts:58` (`scheduleRefresh` referenced before declaration).
   - `react-hooks/refs`: `RestTimer.tsx:97` (ref written during render).
@@ -848,11 +895,13 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### BUILD-002 · ⚪ P4 · Docs → Stale README
+- **Status:** ✅ Fixed — Phase 6. README now describes the real stack (Next 16, TanStack Query, Tailwind 4, Framer Motion, an external API, MSW demo mode), the env variables, the scripts and the demo switches.
 - **Problem:** The README describes Next 15, Supabase, Sonner and qrcode.react, none of which are in the dependencies.
 - **Evidence:** `README.md`.
 - **Confidence:** Confirmed.
 
 #### BUILD-003 · 🔵 P3 · Quality → No tests
+- **Status:** 🟡 Partly fixed — Phase 5/6. 9 unit tests (`hasCompletedSets`, `workoutEndTime`, and the 5 auth/refresh tests) run with `npm test`. No component or end-to-end tests.
 - **Problem:** There are no unit, integration or e2e tests, so nothing guards the regressions listed above. Highest-value targets: forward-fill, `workoutEndTime`, `suggestSplit`, `currentStreak`, `daysUntil`, and the optimistic hooks.
 - **Confidence:** Confirmed.
 
@@ -882,17 +931,106 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Problem:** `retry: 1` applied to 404/403 too, which delayed every not-found or error screen by a retry round trip.
 
 #### NEW-006 · 🔵 P3 · History → Empty abandoned sessions become "0m" entries
-- **Status:** Open (needs a product decision).
+- **Status:** ✅ Fixed — Phase 4. Decision: an empty session is not a workout, so it is deleted instead of completed. That happens in three places, all through `hasCompletedSets()`: start-or-resume closing a stale session, the 3 h auto-end, and Finish with nothing completed (which asks "Discard this workout?"). Because the session never gets a `completed_at`, History, the streak, "Last workout" and the counts can't see it. Consistent across Resume (it's gone), History, streak and counts; there's no XP in the app. *Files:* `src/lib/format.ts, src/hooks/use-workouts.ts, src/app/(app)/workout/[sessionId]/page.tsx`. *Verified (Phase 4):* browser — a seeded 5 h-old empty session was deleted when "Let's do it!" was tapped; a 7 s-from-cap empty session was deleted and sent Home; a unit test covers the helper. *Remaining:* an empty session already saved as 0m by an older build stays in History (the summary list has no set count to filter on).
 - **Problem:** When an abandoned session with no completed sets is closed out (by the 3h auto-end or by start-or-resume), it's saved as a 0-minute workout. It shows as "Last workout · 0m", appears in History, and counts toward the streak. Seen in the browser after NEW-002's close-out.
 - **Options:** Delete empty sessions instead of completing them, or hide 0-set sessions from History and the streak.
 
 #### NEW-007 · 🔵 P3 · Keypad → Page jumps when it closes near the bottom
-- **Status:** Open.
+- **Status:** 🟡 Partly fixed — Phase 4. Cause: the keypad's bottom padding on `<body>` (228 px) was removed in a single frame, so with the page scrolled to the bottom the document shrank at once and the browser clamped the scroll position. Now the padding eases out over 0.28 s in step with the panel sliding away, so the scroll position follows continuously instead of jumping (opening is still instant, so scrolling the field into view isn't clamped). *Files:* `src/components/workout/NumericKeypad.tsx`. *Verified (Phase 4):* browser, by stepping the CSS transition: scrollY went 2310 → 2132 → 2092 → 2084 → 2082 across the transition instead of one step. The content still travels the same distance when you're at the very bottom; it now slides. *Requires iPhone:* the iOS visual viewport, rubber-banding and the keyboard-free keypad weren't exercised.
 - **Problem:** While the keypad is open, the body gets bottom padding the height of the keypad; closing it removes the padding at once. When the page is scrolled to the bottom, the page shrinks and the content jumps. This matters more now that scrolling with the keypad open is possible (WORKOUT-012).
 
 #### NEW-008 · 🔵 P3 · Workout → Discard failure is invisible
-- **Status:** Open (related to WORKOUT-024).
+- **Status:** ✅ Fixed — Phase 4 (see WORKOUT-024). A failed discard keeps the workout open, toasts "Workout not discarded — it's still open." and can be retried. *Verified (Phase 4):* browser, failure then retry.
 - **Problem:** Discard navigates to Home before the DELETE finishes. If the DELETE fails, the rollback brings the workout back as "Resume", but no error is shown anywhere.
+
+### 3.14 New issues found in Phase 4
+
+#### NEW-009 · 🟡 P2 · Failed saves after leaving the screen were silent
+- **Status:** ✅ Fixed — Phase 4.
+- **Problem:** The error toast belonged to the workout page. Tick a set, tap Back to Home, and when the request failed a few seconds later the rollback happened (the tick vanished) but nothing said so — the page that would have shown the message was gone.
+- **Fix:** Failures are reported by the QueryClient's `MutationCache.onError`, which runs whichever screen is open (`meta.failure` carries the "what happened to my change" half). *Verified (Phase 4):* browser — failed PATCH after navigating to Home toasted on Home.
+
+#### NEW-010 · 🟡 P2 · Writes had no "is it saved?" signal and nothing marked an offline queue
+- **Status:** ✅ Fixed — Phase 4.
+- **Problem:** With slow signal or no signal, queued edits looked identical to saved ones, and TanStack pauses mutations while the browser is offline without telling anyone.
+- **Fix:** The session bar shows "Saving…" while writes are outstanding (after a 0.5 s grace so quick saves don't flash), "Offline · will sync" when the browser reports offline, and nothing when the server has everything. Desktop browsers also get a "leave site?" prompt while writes are outstanding. *Verified (Phase 4):* browser — offline event → label shown, 2 edits held; online event → label gone and both edits reached the server in order. (Not mutation `isPaused`: a write waiting its turn in the queue is "paused" too, which first showed "Offline" wrongly.)
+
+#### NEW-011 · 🟡 P2 · Exercise history stayed stale after finishing or deleting a workout
+- **Status:** ✅ Fixed — Phase 4.
+- **Problem:** `["exercise-history", id]` and `["last-set", id]` were never invalidated. After Finish, the exercise detail page and the cards' "Previous" column could show pre-workout data for up to 30 s, and Home/History agreed while exercise detail didn't.
+- **Fix:** Finishing, auto-ending, and deleting a workout invalidate both. *Verified (Phase 4):* browser (4 → 5 sessions with no reload).
+
+#### NEW-012 · 🔵 P3 · Rest timer ran on the finish summary
+- **Status:** ✅ Fixed — Phase 4. The timer is removed with the summary and its stored state cleared (it could chime over the summary and leave a record behind).
+
+#### NEW-013 · 🔵 P3 · Session expiry gave no explanation
+- **Status:** ✅ Fixed — Phase 4 (see AUTH-002). The sign-in screen explains it.
+
+#### NEW-014 · ⚪ P4 · Mock offline switch resolved as status 0, not a network error
+- **Status:** ✅ Fixed — Phase 4 (mock only). The fetch fallback now throws a `TypeError` for a dropped connection, like a real `fetch`, so the client's "No connection…" message is what's exercised.
+
+#### NEW-015 · 🟡 P2 · Writes in flight when the app is killed are lost (limitation, not a bug to fix cheaply)
+- **Status:** Open — documented (see PWA-002). After iOS kills the PWA or the tab is closed mid-save, those edits don't reach the server and nothing replays them.
+
+### 3.15 New issues found in Phase 5
+
+#### NEW-016 · 🟡 P2 · Cold navigation while offline showed empty states
+- **Status:** ✅ Fixed — Phase 5. With nothing cached, an offline query *paused* (never loaded, never failed), so History said "No workouts yet", Splits and Today showed nothing/"No splits yet", and Exercise detail showed "?". Queries now use `networkMode: "offlineFirst"` (try anyway; cached data still shows) and don't retry while offline; Splits, Today, History, Profile (membership) and Exercise detail show a real "couldn't load" state with a retry, and recover by themselves when the connection returns. Mutations keep pausing offline. *Verified (Phase 5):* browser, offline event + dead network, cold navigation to each screen, then reconnect. *Not verified:* a real offline cold *launch* (needs PWA-002).
+
+#### NEW-017 · 🟡 P2 · Double/triple taps sent duplicate requests
+- **Status:** ✅ Fixed — Phase 5. Triple-tapping Finish sent 3 PATCHes (the `isPending` guard only updates after a re-render); triple-tapping Delete on a set, Discard, History delete, or split delete sent 2–3 DELETEs (a removed row lingers for its exit animation and can be tapped again). Now one request each, guarded by refs. *Verified (Phase 5):* browser at 400–600 ms latency, request counts: Finish 3→1, set delete 3→1, History delete 3→1, Discard 3→1, 5 rapid Add set → 5 distinct sets. Start workout was already guarded (Phase 2).
+
+#### NEW-018 · 🟡 P2 · Logging out dropped saves still in flight
+- **Status:** ✅ Fixed — Phase 5. `logout()` cleared the cache and token under queued writes: no error, no rollback message, edits just gone. It now waits (up to 8 s) for outstanding writes ("Signing out…"), then clears; if some are still unsent (offline, stalled server) it says so in a toast on the sign-in screen. *Verified (Phase 5):* browser — 2 adds queued at 700 ms latency then Log out: both reached the server. *Remaining:* offline logout past 8 s still loses the unsent edits, with the toast.
+
+#### NEW-019 · 🟠 P1 · Refresh handling could sign the user out wrongly or resurrect a session
+- **Status:** ✅ Fixed — Phase 5 (latent until the backend issues refresh tokens). A refresh that failed for any reason, including a dropped connection, ended the session; and one finishing after sign-out wrote the tokens back. See AUTH-002 for the behaviour now. *Verified (Phase 5):* unit tests + browser with the mock's rotating refresh tokens.
+
+#### NEW-020 · 🔵 P3 · A refetch of the whole session after almost every write
+- **Status:** ✅ Fixed — Phase 5. The queue-drain refetch fired every time the queue momentarily emptied (13 GETs for ~21 quick taps against a fast server). It's now debounced 400 ms. Also: finishing/deleting a workout no longer refetches exercise-history queries that are about to unmount (marked stale instead). *Verified (Phase 5):* browser, request counts.
+
+#### NEW-021 · 🔵 P3 · Listener/timer leaks
+- **Status:** ✅ Fixed — Phase 5. `ViewportFix` left up to three timeouts running after unmount, and the exercise picker's long-press timer survived the picker closing. Both are now cleaned up. Everything else in the listener audit (9.6) was already clean.
+
+#### NEW-022 · ⚪ P4 · Demo database wasn't shared between tabs
+- **Status:** ✅ Fixed — Phase 5 (mock only). Each tab kept its own copy and overwrote the others' writes, so multi-tab behaviour couldn't be tested honestly. Tabs now share it via `storage` events. A first attempt (re-read on every call) lost updates between concurrent requests and was replaced.
+
+#### NEW-023 · 🔵 P3 · Stale tab adds a set that already exists
+- **Status:** Open — accepted behaviour (see 9.7). Two tabs: tab B (stale) taps Add set; the server rejects the duplicate set number, B rolls it back and says "Set not added. You cannot add this set.", and B converges when it regains focus. No corruption, but it isn't silent-merge either. *Backend dependency:* the rejection relies on the server enforcing unique set numbers (the mock does; the code comments say the real API does).
+
+#### NEW-024 · 🔵 P3 · Two tabs can each start a workout
+- **Status:** 🟡 Mitigated — Phase 7. The cause was real: start-or-resume used `ensureQueryData`, which returns a *stale* cached history list as-is, so a tab that had loaded the list before another tab started a workout went on to start a second one. It now always fetches the list from the server first. *Verified:* two tabs — tab B (list cached, no open workout) tapped Start after tab A had started one and resumed A's workout instead of creating another. *Remaining:* two starts inside the same round trip can still both succeed; only the server can prevent that (backend: refuse or return the existing open workout). Classified BACKEND.
+
+#### NEW-025 · 🔵 P3 · Weight/reps/seconds had no upper limit
+- **Status:** ✅ Fixed — Phase 5 (client side). The keypad fields now clamp to what the backend can plausibly store: weight 0–2000 kg with at most 2 decimals, reps 0–999, seconds 0–3600, whole numbers for reps/seconds. Typed values the keypad can't produce (pasting) don't exist — there is no text input. *Verified (Phase 5):* browser — 999999 → 2000, 12.345 → 12.35, 5000 reps → 999, "." disabled on reps, cleared field → null. *Backend dependency:* the real limits are unknown; these are conservative guesses, not contract.
+
+### 3.16 New issues found in Phase 6
+
+#### NEW-026 · 🔵 P3 · The demo database shipped inside the production profile bundle
+- **Status:** ✅ Fixed — Phase 6. The profile screen imported the demo reset helper (and with it the seed database) statically, so a real build carried it even though the button is hidden. It is now a guarded dynamic import. *Verified:* built with `NEXT_PUBLIC_USE_MOCKS=false` and scanned `.next/static` — no `overload_mock`, `mock-token` or "Simulated server" strings.
+
+#### NEW-027 · ⚪ P4 · `public/mockServiceWorker.js` is served in production
+- **Status:** Open — accepted. The MSW worker script is a static file in `public/`; it is inert unless something registers it (only the demo build does). Removing it would break the demo build's service-worker path (the fetch fallback would still work). Delete it from a production deploy if a clean artefact matters.
+
+### 3.17 New issues found in Phase 7
+
+#### NEW-028 · 🟡 P2 · A stale tab could start a second open workout
+- **Status:** ✅ Fixed — Phase 7 (see NEW-024 for the remaining server-side part). `useStartOrResumeWorkout` now fetches the history list fresh. *Files:* `src/hooks/use-workouts.ts`.
+
+#### NEW-029 · 🔵 P3 · An empty picture response rendered as a broken avatar
+- **Status:** ✅ Fixed — Phase 7. After "Remove", the demo backend answered 204 (the app expects 404 for "no picture"), and the client turned the empty body into an image URL. The client now treats an empty body as "no picture", and the mock returns real bytes / 404 like the API contract in the code. *Verified:* upload, navigate away and back, remove — in the browser.
+
+#### NEW-030 · 🟡 P2 · Text and white-on-red controls were below WCAG AA contrast
+- **Status:** ✅ Fixed — Phase 7 (text and controls measured in the browser; see 11.5 for what could not be measured). Measured every text node on Home, Splits, History, Profile, Exercise detail and Workout in both themes against its effective background. Dark: tertiary text (`#747479`) was 3.5–4.0:1 → `#8a8a90`. Light: secondary/tertiary were 3.6–4.2:1 on card backgrounds → `#5c5c61` / `#66666b`; accent text `#c2510a` → `#b04a08`; the red, orange and purple used as *text* on their soft badges were 3.1/2.0/3.6:1 → `#d70015`, `#a85a00`, `#8944ab`. White text on red (swipe Delete, error toasts) was 3.4:1 → a new `--red-strong` (`#d1241b`, 5.3:1). After the change all six routes report no text below AA in either theme. *Files:* `src/app/globals.css`, `SwipeRow.tsx`, `Toaster.tsx`, `home/page.tsx`.
+
+#### NEW-031 · ⚪ P4 · Inconsistent copy
+- **Status:** ✅ Fixed — Phase 7. "Retry" → "Try again" (the one outlier, membership); "session" → "workout" in two empty-state messages. Other term pairs were checked and are consistent: Finish (never "Complete"), Discard (an unfinished workout) vs Delete (history, splits) vs Remove (an exercise in a workout, the payment, the picture), Start.
+
+#### NEW-032 · 🔵 P3 · The lifter's exercise order isn't shown in History
+- **Status:** Accepted — product (the known gap "reorder is local-only"). The order set by dragging is kept on this device for the open workout; the saved workout in History, and any other device, show the server's order.
+
+#### NEW-033 · ⚪ P4 · Unused Supabase variables in `.env`
+- **Status:** Accepted. `NEXT_PUBLIC_SUPABASE_*` are present in the local `.env` (not tracked by git) and used nowhere in `src/`; confirmed absent from the production bundle.
 
 ---
 
@@ -982,3 +1120,340 @@ Everything marked "Requires iPhone" still does.
 - **Backend behaviour.** Not checked: the access-token TTL and refresh support (AUTH-002/003), integer validation for reps and exercise counts (WORKOUT-010, SPLIT-003), whether exercise history includes uncompleted sets (EX-004), the membership date format (PROF-004), the `/last-set` 204 vs null response (PICK-005), the shared-catalog permissions (EX-006), and whether swap deletes sets server-side (WORKOUT-005; the mock does).
 - **Production environment.** I don't know whether the deployed Vercel build runs with `NEXT_PUBLIC_USE_MOCKS=true` (which decides PWA-001's real-world impact) or which `NEXT_PUBLIC_BASE_URL` it uses.
 - **Multi-device and multi-tab scenarios.** AUTH-005, HOME-007 and WORKOUT-039 weren't reproduced.
+
+---
+
+## 8. Phase 4 report: state, network and PWA reliability
+
+### 8.1 What was tested, and how
+
+All of this ran in the browser at 375×812 against the mock backend, with `overload_mock_latency`, `overload_mock_fail`, and the new `overload_mock_offline` / `overload_mock_expired` switches, plus a seeded 127-workout history. It was desktop Chromium driven with synthetic pointer events, not a phone.
+
+| Scenario | Result |
+|---|---|
+| 3 rapid Add set at 800 ms | 3 rows at once; server sets 1, 2, 3 (no duplicates) |
+| Add, tick, edit reps, delete set, add set, edit weight inside a few seconds at 800 ms | UI and server agreed once the queue drained; request order preserved |
+| One request failing between successful ones (failure window timed to hit only the tick) | Only the tick rolled back; the add and the type change stayed; toast named the failed change |
+| Fails immediately (offline switch), fails after a delay, two in a row | Each rolled back its own change and toasted with the reason; retry afterwards succeeded and matched the server |
+| Failed save, then leave the screen | Toast appeared on Home (NEW-009) |
+| Browser offline event with edits | "Offline · will sync"; nothing sent; on reconnect both edits landed in order |
+| Save → reload (after it landed) | Server value shown |
+| Background (visibilitychange hidden) with the keypad open | Draft committed (one PATCH); returning caused no duplicate writes |
+| Expired token: edit a set | Failed write toasted, redirect to /login?next=…, expiry notice, sign-in returned to the workout with server state |
+| Logout, then another user | Tokens, favourites, order and timer keys gone; user B saw none of A's data (Home empty) |
+| Finish while a set write and the finish itself fail | Button read "Saving…" while queued, then Finish returned with a toast; workout still open; retry finished it |
+| Empty workout: Finish / auto-end / stale start-or-resume | Discard prompt / deleted / deleted (NEW-006) |
+| Discard with failure, then retry | Stayed open with toast, then deleted; timer and order keys cleared |
+| Rest timer: start, leave, return | Remaining time correct (89 s → 86 s → 84 s on return); a timer past its end is not shown or rung after reload |
+| Finish, then exercise detail | History refreshed without waiting for staleTime (NEW-011) |
+| History with 127 workouts | Paged 49 → 99 → 127, no duplicates; delete failure kept the row |
+| Membership log failure, then retry | Error shown, "Logging…" while pending, retry worked |
+| Split swipe-delete failure | Toast; row stayed |
+
+`npm run typecheck` and `npm run build` pass. `npm test` runs 4 unit tests (`src/lib/format.test.ts`: `hasCompletedSets`, `workoutEndTime`). `npm run lint` is 17 errors and 3 warnings (was 18 and 4); the Phase 4 changes added none.
+
+**Not exercised in the browser:** QR upload and profile-picture upload failures (the demo build can't pick a file from the script), signup/login failures beyond the expiry flow, multi-tab behaviour, real network throttling and packet loss, real process kill, and anything on iOS.
+
+### 8.2 Cache-key audit
+
+| Key | Notes |
+|---|---|
+| `["workouts"]` | Latest 50 summaries. Not user-scoped, but the whole cache is cleared on login and logout, so no other user's data can be read. Patched in place on finish/delete. |
+| `["workouts", id]` | One session; updated per entity by the write queue and refetched once when the queue drains. Written by `setQueryData` only when it already exists, so a late response can't create an entry after logout. |
+| `["splits"]`, `["splits", id]` | Invalidated on create/update/delete. The edit form seeds once (SPLIT-006, open). |
+| `["exercises", muscle]`, `["muscles"]` | Global catalogue. |
+| `["exercise-history", id]` | Unbounded, used by cards and the detail page. Now invalidated on finish/delete (NEW-011). The summary uses its own key (WORKOUT-034). |
+| `["last-set", id]` | Invalidated with the history. |
+| `["qr-image"]`, `["profile-picture"]`, `["membership"]` | Cleared on login/logout; invalidated on upload/change. |
+| `["favorites"]` | Invalidated by mutations but never queried (no GET endpoint). Harmless, but it does nothing. |
+
+Not changed, and why: adding user ids to keys would be redundant with clearing the cache at the two points where the user changes. Session *expiry* alone doesn't clear the cache, but nothing is readable until a new sign-in, which does.
+
+### 8.3 Client-side persistence inventory
+
+| Key | Store | Holds | User-scoped | Written | Read | Cleared | Survives logout? |
+|---|---|---|---|---|---|---|---|
+| `overload_token`, `overload_refresh_token`, `overload_user` | localStorage | Access/refresh token, `{id, email}` | Yes | Login/signup/refresh | Every request; `useAuth` | Logout, expiry | No |
+| `overload_last_user` | localStorage | The last user's id only | Yes | Login | Next login (decides whether to wipe user keys) | Never (by design) | **Yes, id only** |
+| `overload_favorites` | localStorage | Favourited exercise ids (mirror; no GET endpoint) | Yes | Toggle, first completed set | Picker, exercise page | Logout, different user's login | No |
+| `overload_exercise_order_<sessionId>` | localStorage | Local drag order of a workout | Yes (session ids are per user) | Reorder, list change | Workout page | Finish, discard, logout, different user | No |
+| `overload_rest_timer` | localStorage | One timer: session id, duration, end time | Yes (tagged with the session) | Timer actions | Workout page | Finish, discard, logout | No |
+| `overload_launch_shown` | sessionStorage | "Gate shown this session" | n/a | Gate | Gate | Logout; ends with the tab/process | No |
+| `overload_session_expired` | sessionStorage | "Session expired" flag | n/a | 401 handling | Login screen | Successful sign-in | n/a |
+| `overload_theme` | localStorage | Theme choice | Device, not user | Profile | Boot script | Never | Yes (device setting, not personal data) |
+| `overload_mock_db` | localStorage | The whole demo database, **including demo passwords** | Mock only | Mock API | Mock API | "Reset demo data" | Yes — demo builds only |
+| `overload_mock_latency`, `_fail`, `_offline`, `_expired` | localStorage | Demo failure switches | Mock only | By hand | Mock API | By hand | Yes — demo builds only |
+| `overload_media_prefetched` | sessionStorage | "Videos prefetched" flag | n/a | Prefetcher | Prefetcher | Tab end | No |
+| IndexedDB | — | Not used. No cookies set by the app. | | | | | |
+
+Notes: tokens in localStorage are readable by any script on the origin (a standard trade-off; the app loads no third-party scripts). The Next/MSW dev server and the mock service worker add their own storage in demo builds only. Nothing user-specific besides the id survives logout.
+
+### 8.4 Lifecycle verdicts
+
+- **Background → foreground:** keypad drafts are committed on hide; no duplicate requests on return; refetch-on-focus is suppressed while writes are pending; the elapsed clock resyncs on `visibilitychange`; the rest timer is derived from its absolute end time.
+- **Reload from each route:** the workout, splits, profile, exercise detail and the launch gate/home were loaded fresh and started correctly; History was reached by client-side navigation only. (The app has no route that needs in-memory state to render.)
+- **Close and reopen (iOS kill):** not simulable here. By design: auth, the open workout (server side) and the rest timer (if it was still running) come back; the exercise order comes back from localStorage; in-flight or queued writes, the keypad draft if it wasn't committed, scroll position, and the finish summary do not (see PWA-002 and NEW-015).
+- **Abandon/resume rules (one answer):** a session is *resumable* if it's unfinished and under 3 h old; *abandoned* beyond that — closed at its last completed set if it has any, deleted if it doesn't (both on the next start and by the 3 h timer when the page is open); *completed* once it has a `completed_at`; and a completed or deleted session never shows as Resume.
+- **Large workout:** 5 cards / 21 sets measured (see WORKOUT-021). A 10-exercise session wasn't built.
+
+### 8.5 Needs a real iPhone (not claimed fixed)
+
+Native scrolling, swipes and long-press; scroll hand-off and the sheet's background scroll lock; the iOS keyboard and `visualViewport`; double-tap zoom; whether the keypad-close easing (NEW-007) feels right; the rest timer while the phone is locked (REST-002 — needs push, not just a device); audio resuming after a lock (REST-003); Low Power Mode video; process termination and what a reopened PWA restores; status-bar colour; touch PWA behaviour generally.
+
+### 8.6 Still open from Phase 4's scope (as of Phase 4 — section 9 supersedes it where an item changed)
+
+- AUTH-002: needs backend refresh tokens. AUTH-005: no cross-tab sign-out.
+- PWA-002 / NEW-015: no offline shell, no persisted write queue.
+- REST-002: needs Web Push.
+- WORKOUT-027: a failed tick still leaves its rest timer running.
+- STATE-001: Home's streak/Resume read the latest 50 only; backend support for `before` unconfirmed.
+- WORKOUT-021: per-action re-render cascade remains (not per second).
+- The new toast shows one error at a time and has no retry button.
+
+---
+
+## 9. Phase 5 report: engineering hardening
+
+### 9.1 AUTH-002 — can it be fixed in this repository?
+
+**No. The app side is finished; the capability has to come from the backend.** Findings from the investigation:
+
+| Area | Finding |
+|---|---|
+| Token storage | access token, refresh token and user in localStorage (`overload_token`, `overload_refresh_token`, `overload_user`); cleared on logout and on expiry. |
+| Client | `apiRequest` 401 → `refreshAccessToken()` (single flight) → retry once → else `clearSession()`. The code for `POST /auth/refresh {refresh_token}` already existed but had four defects, now fixed: any refresh failure (even no signal) signed the user out; a refresh finishing after logout restored the session; a second concurrent 401 spent a rotating refresh token again; blob requests had no sign-out path. |
+| Backend | `AuthResponse.refresh_token` is optional and the API client comment says the deployed API issues none, so `/auth/refresh` is never called today. Requirement: login/signup return `refresh_token`; `POST /auth/refresh {refresh_token}` returns `{access_token, refresh_token}`; invalid/expired → 400/401/403. I did not probe the deployed API. |
+| Mock | The demo now issues `mock-token-<id>~<epoch>` access tokens and single-use rotating `mock-refresh-…` tokens, so the whole flow runs end to end. |
+| Verified in browser | Concurrent requests after expiry → 1 refresh, all succeed (membership + picture + QR). Three queued writes after expiry → 1 refresh, all three saved in order, no toast. Refresh endpoint returning 500 → user stays signed in, write rolled back with "The server had a problem", retry works. Refresh token expired → /login with the expiry notice. Sign-out while a refresh is in flight → tokens not restored. |
+| Unit tests | `src/lib/api/client.test.ts` (5 tests): single flight; rejected refresh ends the session; unreachable refresh doesn't; refresh after sign-out is dropped; no second retry. |
+| Until the backend ships it | A 401 write is lost, visibly (toast → sign-in with an explanation → fresh server state). No UI claims it saved. |
+
+### 9.2 PWA-002 / NEW-015 — offline and the persisted queue
+
+**Offline inside a workout (works):** the cached workout and exercise list stay usable; weight, reps, ticks, set-type, adds, deletes and navigating between cards all apply optimistically; writes are held (TanStack pauses mutations offline) and replayed in order on reconnect; "Offline · will sync" shows in the session bar. Verified with the browser's offline event: edits held, nothing sent, both landed in order after reconnect. Needing the network by nature: opening the exercise picker's catalogue the first time, `seedFirstSet` history (falls back silently), Finish (waits in the queue and says "Saving…").
+
+**Offline while navigating (fixed, NEW-016):** each of Today, Splits, History, Exercise detail and Profile now shows a real error with retry when it has nothing cached, and recovers on reconnect. A route already visited shows its cached data.
+
+**Persisted write queue — decision: not built; NEW-015 stays open.** A replay after the app was killed is only safe if all of these hold, and they don't:
+1. *Idempotency* — `POST` set/exercise creation has no idempotency key; a write that reached the server just before the kill would be replayed into a duplicate set (or a 409).
+2. *No stale overwrite* — PATCHes are last-writer-wins with no version or `If-Match`; replaying an old edit after the same set was changed on another device or tab silently overwrites newer data.
+3. *Identity mapping* — queued writes reference optimistic ids (`optimistic-…`) that only exist in memory; they'd need remapping through the queue on restart.
+4. *Identity/session isolation* — it'd have to be keyed to a user id and dropped on logout/different user. That part is easy; 1–3 are not.
+What it would need: idempotency keys on creates, a precondition/version on updates, and a ledger of optimistic→real ids. The current non-persistent queue is the deliberate safe choice; its limits are the "Saving…"/"Offline" label, commit-on-hide for keypad drafts, and the sign-out wait (NEW-018).
+
+### 9.3 PWA-003 — video bandwidth
+See PWA-003 above. When videos load: only when a card/row is ≥25 % on screen (`preload="none"` until then); none are prefetched; the muscle illustrations (app-hosted PNGs) are the only prefetched assets. Concurrency is the browser's (a screen's worth of `<video>`s at most).
+
+### 9.4 Every remaining P2, classified
+
+| ID | Class | Reason |
+|---|---|---|
+| AUTH-002 (P0) | Blocked — backend | 9.1 |
+| AUTH-005 | **Fixed** | cross-tab sign-out |
+| AUTH-006 | **Fixed** | demo credentials mock-only |
+| PROF-001 | **Fixed** | local date |
+| WORKOUT-013 | **Fixed** | latest commit handler |
+| WORKOUT-021 | **Fixed** | measured and reduced, 9.8 |
+| HOME-003 | Defer (UX decision) | no data risk |
+| WORKOUT-022 | Defer (product) | warning before 3 h cut-off |
+| WORKOUT-023 | Defer (product) | back goes Home on purpose |
+| WORKOUT-024 | Defer (polish) | `window.confirm` styling only |
+| WORKOUT-029 | Partly fixed | no retry buttons by design (9.5) |
+| STATE-001 | Partly fixed / backend | confirm `before` support |
+| EX-002 | Defer (backend) | favourite flag source |
+| EX-004 | Defer (backend) | history lacks `completed` |
+| WORKOUT-018, REST-003, UI-003, UI-008 | Defer (real iPhone) | 9.10 |
+| REST-002, PWA-004 | Blocked (platform) | push / vibration |
+
+### 9.5 Error and retry model (WORKOUT-029)
+
+| Class | Examples | Behaviour |
+|---|---|---|
+| Automatically retried | Query failures | One retry after a second, only when online; otherwise an error state with a "Try again" button (and auto-refetch on reconnect). |
+| User retries | Set/exercise/workout writes, deletes, finish, discard, start | Rolled back, toasted with what happened to the change and why ("Set not added. No connection. Check your signal and try again."), the user repeats it. Not auto-retried: the writes are ordered and optimistic; replaying one after later edits could reorder them. |
+| Needs sign-in | 401 with no usable refresh | Toast, sign-in screen with an explanation. |
+| Permanently invalid | Out-of-range numbers, bad file types | Prevented in the UI (clamping, disabled keys, file checks) or the server's message is shown. |
+| Retry button exists | Page loads (workout, history, exercise, splits, today, membership), loading older history, the QR | Meaningful and safe (a read). |
+
+### 9.6 Listener, timer and subscription audit
+
+Reviewed every `addEventListener`, `setInterval`, `setTimeout`, `requestAnimationFrame`, `IntersectionObserver` and `useSyncExternalStore` in `src/`. Clean: RestTimer (one interval keyed on the end time; unlock, visibility and focus listeners removed on unmount; a timer belongs to its session and is unmounted on leaving), keypad listeners (re-registered per field, removed), scroll-spy, layout scroll recording, sheets/escape handlers, swipe rows, stepper hold timers, set-row flash timers, `ElapsedClock`, `SaveStatus` (`beforeunload` removed with the effect), toast timer (single), queue-drain timers (one per session, replaced not stacked), auth refresh timer (one module-level, cleared on logout), `storage` listener (per mounted `useAuth`, removed). Fixed: `ViewportFix` timeouts and the picker long-press timer (NEW-021). Not cleaned but bounded and harmless: the auto-advance `setTimeout(350)` and the just-added-card scroll retry (≤20 × 100 ms) both no-op on an unmounted page.
+
+### 9.7 Multi-tab
+
+Not synchronised, and doesn't need to be for correctness: each tab has its own cache; the server (mock: shared `localStorage`) is the arbiter. Tested with two tabs on one workout: A adds a set → B (stale) still shows the old list; B's own Add set is rejected by the server and rolled back with a toast, then B converges when it regains focus (focus refetch); B editing a set A also knows overwrites only that field (PATCHes are per-field). Logout in A sends B to sign-in. No silent corruption found. Known gaps: NEW-023, NEW-024. Not tested: three tabs, background-tab timer throttling, two different users.
+
+### 9.8 Large-workout and request audit (10 exercises, 52 sets, some completed, 3 with history)
+
+Verified in the browser: initial render; scrolling top to bottom (6 of 10 clips requested, 0 long tasks); edit a set near the top and near the bottom (one PATCH each, the right row); keypad open/close; add set (set numbers continuous 1…7 after a delete and re-add); delete a set; remove an exercise (cards 10 → 9); swap an exercise (sets cleared, history fetched once for the new one); rest timer start/idle (no card renders); 20 rapid taps (20 serialized PATCHes, UI = server); Finish (summary, timer gone, server `completed_at` set). Not done: dragging to reorder (no pointer-drag harness), real-device frame rate, memory growth (inconclusive, see WORKOUT-021).
+
+Request sequence for opening a workout (no duplicates): `GET /workouts/:id`, `GET /splits/:id`, `GET /exercises`, and one `GET /exercises/:id/history` per exercise (now `limit=3`). An edit is one PATCH plus one `GET /workouts/:id` once the burst ends. Finish: one PATCH (+ the summary's own history reads). Triple-tap checks are in NEW-017. Slow-network → navigate → back → retry produced no multiplying requests (queries share keys; the offline/expired retries were single-flight).
+
+### 9.9 Combined failures run
+
+slow + failure (Phase 4 and again); slow + offline (held writes then replay); expired + pending saves (3 queued writes, 1 refresh, all saved); refresh failing + pending write; failure then retry; logout during pending saves (NEW-018); a chaos sequence at 600 ms latency — keypad draft open, add set, offline blip, tick, background event, online, navigate away and back — ended with UI = server (the draft value, the new set and the tick all saved, no toast).
+
+### 9.10 Real-iPhone checklist (reproducible)
+
+Do these on an iPhone, installed to the Home Screen (Add to Home Screen) and also once in Safari, with the demo build and the console switches above where they help (use a connected Mac's Web Inspector, or add the latency/offline switches via a temporary settings screen). Record device, iOS version, and pass/fail.
+
+**Touch**
+1. Workout with ≥10 cards: scroll slowly and with a flick — smooth, no jump when the clip videos start.
+2. Swipe a set row left, then a diagonal drag — opens only on a horizontal drag; page still scrolls vertically (UI-006).
+3. Start vertically scrolling from a swipe row and from the keypad area — no accidental open/close (WORKOUT-012).
+4. Long-press an exercise name in the picker — preview peek stays up after release, no link preview/callout (PICK-001, UI-009).
+5. Drag the sheet grabber and header to dismiss; try pulling down from scrolled-to-top content (UI-002).
+6. With a sheet open, try to scroll the page behind it, from the scrim and the header (UI-003).
+7. Drag an exercise to reorder, to the edge of the screen (WORKOUT-038).
+
+**Keyboard / keypad**
+8. Open the keypad on the last card; close it by tapping outside — watch for a jump (NEW-007).
+9. Switch between weight and reps fields directly; type a value, lock the phone, unlock — value kept (WORKOUT-009).
+10. Exercise detail → Edit sheet: focus the lowest field — Save button reachable above the keyboard (EX-007).
+11. Login: type the password, dismiss the keyboard — fixed bars sit on the screen edge (ViewportFix).
+12. Rapid taps on the stepper and keypad keys — none dropped or zoomed (UI-010).
+
+**PWA lifecycle**
+13. Open a workout, tick a set, immediately go Home and force-quit — reopen: "Resume workout" on the launch gate; the tick is either saved or not (note which, with and without signal) (NEW-015).
+14. Start the rest timer, background the app for 30 s, reopen — correct remaining time; background past the end — no stale ring (REST-002).
+15. Airplane mode mid-workout: edit, add, tick, go back online — "Offline · will sync" then all changes on the server, in order.
+16. Airplane mode, force-quit, reopen the PWA — record what is shown (PWA-002: expected the browser's offline page).
+17. Leave the app 4+ hours with a workout open — reopen: resume vs. cleaned up per the rules in 8.4.
+18. Add to Home Screen from a signed-in session; kill and reopen — still signed in.
+
+**Media / audio**
+19. Exercise clips autoplay in cards and in the picker; Low Power Mode on — a still frame, not a blank box (WORKOUT-018).
+20. With music playing, tick a set / let the rest timer end — music keeps playing, chime mixes (REST-003).
+21. Lock the phone during a rest — nothing sounds (known limit, REST-002); on unlock the timer is correct.
+22. Vibration: confirm there is none (PWA-004).
+
+**Status bar and safe areas**
+23. Dark and Light theme: status-bar text legible, bar colour matches (UI-008).
+24. Notch/Dynamic Island: session bar, toast, launch gate and the tab bar clear the safe areas in portrait and landscape.
+25. Home-indicator area: keypad and rest timer sit above it.
+
+### 9.11 Verification summary
+
+| Check | Result |
+|---|---|
+| `npm run typecheck` | clean |
+| `npm run build` | passes (13 routes) |
+| `npm test` | 9 / 9 pass (`format`: 4, `client` auth: 5) |
+| `npm run lint` | 16 errors, 2 warnings (was 17 / 3); none from Phase 5 changes — all in files with the existing `set-state-in-effect` / `refs` backlog |
+| Browser (375×812, mock) | normal, slow, offline, failure, expired + refresh, combined, 10-exercise, two tabs |
+| Not tested | a real backend; drag-reorder; real-device performance; real offline launch; more than two tabs |
+
+---
+
+## 10. Phase 6 report: polish and production readiness
+
+**Scope note.** This phase fixed what was concrete and verifiable: lint, accessibility basics, production-bundle safety, and a set of cheap functional/visual P3/P4 items. It did **not** include a systematic visual-system audit, a typography/spacing/contrast review of every screen, a microcopy sweep, or an animation review — I did a visual look at Home, Workout, Profile (dark and light), History and a 1280×800 layout, and found nothing broken, but that is a spot check, not an audit. Those items are carried to Phase 7 / a design pass (10.3).
+
+### 10.1 Demo controls (Part 24) — verdict
+
+`overload_mock_latency`, `_fail`, `_offline`, `_expired`, `_valid_epoch`, `_refresh_invalid` and the mock refresh counters live only in `src/lib/mock/browser.ts` and `handlers.ts`. They are reached only through a dynamic import guarded by `NEXT_PUBLIC_USE_MOCKS === "true"`, and the demo reset in Profile is now guarded the same way. A production build (`NEXT_PUBLIC_USE_MOCKS=false`) contains none of it (scanned, see NEW-026). They can't affect real behaviour, so they stay as development tooling. Residual: NEW-027.
+
+### 10.2 Accessibility and interaction changes
+
+- Sheets: focus moves in, Tab is trapped, Escape closes, focus returns (UI-004).
+- 44 px hit areas on the small icon buttons without changing their look (UI-012).
+- Streak badge exposed as an image with its label (HOME-008).
+- Audit by script: no icon-only `<button>` lacks an `aria-label`, and no `<div onClick>` exists in `src/`. Global `:focus-visible` ring and `prefers-reduced-motion` handling already existed.
+- Not done: contrast measurements, `inert` background, screen-reader testing, keyboard-only pass through the workout screen.
+
+### 10.3 Every remaining P3/P4, triaged
+
+| Class | Items |
+|---|---|
+| Fixed this phase | BUILD-001, BUILD-002, PICK-004, PICK-005, UI-011, PROF-004, AUTH-010, HOME-006, WORKOUT-030 |
+| Partly fixed (a part remains) | HOME-007, HOME-008, PERF-003, UI-004, UI-012, STATE-005, BUILD-003, WORKOUT-032, -034, -039, NEW-007 |
+| Functional, cheap, deferred (not done for time) | AUTH-009 (signed-in user can open /login), SPLIT-006 (edit form seeds once), SPLIT-007 (delete warning when a split has history), SPLIT-008 (PUT sends `pic: null`), WORKOUT-027 (rest timer runs after a failed tick), WORKOUT-028 (picker doesn't flag duplicates), WORKOUT-031 (Copy previous has no undo), WORKOUT-033 (summary lost on reload), WORKOUT-035 (assisted volume), WORKOUT-036 (swap picker unfiltered), PICK-002, PICK-006, UI-005 (Back with a sheet open) |
+| Visual / interaction polish, deferred | REST-004 (ring wind-up), PWA-005 (blank boot frames), UI-013 (page remount fade), WORKOUT-025 (ungroup confirm; no UI to create supersets) |
+| Real iPhone needed | SPLIT-004, EX-007, WORKOUT-038, UI-009 |
+| Backend/product | EX-006 (shared exercise catalogue), PICK-003 (picker renders the whole catalogue; a virtualised list is a bigger change), PERF-002, PERF-004 (video per card; the observer already gates playback) |
+| Not worth fixing | STATE-004 (two tiny Maps), BUILD-003 beyond the current tests |
+| Blocked / other | NEW-023, NEW-024 (server rules), NEW-027 |
+
+### 10.4 Lint and code quality
+
+Errors 16 → 0, warnings 2 → 0 (audit start: 18 / 4). Cleanup that changed structure: `useMounted`, external-store reads for theme/user/favourites, derived workout order and focus, the rest timer's restore and expiry moved out of effects, object URLs cached per blob (no effect, no leak under StrictMode). Behaviour was kept: re-verified in the browser (theme toggle persisted and applied, sign-in/out and cross-tab, favourites toggle, rest timer start and restore after reload, reversed saved order applied after reload). No temporary debug code remains (the render counters from Phase 5 were removed then).
+
+### 10.5 Regression smoke (375×812 mock backend; layout also at 1280×800)
+
+Sign in / log out / sign in; launch gate; start from Splits; add sets; edit via keypad; tick (rest timer); failed write toast then retry; expiry → refresh; offline → "Offline · will sync" → reconnect; finish → summary → history detail; favourites; sheet focus behaviour; light/dark theme; saved exercise order after reload; rest-timer restore after reload. Phase 5 flows (triple-tap guards, 10-exercise workout, two tabs, logout during saves) were **not** re-run after the lint refactors, except where listed. Not exercised this phase: reorder by drag, split create/edit/delete through the UI, history "load older", exercise rest-time edit, QR/avatar upload.
+
+### 10.6 Verification
+
+`npm run typecheck` clean · `npm test` 9/9 · `npm run lint` 0 errors, 0 warnings · `npm run build` passes (13 routes) · production-mode build scanned for demo code (none).
+
+---
+
+## 11. Final release audit (Phase 7)
+
+### 11.1 Decision
+
+**READY WITH KNOWN LIMITATIONS.** No release blocker was found: nothing silently loses or corrupts data, nothing exposes another user's data, and every failure path tested ends in a visible message and a recoverable state. The limitations that matter, in order:
+
+1. **Real iPhone is untested.** The app is a phone PWA; everything iOS-specific (touch, keyboard, safe areas, process termination, audio, Low Power Mode, status bar) is unverified. Do a short pass with the 25-step checklist (9.10) before a wide release.
+2. **AUTH-002 (backend).** Without refresh tokens, an expired access token costs the one write that hit the 401 (shown as "Change not saved… Sign in to continue") and sends the user to sign-in; the workout is intact on the server. Confirm the access-token lifetime: if it is short (≈1 h or less) this will be common, and shipping refresh tokens is strongly recommended. The client is ready (9.1).
+3. **PWA-002 / NEW-015.** Writes queued or in flight when iOS kills the app are lost (deliberate: a persisted queue is unsafe without server idempotency and versioning). The user sees "Saving…" / "Offline · will sync" while unsent; a cold launch with no signal shows the browser's offline page.
+4. **Release hygiene.** Deploy with `NEXT_PUBLIC_USE_MOCKS` **unset** (a mock build pre-fills demo credentials and runs the demo backend). Verified: a build without it contains no demo code, credentials, mock switches, source maps or `console.log`.
+
+### 11.2 What was re-tested this phase (browser, 375×812, mock backend)
+
+| Area | Result |
+|---|---|
+| Data-integrity sequence (sign in → start → add exercise (picker) → add sets → edit weights/reps → complete some → reorder (saved order) → swap → delete a set → rest timer → navigate away/back → finish → summary → History → reopen → reload → log out/in → verify) | Server and UI agreed at every step; Finish changed nothing but `completed_at`; summary volume matched the sets; order key and timer cleared on finish; History showed the same data after reload and re-login |
+| Network chaos A–G | **A** slow + 5 rapid edits + navigate away: all landed, no toast, no duplicate requests. **B** offline edits/add held ("Offline · will sync"), converged on reconnect. **C** one failed write in the middle: only it rolled back, others kept, retry worked, UI = server. **D** expired token with 3 requests: 1 refresh, all saved. **E** pending saves then log out: both reached the server first. **F** keypad draft + pending save + background/return: draft committed, no duplicates. **G** offline cold load of a workout: real error with "Try again"; recovered on reconnect |
+| Auth | Covered by the 5 unit tests (single flight, rejected refresh, unreachable refresh, logout during refresh, no second retry) plus Phase 5/6 browser runs; re-run in browser: expired + refresh (D), logout during saves (E), sign-in/out |
+| Lifecycle | Empty-finish and failed/retried discard, stale and empty-abandoned sessions, 3 h auto-end: verified in Phase 4/5 and not changed since; the hooks involved were re-exercised by the sequences above |
+| Large workout (10 exercises, 49 sets) | 0 long tasks; one request per edit; top edit, bottom edit, add set, delete, type cycle, triple-tap Finish (1 PATCH). Timer: see 11.5 |
+| Split CRUD | create (validation, failed create, rapid submit → 1 split), edit (failed edit, double save), delete (failed delete, triple tap → 1), Back, reload — all correct |
+| History pagination (126 workouts) | 49 → 99 → 126; slow load shows "Loading…" and disables the button; a failed load shows the error and "Try again"; retry works; no duplicates; newest-first order; button disappears at the end |
+| QR upload | none yet → non-image rejected → failed upload shown → retry succeeds → replace works. (The demo keeps the file in memory, so it does not survive a reload — demo limitation) |
+| Avatar | wrong type, >5 MB, failed upload ("Uploading picture…" shown), retry, failed remove, remove; found and fixed NEW-029 |
+| Two tabs | stale tab's Add set rejected with a message and converges on focus (Phase 5, re-checked after the mock fix); logout in one tab signs the other out; concurrent start → NEW-024/NEW-028 |
+| Reorder | the saved order is applied after reload, a new exercise is appended after it, it survives leaving and returning, and is cleared on finish. The drag gesture itself could **not** be driven in this harness (synthetic and tool pointer drags don't engage the Framer Reorder) — see 11.5 |
+
+### 11.3 Production sanity
+
+`NEXT_PUBLIC_USE_MOCKS=false npm run build`, then scan of `.next/static`: no `demo1234`, `demo@overload`, `overload_mock*`, `mock-token`, "Simulated server", `mockServiceWorker`, `supabase`, or `console.log`; no source-map files. `.env*` files are git-ignored and untracked. Logging: the app writes nothing to the console. Error messages shown to users are the API's `error.message` or fixed strings; stack traces and codes are not shown. The only accepted residue is NEW-027 (the inert `public/mockServiceWorker.js`). Tokens live in localStorage (standard trade-off, no third-party scripts).
+
+### 11.4 Remaining P3/P4, each classified
+
+| ID | Class | Why it stays |
+|---|---|---|
+| AUTH-009 | Deferred | signed-in user can still open /login |
+| HOME-007 | Backend | cross-device "in progress" needs a server rule |
+| SPLIT-004, EX-007, UI-009, WORKOUT-038, PERF-002, PERF-004, PROF-005, PERF-003 | Platform | need an iPhone to observe or tune |
+| SPLIT-006, WORKOUT-027, -028, -031, -032, -036, PICK-003, UI-004, UI-005, STATE-005, PWA-005, SPLIT-008, UI-012 | Deferred | worth doing, none release-blocking (details in 10.3) |
+| SPLIT-007, WORKOUT-034, -035, EX-006 | Product | what a "PR", "volume" and a shared catalogue should mean is a product call |
+| WORKOUT-039 | Not reproducible | duplicate set numbers: client reserves numbers and the server rejects duplicates (409), confirmed in the two-tab test |
+| WORKOUT-025, WORKOUT-033, PICK-002, UI-013, STATE-004, BUILD-003, HOME-008, REST-004, PICK-006, NEW-032, NEW-033 | Accepted | negligible impact |
+| NEW-007 | Platform | keypad-close easing needs a device |
+| NEW-023, NEW-024, NEW-027 | Backend / accepted | see their entries |
+
+### 11.5 Not tested / limits (nothing here is claimed fixed)
+
+- **Real iPhone — not tested at all.** The 25 checklist items in 9.10 are all outstanding.
+- **Drag-to-reorder gesture** — not drivable here; only its persistence logic was tested.
+- **Visual audit** — contrast was measured numerically on six screens in both themes, and the sign-in, Home, Profile (light and dark), History and Workout screens were looked at at 375×812 (plus a 1280×800 layout check in Phase 6). Not systematically reviewed: every sheet/confirmation/empty/error state, typography and spacing consistency, white text laid over exercise images/gradients (the measurement script can't see the gradient). Animations were reviewed in code (two infinite animations: the live-streak flame, a 46 s background blob; reduced motion is honoured) — no change made.
+- **Keyboard/screen reader** — programmatic scan (no unnamed controls; hidden file input is the only exception), a sheet focus/Tab/Escape test. Enter/Space on every custom control and an actual screen-reader run were not done.
+- **Timers** — the 10-exercise run's rest-timer check was inconclusive (ticking an incomplete set opens the keypad by design); timer behaviour rests on the Phase 4–6 runs.
+- Three or more tabs; two different users in two tabs; real network conditions; a real backend.
+
+### 11.6 Final counts (original audit issues)
+
+| | Original | Fixed | Open |
+|---|---|---|---|
+| 🔴 P0 | 5 | 4 | 1 — AUTH-002 (blocked: backend) |
+| 🟠 P1 | 14 | 13 | 1 — PWA-002 (deliberate) |
+| 🟡 P2 | 51 | 37 | 14 — all classified in 9.4 |
+| 🔵 P3 | 42 | 12 | 30 — classified in 11.4 |
+| ⚪ P4 | 9 | 2 | 7 — classified in 11.4 |
+
+Issues found after the original audit are tracked as NEW-001…NEW-033; their status is on each entry (all P0/P1/P2 ones are fixed except NEW-015, the deliberate persisted-queue limitation, and NEW-024's server-side part).
+
+### 11.7 Verification
+
+`npm run typecheck` clean · `npm test` 9/9 · `npm run lint` 0 errors, 0 warnings · `npm run build` passes (13 routes) · production-bundle scan clean (11.3).

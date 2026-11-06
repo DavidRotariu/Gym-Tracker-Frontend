@@ -49,7 +49,8 @@ export function getExerciseHistory(
 }
 
 export async function getLastSet(exerciseId: string) {
-  return apiRequest<LastSet | null>(`/exercises/${exerciseId}/last-set`);
+  // 204 (never trained) arrives as undefined, which React Query rejects as query data.
+  return (await apiRequest<LastSet | null>(`/exercises/${exerciseId}/last-set`)) ?? null;
 }
 
 /** Any subset of these fields — PATCH only touches what's included. */

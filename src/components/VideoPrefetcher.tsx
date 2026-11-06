@@ -1,6 +1,5 @@
 "use client";
 
-import { useExercises } from "@/hooks/use-exercises";
 import { useMuscles } from "@/hooks/use-muscles";
 import { muscleImage } from "@/lib/format";
 import { useEffect } from "react";
@@ -11,13 +10,17 @@ const CONCURRENCY = 4;
 interface NetworkInformation {
   saveData?: boolean;
   effectiveType?: string;
+  type?: string;
 }
 
 /** Cheap, native check — don't spend someone's mobile data warming a cache
  *  they didn't ask to warm. */
 function shouldSkip(): boolean {
   const conn = (navigator as Navigator & { connection?: NetworkInformation }).connection;
-  return !!conn && (conn.saveData === true || /2g/.test(conn.effectiveType ?? ""));
+  return (
+    !!conn &&
+    (conn.saveData === true || /2g/.test(conn.effectiveType ?? "") || conn.type === "cellular")
+  );
 }
 
 async function prefetchAll(urls: string[]) {
@@ -43,40 +46,36 @@ async function prefetchAll(urls: string[]) {
 }
 
 /**
- * Warms the browser's HTTP cache for every muscle illustration and exercise
- * clip right after login, so opening the picker later hits a warm local
- * cache instead of paying for it on the spot. Runs once per browser session
- * and skips itself on save-data/2G connections.
+ * Warms the browser's HTTP cache for the (small, app-hosted) muscle
+ * illustrations only, once per browser session, and never on save-data / 2G.
+ *
+ * It used to fetch every exercise video and thumbnail too — the whole
+ * catalogue, 4 at a time, right after login, on cellular as well (Safari has
+ * no Network Information API to say so), and for videos that were never going
+ * to be watched. Exercise media now loads only when a card or row actually
+ * scrolls into view (see MediaThumb: preload="none" until visible).
  */
 export function VideoPrefetcher() {
   const { data: muscles } = useMuscles();
-  const { data: exercises } = useExercises();
 
   useEffect(() => {
-    if (!muscles || !exercises) return;
+    if (!muscles) return;
     if (sessionStorage.getItem(PREFETCHED_KEY)) return;
     if (shouldSkip()) return;
 
-    const urls = [
-      ...muscles.map((m) => muscleImage(m.name)),
-      ...exercises.map((e) => e.video_url),
-      ...exercises.map((e) => e.thumbnail_url),
-    ].filter((u): u is string => !!u);
+    const urls = muscles.map((m) => muscleImage(m.name)).filter((u): u is string => !!u);
     if (urls.length === 0) return;
 
     sessionStorage.setItem(PREFETCHED_KEY, "1");
 
     // Idle priority — let the page the user is actually looking at finish
-    // its own requests first; this is background warmth, not a blocker.
-    // `timeout` guarantees it still runs even if the main thread never
-    // reports truly idle (some browsers/embedders never do) — not
-    // available in Safari at all, hence the setTimeout fallback.
+    // first. The setTimeout fallback is for Safari (no requestIdleCallback).
     const idle: (cb: () => void) => void =
       "requestIdleCallback" in window
         ? (cb) => requestIdleCallback(cb, { timeout: 5000 })
         : (cb) => setTimeout(cb, 1000);
     idle(() => void prefetchAll(urls));
-  }, [exercises]);
+  }, [muscles]);
 
   return null;
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMounted } from "@/hooks/use-mounted";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
@@ -61,10 +62,9 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
   // a commit synchronously without waiting on a state update to land first.
   const fieldRef = useRef<ActiveField | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
   const reduceMotion = useReducedMotion();
 
-  useEffect(() => setMounted(true), []);
 
   const close = useCallback(() => {
     fieldRef.current?.onCommit();
@@ -93,14 +93,26 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
   useEffect(() => {
     if (!isOpen) return;
     const h = panelRef.current?.offsetHeight ?? 240;
-    const prev = document.body.style.paddingBottom;
-    document.body.style.paddingBottom = `${h}px`;
+    const body = document.body;
+    const prev = body.style.paddingBottom;
+    // Opening is instant: the field-into-view scroll below needs the room to
+    // already exist, or the browser clamps that scroll to the old page height.
+    body.style.transition = "";
+    body.style.paddingBottom = `${h}px`;
     // "Open" for the rest of the page (the workout scroll-spy) — cleared the
     // instant it closes, not after the exit animation like the panel itself.
-    document.body.dataset.keypadOpen = "";
+    body.dataset.keypadOpen = "";
     return () => {
-      document.body.style.paddingBottom = prev;
-      delete document.body.dataset.keypadOpen;
+      // Closing eases the room away in step with the panel sliding down. Taking
+      // it all at once, with the page scrolled to the bottom, shrank the
+      // document in one frame and the browser clamped the scroll position —
+      // the whole page visibly jumped (NEW-007).
+      body.style.transition = "padding-bottom 0.28s cubic-bezier(0.32, 0.72, 0, 1)";
+      body.style.paddingBottom = prev;
+      delete body.dataset.keypadOpen;
+      setTimeout(() => {
+        if (!("keypadOpen" in body.dataset)) body.style.transition = "";
+      }, 350);
     };
   }, [isOpen]);
   const activeId = field?.id;

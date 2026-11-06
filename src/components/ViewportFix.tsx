@@ -31,8 +31,15 @@ export function ViewportFix() {
     };
 
     // The keyboard takes ~300ms to animate away — re-check a few times.
+    const timers = new Set<ReturnType<typeof setTimeout>>();
     const afterBlur = () => {
-      [60, 350, 800].forEach((ms) => setTimeout(resync, ms));
+      [60, 350, 800].forEach((ms) => {
+        const t = setTimeout(() => {
+          timers.delete(t);
+          resync();
+        }, ms);
+        timers.add(t);
+      });
     };
 
     document.addEventListener("focusout", afterBlur);
@@ -42,6 +49,7 @@ export function ViewportFix() {
     // Also on first load, e.g. arriving straight from the login redirect.
     afterBlur();
     return () => {
+      timers.forEach(clearTimeout);
       document.removeEventListener("focusout", afterBlur);
       vv?.removeEventListener("resize", resync);
       window.removeEventListener("pageshow", resync);

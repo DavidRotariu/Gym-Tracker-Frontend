@@ -25,7 +25,7 @@ import type { Split } from "@/types";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 /** "5 exercises · Lats & biceps" — total exercise count plus the split's
  *  top muscle(s) by exercise share, so the card summarizes at a glance
@@ -44,7 +44,7 @@ function splitSummary(split: Split, muscleLookup: Map<string, string>): string {
 
 export default function HomePage() {
   const router = useRouter();
-  const { data: splits, isLoading: splitsLoading } = useSplits();
+  const { data: splits, isLoading: splitsLoading, isError: splitsError, refetch: refetchSplits } = useSplits();
   const { data: history } = useWorkoutHistory();
   const { data: muscles } = useMuscles();
   const uploadQr = useUploadQr();
@@ -57,14 +57,24 @@ export default function HomePage() {
   const qrUrl = qr.url;
   const [qrUploadError, setQrUploadError] = useState<string | null>(null);
 
+  // The header date: a PWA left open overnight must not keep showing yesterday,
+  // so it's re-read whenever the app comes back to the foreground.
+  const [dayStamp, setDayStamp] = useState(() => Date.now());
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setDayStamp(Date.now());
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
   const today = useMemo(
     () =>
-      new Date().toLocaleDateString(undefined, {
+      new Date(dayStamp).toLocaleDateString(undefined, {
         weekday: "long",
         day: "numeric",
         month: "long",
       }),
-    [],
+    [dayStamp],
   );
 
   const muscleLookup = useMemo(
@@ -120,7 +130,7 @@ export default function HomePage() {
             <button
               onClick={() => setQrOpen(true)}
               aria-label="Show gym QR code"
-              className="flex size-9 cursor-pointer items-center justify-center rounded-pill text-label-secondary active:bg-fill"
+              className="relative flex size-9 cursor-pointer before:absolute before:-inset-1 before:content-[''] items-center justify-center rounded-pill text-label-secondary active:bg-fill"
             >
               <QrIcon />
             </button>
@@ -178,11 +188,19 @@ export default function HomePage() {
           </section>
         ) : splitsLoading ? (
           <div className="h-32 animate-pulse rounded-card bg-fill" />
+        ) : splitsError && !splits ? (
+          <Card flush>
+            <EmptyState
+              title="Couldn't load your splits"
+              description="Check your connection and try again."
+              action={<Button onClick={() => refetchSplits()}>Try again</Button>}
+            />
+          </Card>
         ) : (
           <Card flush>
             <EmptyState
               title="No splits yet"
-              description="Create a split to get a suggested session each time you train."
+              description="Create a split to get a suggested workout each time you train."
               action={
                 <Button onClick={() => router.push("/splits/new")}>
                   Create a split
@@ -251,7 +269,7 @@ export default function HomePage() {
         )}
       >
         {startWorkout.error && !pickerOpen && (
-          <p role="alert" className="pointer-events-auto mb-2 rounded-control bg-red px-3 py-2 text-caption font-semibold text-white">
+          <p role="alert" className="pointer-events-auto mb-2 rounded-control bg-red-strong px-3 py-2 text-caption font-semibold text-white">
             {startWorkout.error}
           </p>
         )}
@@ -424,6 +442,7 @@ function StreakBadge({ streak }: { streak: number }) {
   return (
     <div
       className="flex items-center gap-1 overflow-hidden rounded-pill bg-fill py-1 pr-3 pl-2"
+      role="img"
       aria-label={`${streak} day streak`}
     >
       <motion.svg
@@ -431,7 +450,9 @@ function StreakBadge({ streak }: { streak: number }) {
         height="16"
         viewBox="0 0 20 20"
         fill="none"
-        animate={{ scale: [1, 1.08, 1] }}
+        // Only a live streak pulses; a flame that never stops moving next to a
+        // "0" reads as noise.
+        animate={streak > 0 ? { scale: [1, 1.08, 1] } : undefined}
         transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
       >
         <path

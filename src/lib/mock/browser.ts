@@ -26,6 +26,10 @@ const API_PREFIXES = [
  * Dev-only network simulation for the demo build, set from the console:
  *   localStorage.overload_mock_latency = "1500"            // ms per API call
  *   localStorage.overload_mock_fail = "PATCH /sets/"       // regex on "METHOD /path" → 500
+ *   localStorage.overload_mock_offline = "1"               // every call fails like no connection
+ *   localStorage.overload_mock_expired = "1"               // every call gets a 401 (expired token)
+ *   localStorage.overload_mock_valid_epoch = "1"           // expires every access token; /auth/refresh issues fresh ones
+ *   localStorage.overload_mock_refresh_invalid = "1"       // ...and makes the refresh token fail too
  * Lets slow-gym-signal races and error recovery be reproduced on purpose.
  * Falls through to the real handlers when neither applies.
  */
@@ -34,6 +38,16 @@ const devNetworkKnobs = http.all("*", async ({ request }) => {
   if (!API_PREFIXES.some((p) => url.pathname.startsWith(p))) return;
   const latency = Number(localStorage.getItem("overload_mock_latency") ?? 0);
   if (latency > 0) await new Promise((r) => setTimeout(r, latency));
+  // overload_mock_offline = "1": every API call fails like a dead connection.
+  if (localStorage.getItem("overload_mock_offline")) return HttpResponse.error();
+  // overload_mock_expired = "1": the access token is treated as expired, so
+  // every authenticated call (and refresh) gets a 401.
+  if (localStorage.getItem("overload_mock_expired") && !url.pathname.startsWith("/auth/login") && !url.pathname.startsWith("/auth/signup")) {
+    return HttpResponse.json(
+      { error: { code: "401", message: "Sign in to continue." } },
+      { status: 401 },
+    );
+  }
   const fail = localStorage.getItem("overload_mock_fail");
   if (fail && new RegExp(fail).test(`${request.method} ${url.pathname}`)) {
     return HttpResponse.json(
@@ -63,6 +77,9 @@ function installFetchFallback() {
     if (!response || response.headers.get("x-msw-intention") === "passthrough") {
       return realFetch(input, init);
     }
+    // A dropped connection must reject like a real fetch does, not resolve to
+    // an opaque status-0 response (which the client would read as an HTTP error).
+    if (response.type === "error") throw new TypeError("Failed to fetch");
     return response;
   };
 }

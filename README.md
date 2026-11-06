@@ -20,15 +20,15 @@ Built solo as a personal side project — now used day-to-day by me and a few fr
 - **Progress tracking** — view training history and progress over time
 - **QR check-in** — quick check-in flow via QR code
 - **Auth** — email/password accounts, so each user's data is private
-- Toast notifications and polished micro-interactions (Sonner, Framer Motion)
+- **Resilient saving** — edits apply instantly, are sent in order, roll back individually on failure, and say whether they saved
 
 ## Tech Stack
 
-- [Next.js 15](https://nextjs.org) (App Router) + React 19 + TypeScript
-- [Supabase](https://supabase.com) for auth, database, and backend — no separate backend service
-- Tailwind CSS v4 + shadcn/ui (Radix UI primitives)
-- Framer Motion for animation, Sonner for toasts
-- `qrcode.react` for QR generation/check-in
+- [Next.js 16](https://nextjs.org) (App Router) + React 19 + TypeScript
+- TanStack Query for server state and the ordered, optimistic write queue
+- Tailwind CSS v4, Framer Motion
+- A separate REST API (`NEXT_PUBLIC_BASE_URL`) for auth and data
+- MSW powers an optional in-browser demo backend (`NEXT_PUBLIC_USE_MOCKS=true`)
 
 ## Getting Started
 
@@ -39,7 +39,18 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) to view the app.
 
-You'll need a Supabase project and the relevant environment variables (URL + anon key) configured locally to run it against real data.
+Environment (`.env.local`):
+
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_BASE_URL` | Base URL of the API (empty with mocks: same origin). |
+| `NEXT_PUBLIC_USE_MOCKS` | `true` runs against the in-browser demo backend (demo login pre-filled). Leave unset for a real build — none of the demo code ships. |
+
+Scripts: `npm run typecheck`, `npm test` (Node's built-in runner), `npm run lint`, `npm run build`.
+
+In a demo build, simulate bad networks from the browser console (see `docs/QA_AUDIT.md`): `localStorage.overload_mock_latency = "800"`, `overload_mock_fail = "PATCH /sets/"`, `overload_mock_offline = "1"`, `overload_mock_expired = "1"`.
+
+`docs/QA_AUDIT.md` is the QA/reliability audit and the source of truth for known issues.
 
 ## Project Structure
 
