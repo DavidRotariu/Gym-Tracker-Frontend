@@ -265,6 +265,22 @@ body {
   overscroll-behavior-y: none;
 }
 
+/* Controls never double-tap-zoom: without this, iOS can hold a tap to see if
+   a second one follows, and two quick taps on a keypad key or stepper can
+   turn into a zoom instead of two presses. In the base layer so the
+   touch-none / touch-pan-y utilities on drag and swipe surfaces still win. */
+@layer base {
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  label,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+}
+
 /* SF Pro Display for anything 20px and up — the native iOS shell. */
 .font-display,
 .text-large-title {

@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import * as workoutsApi from "@/lib/api/workouts";
+import { MAX_WORKOUT_MS, workoutEndTime } from "@/lib/format";
 import type { WorkoutPatch } from "@/lib/api/workouts";
 import type { WorkoutSessionSummary } from "@/types";
 import { sessionWrite, sessionWriteKey } from "./use-workout-session";
@@ -49,6 +50,11 @@ export function useStartOrResumeWorkout() {
   const router = useRouter();
   const start = useStartWorkout();
   const busy = useRef(false);
+  // Own state, not start.isPending: the history check before the start
+  // request is part of the same action, and it has to show as pending and
+  // be able to fail visibly too.
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function run(
     splitId: string | null,
@@ -56,22 +62,43 @@ export function useStartOrResumeWorkout() {
   ) {
     if (busy.current) return;
     busy.current = true;
+    setPending(true);
+    setError(null);
     try {
       const history = await qc.ensureQueryData(historyQuery);
-      const open = history.find((s) => !s.completed_at);
+      let open = history.find((s) => !s.completed_at);
+      // Abandoned (past the 3h cap): close it out instead of "resuming" it —
+      // opening it would only auto-end it and land on its history page.
+      if (open && !isLiveSession(open)) {
+        const stale = await workoutsApi.getWorkout(open.id);
+        await workoutsApi.patchWorkout(open.id, {
+          completed_at: workoutEndTime(stale, Date.now()),
+        });
+        qc.invalidateQueries({ queryKey: ["workouts"] });
+        open = undefined;
+      }
       const id = open ? open.id : (await start.mutateAsync(splitId)).id;
       opts.onDone?.();
       const url = `/workout/${id}`;
       if (opts.replace) router.replace(url);
       else router.push(url);
-    } catch {
-      // Surfaced through `start.error` / `start.isError` by the caller.
+    } catch (err) {
+      setError(
+        err instanceof Error && err.message ? err.message : "Couldn't start the workout. Try again.",
+      );
     } finally {
       busy.current = false;
+      setPending(false);
     }
   }
 
-  return { run, isPending: start.isPending, error: start.error };
+  return { run, isPending: pending, error };
+}
+
+/** An unfinished session still within the auto-end window — i.e. one that
+ *  "Resume workout" should actually go back to. */
+export function isLiveSession(s: WorkoutSessionSummary, now = Date.now()): boolean {
+  return !s.completed_at && now - new Date(s.started_at).getTime() <= MAX_WORKOUT_MS;
 }
 
 export function usePatchWorkout(id: string) {

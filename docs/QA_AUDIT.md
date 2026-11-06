@@ -17,6 +17,32 @@ Date: 2026-11-06 · Commit audited: `8e4da28` (main) · No application code was 
 
 ---
 
+## 0. Fix progress (updated after Phase 3)
+
+The original findings below are unchanged. A **Status** line under a finding means it was fixed (✅) or partly fixed (🟡). A finding with no Status line is still open.
+
+| Phase | What | Audit issues fixed | Verification |
+|---|---|---|---|
+| Phase 2 (commit `af67962`) | Data integrity: write queue, rollbacks, auth/session, start-or-resume, confirmations, input checks | 21 fixed, 2 partly (AUTH-002, PROF-003; PROF-003 completed in Phase 3) | Typecheck, build, and a Node check of the queue; several were later confirmed in the Phase 3 browser run |
+| Phase 3 | Interaction reliability: sheets, swipe rows, keypad, focus, add set and ✓ taps, loading/error states, navigation/scroll, touch handling | 30 fixed, 8 partly | Browser run on the mock backend (now possible thanks to the PWA-001 fix), using simulated latency/failures (see below), plus typecheck and build |
+
+**Still open, by original severity** (partly fixed issues count as open):
+
+| | Original | Fixed | Open |
+|---|---|---|---|
+| 🔴 P0 | 5 | 4 | 1: AUTH-002 (partly fixed; needs refresh tokens from the backend) |
+| 🟠 P1 | 14 | 12 | 2: PWA-002 (no offline shell), PWA-003 (prefetches every video) |
+| 🟡 P2 | 51 | 31 | 20 |
+| 🔵 P3 | 42 | 4 | 38 |
+| ⚪ P4 | 9 | 0 | 9 |
+
+**Simulating network problems in the demo build** (added in Phase 3, mock builds only, set from the browser console):
+`localStorage.overload_mock_latency = "1500"` delays every mock API call by 1.5 s.
+`localStorage.overload_mock_fail = "PATCH /sets/"` makes any request matching that regex (on "METHOD /path") return a 500.
+Remove the keys to go back to normal.
+
+---
+
 ## 1. Summary counts
 
 | | Count |
@@ -67,6 +93,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 ### 3.1 Authentication & session
 
 #### AUTH-001 · 🔴 P0 · Auth → Logout
+- **Status:** ✅ Fixed — Phase 2. Login as a different user, and logout, clear the query cache and user-scoped localStorage. *Files:* `src/hooks/use-auth.ts`. *Verified:* Static/build only.
 - **Problem:** Logout clears tokens but not the React Query cache or user-scoped localStorage. The next account on the same device sees the previous user's data.
 - **Repro:** Log in as A and open Home, Splits and History. Log out, then sign up or log in as B within 30 s. Open Home.
 - **Expected:** B sees only B's data.
@@ -76,6 +103,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed (code path).
 
 #### AUTH-002 · 🔴 P0 · Auth → Token expiry
+- **Status:** 🟡 Partly fixed — Phase 2. Session expiry no longer hard-reloads. It routes to /login?next=… client-side and returns to the same page after sign-in. The backend still needs to issue refresh tokens, and writes that failed with 401 are still lost. *Files:* `src/lib/api/client.ts, src/hooks/use-auth.ts, src/app/(auth)/login/page.tsx`. *Verified:* Static/build only.
 - **Problem:** The deployed API issues no refresh token (code comment). When the access token expires, the next request gets a 401. `clearSession()` then does `window.location.href = "/login"`, a hard reload, even in the middle of a workout.
 - **Repro:** Start a workout and wait past the token TTL (or edit `overload_token` to an expired JWT). Tap ✓ on a set.
 - **Expected:** A silent refresh, or at least a re-auth prompt that keeps the workout state.
@@ -85,6 +113,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Highly likely. The severity depends on the backend token TTL, which needs confirming.
 
 #### AUTH-003 · 🟠 P1 · Auth → Refresh concurrency
+- **Status:** ✅ Fixed — Phase 2. Single-flight refresh shared by every 401, and one app-wide refresh timer. *Files:* `src/lib/api/client.ts, src/hooks/use-auth.ts`. *Verified:* Static/build only.
 - **Problem:** There's no single-flight around refresh. Every concurrent 401 calls `/auth/refresh` with the same refresh token, and every `useAuth()` instance (root page, `(app)` layout, Profile, login and signup each create one) schedules its own refresh timer.
 - **Repro:** This only becomes visible once refresh tokens are issued. Let the token expire with 3 queries mounted, or 2 `useAuth` instances alive at refresh time.
 - **Expected:** One refresh, with the other requests waiting for it.
@@ -93,6 +122,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed (latent until refresh tokens ship).
 
 #### AUTH-004 · 🟡 P2 · Auth → Blob requests
+- **Status:** ✅ Fixed — Phase 3. Image requests (QR, avatar) refresh the token and retry on a 401. *Files:* `src/lib/api/client.ts`. *Verified:* Static/build only.
 - **Problem:** `apiRequestBlob` (QR image, profile picture) has no 401 → refresh → retry path.
 - **Actual:** After expiry the QR or avatar fails silently. The QR sheet shows "No QR code uploaded yet" (see HOME-001).
 - **Evidence:** `src/lib/api/client.ts:121-131`.
@@ -110,6 +140,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### AUTH-007 · 🟡 P2 · Network → All requests
+- **Status:** ✅ Fixed — Phase 3. Requests time out after 20 s (60 s for uploads) via AbortSignal.timeout. *Files:* `src/lib/api/client.ts`. *Verified:* Static/build only.
 - **Problem:** `fetch` has no timeout or AbortController anywhere.
 - **Repro:** Gym Wi-Fi that accepts the connection but stalls.
 - **Actual:** "Signing in…", "Starting…", skeletons and the LaunchGate black screen hang until the OS times out (60 s or more).
@@ -117,6 +148,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### AUTH-008 · 🟡 P2 · Network → Error parsing and messages
+- **Status:** ✅ Fixed — Phase 3. Network and timeout failures, and non-JSON error bodies, become readable ApiRequestErrors. *Files:* `src/lib/api/client.ts`. *Verified:* Browser: the server's error message was shown ("Simulated server error."). The network and HTML paths are static only.
 - **Problem:** Non-JSON error bodies (an HTML 502/504 from a gateway, a Lambda timeout page) make `JSON.parse` throw a raw `SyntaxError`. Network failure throws a `TypeError` ("Load failed" on Safari). The workout page shows `err.message` verbatim.
 - **Actual:** Toasts such as "Load failed" or "Unexpected token '<'…".
 - **Evidence:** `src/lib/api/client.ts:108-109`; `src/app/(app)/workout/[sessionId]/page.tsx:102-106`.
@@ -135,6 +167,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 ### 3.2 Launch gate
 
 #### LAUNCH-001 · 🟠 P1 · Launch gate → "Let's do it!"
+- **Status:** ✅ Fixed — Phase 2 (+Phase 3). The gate uses the shared start-or-resume path and says "Resume workout". Phase 3: sessions past the 3h cap are closed out instead of resumed (NEW-002). *Files:* `src/components/LaunchGate.tsx, src/hooks/use-workouts.ts`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3): the gate showed Resume; 3 rapid starts created 1 workout.
 - **Problem:** The gate ignores an in-progress workout. Home and Splits both guard against this; the gate doesn't.
 - **Repro:** Start a workout. Kill the PWA (or let iOS evict it) and reopen it. Standalone iOS reopens at `start_url` "/", sessionStorage is empty, so the gate shows "It's Push Day!". Tap "Let's do it!".
 - **Expected:** "Resume workout", or straight back to the open session.
@@ -143,6 +176,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed (code). The relaunch behaviour needs an iPhone to confirm.
 
 #### LAUNCH-002 · 🟠 P1 · Launch gate → Loading
+- **Status:** ✅ Fixed — Phase 3. If the gate's data isn't ready within 2.5 s it moves on to Home instead of holding a blank screen. *Files:* `src/components/LaunchGate.tsx`. *Verified:* Static/build only.
 - **Problem:** While splits and history load, the gate renders an opaque full-screen black overlay with no spinner and no way out.
 - **Repro:** A slow or stalled network on cold launch.
 - **Actual:** A black screen for as long as the fetch hangs (no timeout, see AUTH-007). It looks like the app crashed.
@@ -150,6 +184,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### LAUNCH-003 · 🟡 P2 · Launch gate → Start failure
+- **Status:** ✅ Fixed — Phase 3. Start errors are shown under the gate's buttons. *Files:* `src/components/LaunchGate.tsx, src/hooks/use-workouts.ts`. *Verified:* Static/build only.
 - **Problem:** `start()` awaits `mutateAsync` with no catch.
 - **Actual:** On failure the button goes back to "Let's do it!" with no message (an unhandled promise rejection).
 - **Evidence:** `src/components/LaunchGate.tsx:57-60`.
@@ -158,6 +193,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 ### 3.3 Home / Today
 
 #### HOME-001 · 🟠 P1 · Home → QR sheet
+- **Status:** ✅ Fixed — Phase 3. The QR is cached in React Query (fetched once, kept until an upload), with separate loading, none-uploaded, and failed-with-retry states. *Files:* `src/hooks/use-users.ts, src/app/(app)/home/page.tsx, src/components/LaunchGate.tsx`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3): the sheet opened straight onto the result. Offline use still needs PWA-002.
 - **Problem:** The QR blob is re-fetched on every open (nothing is cached, and the URL is set to null on close). The placeholder text "No QR code uploaded yet" shows **while it loads and when it fails**.
 - **Repro:** Open the QR sheet on poor or no signal, which is exactly where it's needed, at the gym door.
 - **Expected:** The last known QR appears instantly and works offline.
@@ -166,6 +202,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### HOME-002 · 🟡 P2 · Home / Splits → Start workout errors
+- **Status:** ✅ Fixed — Phase 3. start-or-resume tracks its own pending and error state. Errors show on Home (the CTA and the sheet) and on Splits, and the button reads "Starting…". *Files:* `src/hooks/use-workouts.ts, src/app/(app)/home/page.tsx, src/app/(app)/splits/page.tsx`. *Verified:* Static/build only.
 - **Problem:** `start()` on Home and on Splits awaits `mutateAsync` with no catch.
 - **Actual:** On failure nothing happens: the Choose-split sheet stays open, the buttons re-enable, and there's no message.
 - **Evidence:** `src/app/(app)/home/page.tsx:102-114`, `src/app/(app)/splits/page.tsx:29-39`.
@@ -179,12 +216,14 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### HOME-004 · 🟡 P2 · Home → Floating CTA overlap
+- **Status:** ✅ Fixed — Phase 3. A spacer clears the floating CTA and its fade. *Files:* `src/app/(app)/home/page.tsx`. *Verified:* Static/build only.
 - **Problem:** The CTA stack (88 px offset, a 56 px button and a 32 px gradient) reaches about 176 px plus the safe area, but `main` only reserves 104 px plus the safe area.
 - **Actual:** The bottom of the page content, such as the "Last workout" card, sits under the CTA and gradient, worst on SE or mini-sized phones.
 - **Evidence:** `src/app/(app)/home/page.tsx:244-265`, `src/app/(app)/layout.tsx:43`.
 - **Confidence:** Highly likely.
 
 #### HOME-005 · 🟡 P2 · Home → QR upload
+- **Status:** ✅ Fixed — Phase 3. Upload errors are shown, non-images are rejected with a message, and the input is reset so the same file can be picked again. *Files:* `src/app/(app)/home/page.tsx`. *Verified:* Static/build only.
 - **Problem:** There's no type or size validation and no error message (`uploadQr.mutate` has no onError). The file input value is never reset, so re-picking the same file does nothing.
 - **Evidence:** `src/app/(app)/home/page.tsx:293-306`.
 - **Confidence:** Confirmed.
@@ -195,6 +234,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### HOME-007 · 🔵 P3 · Home → In-progress detection
+- **Status:** 🟡 Partly fixed — Phase 3. Only sessions inside the 3h window count as resumable. Cross-device staleness remains. *Files:* `src/hooks/use-workouts.ts, src/app/(app)/home/page.tsx`. *Verified:* Static/build only.
 - **Problem:** `inProgress` is read from the cached history list (30 s stale, top 50 only). It can show "Choose split" while a workout is open on another device, or "Resume" a session that was already finished elsewhere.
 - **Evidence:** `src/app/(app)/home/page.tsx:77`, `src/hooks/use-workouts.ts:6-11`.
 - **Confidence:** Confirmed.
@@ -207,6 +247,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 ### 3.4 Splits
 
 #### SPLIT-001 · 🟠 P1 · Splits → Edit → Delete split
+- **Status:** ✅ Fixed — Phase 2. "Delete split" now asks for confirmation, shows a pending state and shows an error on failure. *Files:* `src/components/splits/SplitForm.tsx`. *Verified:* Static/build only.
 - **Problem:** "Delete split" on the edit page deletes immediately with no confirmation (the list path does confirm). There's no pending state, and `mutateAsync` in `onClick` has no catch.
 - **Repro:** Open a split's edit page and tap "Delete split" (or double-tap it).
 - **Actual:** The split is gone with no undo. A double tap sends two DELETEs. Failures are silent.
@@ -219,6 +260,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### SPLIT-003 · 🟡 P2 · Splits → Stepper typed values
+- **Status:** ✅ Fixed — Phase 2. Exercise counts are rounded to whole numbers. *Files:* `src/components/splits/MuscleAllocator.tsx`. *Verified:* Static/build only.
 - **Problem:** The Stepper's tap-to-type input uses `inputMode="decimal"` and `clamp` keeps two decimals, so `nr_of_exercises` can be 2.5. The backend expects an integer.
 - **Actual:** You get the generic "Couldn't save this split" with no hint why. Typed 0 or negatives clamp silently.
 - **Evidence:** `src/components/ui/Stepper.tsx:42-45, 96-100, 140`.
@@ -230,6 +272,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Requires iPhone.
 
 #### SPLIT-005 · 🔵 P3 · Splits → Post-save navigation
+- **Status:** ✅ Fixed — Phase 3. Create, save and delete use router.replace. *Files:* `src/app/(app)/splits/new/page.tsx, src/app/(app)/splits/[id]/edit/page.tsx`. *Verified:* Static/build only.
 - **Problem:** Create and save use `router.push("/splits")`, so Back returns to the stale form.
 - **Evidence:** `src/app/(app)/splits/new/page.tsx:19`, `src/app/(app)/splits/[id]/edit/page.tsx:35`.
 - **Confidence:** Confirmed.
@@ -250,6 +293,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### SPLIT-009 · 🔵 P3 · Splits → Start before history loads
+- **Status:** ✅ Fixed — Phase 2. start-or-resume waits for the history list (ensureQueryData) and ignores repeat taps. *Files:* `src/hooks/use-workouts.ts`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3): 3 rapid taps → 1 workout.
 - **Problem:** The in-progress guard reads `history`, which may still be undefined, so it falls through and creates a duplicate workout.
 - **Evidence:** `src/app/(app)/splits/page.tsx:31`.
 - **Confidence:** Confirmed.
@@ -257,6 +301,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 ### 3.5 Exercise detail
 
 #### EX-001 · 🟡 P2 · Exercise → Edit → Rest time
+- **Status:** ✅ Fixed — Phase 2. An empty or non-integer rest time is rejected. *Files:* `src/app/(app)/exercises/[id]/page.tsx`. *Verified:* Static/build only.
 - **Problem:** An empty field gives `Number("") === 0`, which passes validation, so 0 s is saved silently. Decimals are accepted too. The error text says "positive" but 0 is allowed. Together with WORKOUT-037, the timer then chimes the moment a set is ticked.
 - **Evidence:** `src/app/(app)/exercises/[id]/page.tsx:295-299`.
 - **Confidence:** Confirmed.
@@ -268,6 +313,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Highly likely.
 
 #### EX-003 · 🟡 P2 · Exercise → Error and not-found states
+- **Status:** ✅ Fixed — Phase 3. A failed history load shows "Couldn't load history" with retry instead of "No logs yet". *Files:* `src/app/(app)/exercises/[id]/page.tsx`. *Verified:* Static/build only.
 - **Problem:** A history fetch error renders "No logs yet". An unknown exercise id keeps the title "Exercise" forever, with no not-found state.
 - **Evidence:** `src/app/(app)/exercises/[id]/page.tsx:34-37, 134-141`.
 - **Confidence:** Confirmed.
@@ -278,6 +324,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Highly likely (depends on what the real backend returns).
 
 #### EX-005 · 🔵 P3 · Exercise → Back button
+- **Status:** ✅ Fixed — Phase 3. With no in-app history, Back goes to /home. *Files:* `src/components/ui/LargeTitle.tsx`. *Verified:* Static/build only.
 - **Problem:** `back={true}` calls `router.back()`. On a deep link or after a reload, Back does nothing or leaves the app.
 - **Evidence:** `src/components/ui/LargeTitle.tsx:38-41`, `exercises/[id]/page.tsx:68`.
 - **Confidence:** Confirmed.
@@ -295,6 +342,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 ### 3.6 Workout screen (`/workout/[sessionId]`), highest priority
 
 #### WORKOUT-001 · 🔴 P0 · Workout → Optimistic mutation model
+- **Status:** ✅ Fixed — Phase 2. One ordered write queue per session (mutation scope), per-entity rollback, a single refetch when the queue drains, and no refetch-on-focus while writes are pending. *Files:* `src/hooks/use-workout-session.ts, src/hooks/use-workouts.ts`. *Verified:* Node check against React Query (Phase 2), plus browser: a failed save rolled back only its own field and the retry saved (Phase 3).
 - **Problem:** Every set and exercise mutation does three things: it snapshots the **whole session** in `onMutate`, rolls back to **that snapshot** on error, and invalidates and refetches the session in `onSettled`. With overlapping mutations, all of these fight each other.
   - A rollback restores a snapshot taken before other in-flight edits, wiping them from the UI even if they saved.
   - A refetch triggered when mutation A settles can return before mutation B has committed on the server, so B's optimistic value reverts on screen and then flips back on the next refetch. You see flicker, checkmarks un-ticking, or typed weights reverting.
@@ -307,6 +355,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Highly likely.
 
 #### WORKOUT-002 · 🔴 P0 · Workout → Out-of-order writes
+- **Status:** ✅ Fixed — Phase 2. Writes reach the server one at a time, in tap order (mutation scope). *Files:* `src/hooks/use-workout-session.ts`. *Verified:* Node check (Phase 2), plus browser: 3 rapid adds were saved as sets 1, 2, 3 (Phase 3).
 - **Problem:** Each tap fires an independent PATCH: set-type cycling, ✓/un-✓, every keypad commit, copy-previous. There's no per-set serialisation, so the server applies them in arrival order. `usePatchSets` also sends N requests in parallel with `Promise.all`.
 - **Repro (cellular):** Cycle a set's type 4 times quickly, or tick and un-tick a set.
 - **Actual:** The server can end in a state the UI never showed. After the refetch the type "jumps", or a set that showed ✓ is saved as not completed, so it's missing from the summary, history, volume and PRs.
@@ -314,6 +363,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Highly likely.
 
 #### WORKOUT-003 · 🟠 P1 · Workout → Set completion toggle
+- **Status:** ✅ Fixed — Phase 3. A second ✓ tap within 400 ms counts as the same intention. *Files:* `src/components/workout/SetRow.tsx`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3): a double-click left the set completed and the rest timer started once.
 - **Problem:** ✓ is a pure toggle with no guard against repeats.
 - **Repro:** Double-tap ✓, or tap it 10 times.
 - **Actual:** A double tap un-completes the set. Every completion restarts the rest timer, vibrates, re-celebrates and calls `markExerciseTrained`. Ten taps send ten PATCHes, which feeds WORKOUT-002.
@@ -321,17 +371,20 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### WORKOUT-004 · 🔴 P0 · Workout → Remove exercise
+- **Status:** ✅ Fixed — Phase 2. Asks for confirmation when the exercise has logged sets, removes it optimistically, and is disabled on unsaved cards. *Files:* `src/app/(app)/workout/[sessionId]/page.tsx, src/components/workout/ExerciseCard.tsx`. *Verified:* Static/build only.
 - **Problem:** The ✕ in the action pill on the card video deletes the exercise and all of its logged sets on a single tap, with no confirmation and no undo. It sits next to the swap and drag buttons. The delete isn't optimistic and has no pending state, so a second tap sends a duplicate DELETE, which 404s and shows an error toast.
 - **Repro:** Reach for the drag handle or swap and catch ✕ instead.
 - **Evidence:** `src/components/workout/ExerciseCard.tsx:190-204`; `src/hooks/use-workout-session.ts:85-92`; `page.tsx:618`.
 - **Confidence:** Confirmed.
 
 #### WORKOUT-005 · 🟠 P1 · Workout → Swap exercise
+- **Status:** ✅ Fixed — Phase 2. Asks for confirmation before a swap clears logged sets. *Files:* `src/app/(app)/workout/[sessionId]/page.tsx`. *Verified:* Static/build only.
 - **Problem:** Swapping clears every set, completed ones included (on the server too: `we.sets = []` in the mock), with no confirmation.
 - **Evidence:** `src/hooks/use-workout-session.ts:63-76`; `src/lib/mock/handlers.ts:403-415`; `ExerciseCard.tsx:172-189`.
 - **Confidence:** Confirmed.
 
 #### WORKOUT-006 · 🟠 P1 · Workout → Load errors
+- **Status:** ✅ Fixed — Phase 3. An error state with Home and Try again (no retry for a 404). *Files:* `src/app/(app)/workout/[sessionId]/page.tsx, src/app/providers.tsx`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3): /workout/99999 showed "This workout no longer exists" with a Home button.
 - **Problem:** The page has no error state. `isLoading || !session` covers errors too.
 - **Repro:** Open a discarded or deleted session through a stale "Resume" (see AUTH-001 / HOME-007) or an old link, or open it while offline.
 - **Actual:** Three skeleton blocks forever. The session bar (the only back button) isn't rendered and the tab bar is hidden on this route, so in standalone mode **you're stuck**.
@@ -339,12 +392,14 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### WORKOUT-007 · 🟠 P1 · Workout → Finish
+- **Status:** ✅ Fixed — Phase 2 (+Phase 3). Finish waits for queued writes, catches errors, and summarizes the saved state. The error toast sits above the summary. Phase 3: the button reads "Saving…" while it waits. *Files:* `src/app/(app)/workout/[sessionId]/page.tsx, src/hooks/use-workouts.ts`. *Verified:* Static/build only.
 - **Problem:** `finish()` awaits `mutateAsync` with no catch. Finish doesn't wait for pending set PATCHes. The summary is built from the local optimistic snapshot.
 - **Actual:** On a network failure Finish silently does nothing. If a set PATCH fails after the summary opens, the error toast (z-40) is hidden under the summary (z-50), so the summary shows data the server never saved.
 - **Evidence:** `src/app/(app)/workout/[sessionId]/page.tsx:481-486, 658-667, 693-700`.
 - **Confidence:** Confirmed.
 
 #### WORKOUT-008 · 🟠 P1 · Workout → First-set autofill race
+- **Status:** ✅ Fixed — Phase 2. First-set autofill only fills a set that's still untouched. *Files:* `src/app/(app)/workout/[sessionId]/page.tsx`. *Verified:* Static/build only.
 - **Problem:** "Log first set" POSTs the set, then fetches exercise history, then **unconditionally** PATCHes weight, reps and RIR from last time.
 - **Repro (slow network):** Tap "Log first set", then type 100 kg or tick ✓ before the history request returns.
 - **Actual:** Your input is overwritten with last session's numbers. It can even change a set that's already completed.
@@ -352,6 +407,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Highly likely.
 
 #### WORKOUT-009 · 🟠 P1 · Workout → Keypad draft persistence
+- **Status:** ✅ Fixed — Phase 2. The keypad commits its draft on visibilitychange (hidden), pagehide and unmount. *Files:* `src/components/workout/NumericKeypad.tsx`. *Verified:* Static/build only. Eviction behaviour needs an iPhone.
 - **Problem:** A draft is only committed when you tap somewhere else (`pointerdown`). Nothing commits it on `visibilitychange`, `pagehide` or unmount.
 - **Repro:** Type "102.5" and lock the phone or switch apps. iOS evicts the PWA.
 - **Actual:** The value is lost.
@@ -359,18 +415,21 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed (the eviction part needs an iPhone).
 
 #### WORKOUT-010 · 🟡 P2 · Workout → Keypad accepts decimals for reps and seconds
+- **Status:** ✅ Fixed — Phase 2. Reps and seconds fields take whole numbers only; "." is disabled. *Files:* `src/components/workout/SetRow.tsx, src/components/workout/NumericKeypad.tsx`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3): "." disabled on reps.
 - **Problem:** The "." key is always enabled, so reps can be "8.5".
 - **Actual:** If the backend validates integers, the PATCH fails, the edit rolls back and an error toast appears.
 - **Evidence:** `src/components/workout/NumericKeypad.tsx:44`, `SetRow.tsx:132-150, 325-333`.
 - **Confidence:** Suspected (backend).
 
 #### WORKOUT-011 · 🟡 P2 · Workout → No-op commits
+- **Status:** ✅ Fixed — Phase 2. An unchanged value no longer sends a PATCH. *Files:* `src/components/workout/SetRow.tsx`. *Verified:* Static/build only.
 - **Problem:** Opening and closing a field PATCHes even when nothing changed. An empty field PATCHes null.
 - **Actual:** Extra requests widen the race window in WORKOUT-001 and WORKOUT-002.
 - **Evidence:** `src/components/workout/SetRow.tsx:120-130`.
 - **Confidence:** Confirmed.
 
 #### WORKOUT-012 · 🟡 P2 · Workout → Keypad vs scrolling
+- **Status:** ✅ Fixed — Phase 3. A press outside the keypad saves the draft immediately, but only a tap (no movement, no pointercancel) closes it. Scrolling keeps it open, and tapping another field switches to it without closing and reopening. *Files:* `src/components/workout/NumericKeypad.tsx, src/components/workout/SetRow.tsx`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3) (mouse drag): the keypad stayed open and the value was saved. Native touch scroll requires an iPhone.
 - **Problem:** Any `pointerdown` outside the keypad closes it, including the start of a scroll gesture. The body `paddingBottom` added "so you can scroll lower sets above the keypad" can never be used. When the keypad closes, the padding is removed, which shrinks the page and makes it jump near the bottom.
 - **Evidence:** `src/components/workout/NumericKeypad.tsx:91-99, 110-118`.
 - **Confidence:** Confirmed.
@@ -381,11 +440,13 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### WORKOUT-014 · 🟡 P2 · Workout → Forward-fill edge cases
+- **Status:** ✅ Fixed — Phase 2. Forward-fill and its live preview skip completed and unsaved sets. *Files:* `src/app/(app)/workout/[sessionId]/page.tsx, src/components/workout/ExerciseCard.tsx`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3): the fill reached only the empty later set.
 - **Problem:** Forward-fill writes into later sets **even if they're already completed**, as long as that field is null. The live mirror previews values on unsaved (optimistic) sets, but the commit skips them, so the preview value appears and then disappears.
 - **Evidence:** `page.tsx:441-456`; `ExerciseCard.tsx:72-79`.
 - **Confidence:** Confirmed.
 
 #### WORKOUT-015 · 🟡 P2 · Workout → Exercise focus and dimming
+- **Status:** ✅ Fixed — Phase 3. The scroll-spy ignores app-started smooth scrolls, freezes while the keypad is open, and measures the real session-bar height (safe area included). It focuses the last card at the bottom of the page and the first at the top. *Files:* `src/app/(app)/workout/[sessionId]/page.tsx, src/lib/scroll.ts, src/components/workout/ExerciseCard.tsx, src/components/workout/NumericKeypad.tsx`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3): exactly one focused card at the top, middle and bottom; focus stayed on the edited card while scrolling with the keypad open.
 - **Problem:** Exactly one id is focused at a time, but it's often the wrong one.
   - (a) Auto-advance to the last card: `scrollIntoView({block:"center"})` can't centre it at the bottom of the page, and the scroll-spy then hands focus back to the previous card.
   - (b) Opening the keypad calls `scrollBy`, the scroll-spy refocuses, and the card you're editing dims.
@@ -396,27 +457,32 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Highly likely.
 
 #### WORKOUT-016 · 🟡 P2 · Workout → Reorder persistence
+- **Status:** ✅ Fixed — Phase 3. The stored order uses server ids, and placeholder ids are replaced once the server confirms them. The order key is removed on finish or discard. *Files:* `src/app/(app)/workout/[sessionId]/page.tsx`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3): the saved order survived a reload, and an added exercise's placeholder id became its real id.
 - **Problem:** Exercises added during the session are keyed by their **optimistic id** for the rest of the page's life (`exerciseKeyAlias`), and that key is what `saveOrder` stores. The alias map lives in memory only.
 - **Actual:** After a reload or PWA relaunch the saved keys don't match, and every exercise added during the session falls back to the end in server order. So the local-only reorder, a known gap, is also broken locally.
 - **Evidence:** `page.tsx:41-50, 180-205`; `use-workout-session.ts:17-18`.
 - **Confidence:** Confirmed.
 
 #### WORKOUT-017 · 🟡 P2 · Workout → Exercise videos blank
+- **Status:** ✅ Fixed — Phase 3. The video observer re-attaches when the video element appears or changes. A failure is tracked per src, so swapping away from broken media recovers. *Files:* `src/components/ui/MediaThumb.tsx`. *Verified:* Static/build only (the mock data has no videos).
 - **Problem:** `MediaThumb`'s IntersectionObserver effect depends only on `[wantsMotion]`. When the `<video>` element appears after the first render, the observer never attaches. That happens when the session loads before `/exercises` (on cold load or reload), when you swap from an image exercise to a video one, or when the view moves from the fallback letter to video. With `preload="none"` the video never loads, so the box stays empty grey. `failed` also isn't reset when `src` changes, so swapping away from broken media keeps showing the fallback letter.
 - **Evidence:** `src/components/ui/MediaThumb.tsx:44, 54-73, 103`.
 - **Confidence:** Highly likely.
 
 #### WORKOUT-018 · 🟡 P2 · Workout → Videos under Reduced Motion or Low Power Mode
+- **Status:** 🟡 Partly fixed — Phase 3. With Reduced Motion or still mode, the video now preloads metadata with a #t=0.1 fragment so a frame shows. Low Power Mode autoplay blocking isn't handled. *Files:* `src/components/ui/MediaThumb.tsx`. *Verified:* Requires iPhone.
 - **Problem:** With Reduced Motion the observer is skipped and there's no poster, so with `preload="none"` nothing ever shows. iOS Low Power Mode blocks autoplay, `play()` rejects silently, and the box stays blank. `thumbnail_url` is never used as a poster.
 - **Evidence:** `src/components/ui/MediaThumb.tsx:47, 56, 93-113`.
 - **Confidence:** Confirmed for Reduced Motion. Requires iPhone for Low Power Mode.
 
 #### WORKOUT-019 · 🟡 P2 · Workout → Delete set and remove exercise feedback
+- **Status:** ✅ Fixed — Phase 2. Deleting a set and removing an exercise are optimistic, so the row leaves on the tap. Gaps in set numbers remain by design. *Files:* `src/hooks/use-workout-session.ts`. *Verified:* Static/build only.
 - **Problem:** Both are non-optimistic with no pending state. The swiped row springs closed and stays visible until the refetch, so users delete again, the second DELETE 404s, and an error toast appears. Deleted middle sets leave permanent numbering gaps (1, 3, 4).
 - **Evidence:** `use-workout-session.ts:85-92, 202-208`; `SwipeRow.tsx:128-132`.
 - **Confidence:** Confirmed.
 
 #### WORKOUT-020 · 🟡 P2 · Workout → Add set under latency
+- **Status:** ✅ Fixed — Phase 3. Every Add-set tap adds one row immediately. Set numbers are reserved across in-flight taps, and pending saves never disable the button. *Files:* `src/app/(app)/workout/[sessionId]/page.tsx`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3) (800 ms latency): 3 taps → 3 rows within 200 ms; the server has sets 1, 2, 3.
 - **Problem:** The per-exercise guard holds for the whole POST round trip, so extra taps are dropped rather than queued (3 taps on a slow network give 1 set). New rows have `pointer-events:none` and 70 % opacity until saved.
 - **Evidence:** `page.tsx:373-384`; `SetRow.tsx:277, 285`; `ExerciseCard.tsx:336`.
 - **Confidence:** Confirmed.
@@ -432,6 +498,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### WORKOUT-023 · 🟡 P2 · Workout → Navigation away and back
+- **Status:** 🟡 Partly fixed — Phase 3. Back from exercise detail now restores the workout's scroll position (UI-007). The session bar's back button still pushes /home. *Files:* `src/app/(app)/layout.tsx`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3).
 - **Problem:** The back button uses `router.push("/home")` rather than going back. Going to exercise detail and back lands at the top of the workout, because the layout scrolls to the top on every pathname change.
 - **Evidence:** `page.tsx:522`; `src/app/(app)/layout.tsx:19-21`.
 - **Confidence:** Confirmed.
@@ -447,6 +514,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### WORKOUT-026 · 🟡 P2 · Workout → Completing an empty set
+- **Status:** ✅ Fixed — Phase 2. Tapping ✓ with no reps and nothing from last time opens the reps field instead. *Files:* `src/components/workout/SetRow.tsx`. *Verified:* Static/build only.
 - **Problem:** With no previous values, ✓ marks the set complete with null weight and reps. It counts in "Sets" and shows green "Not logged" in history.
 - **Evidence:** `SetRow.tsx:337-351`; `format.ts:160-181`.
 - **Confidence:** Confirmed.
@@ -502,6 +570,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### WORKOUT-037 · 🟡 P2 · Workout → Zero rest time
+- **Status:** ✅ Fixed — Phase 2. A rest_time of 0 means no timer. *Files:* `src/app/(app)/workout/[sessionId]/page.tsx`. *Verified:* Static/build only.
 - **Problem:** `rest_time: 0` sets `endAt = now`, `remaining` is 0, and `ring()` fires immediately (chime plus vibration) on every tick.
 - **Evidence:** `RestTimer.tsx:118-123, 164-175`.
 - **Confidence:** Confirmed.
@@ -512,6 +581,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Requires iPhone.
 
 #### WORKOUT-039 · 🔵 P3 · Workout → Duplicate `set_number`
+- **Status:** 🟡 Partly fixed — Phase 3. Exercise-detail history rows no longer key on set_number alone. *Files:* `src/app/(app)/exercises/[id]/page.tsx`. *Verified:* Static/build only.
 - **Problem:** Sets added concurrently from two tabs or devices, or via a race, can share a `set_number`. History lists use `key={set_number}`, which causes React key collisions.
 - **Evidence:** `exercises/[id]/page.tsx:209`; `page.tsx:389`.
 - **Confidence:** Suspected.
@@ -519,6 +589,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 ### 3.7 Rest timer
 
 #### REST-001 · 🟡 P2 · Rest timer → Global persistence
+- **Status:** ✅ Fixed — Phase 3. The stored rest timer is tagged with its session, and any other session ignores it. *Files:* `src/components/workout/RestTimer.tsx`. *Verified:* Static/build only.
 - **Problem:** `overload_rest_timer` is a single global key, not per session or per user. It survives Finish, Discard and logout, so the next workout (or the next user) opens with a leftover countdown that can still ring.
 - **Evidence:** `RestTimer.tsx:12, 105-116`.
 - **Confidence:** Confirmed.
@@ -529,6 +600,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Requires iPhone (the logic itself is confirmed).
 
 #### REST-003 · 🟡 P2 · Rest timer → Audio unlock happens once
+- **Status:** 🟡 Partly fixed — Phase 3. The audio unlock now re-runs on every tap while the context isn't running (it used to run once). *Files:* `src/components/workout/RestTimer.tsx`. *Verified:* Requires iPhone.
 - **Problem:** The AudioContext is unlocked on the first `pointerdown` only (`once: true`). iOS suspends or interrupts it on background or lock, and nothing resumes it, so the chime stops working for the rest of the workout.
 - **Evidence:** `RestTimer.tsx:41-58, 100-104`.
 - **Confidence:** Requires iPhone.
@@ -541,6 +613,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 ### 3.8 Add-exercise picker
 
 #### PICK-001 · 🟡 P2 · Picker → Long-press preview on iOS
+- **Status:** ✅ Fixed — Phase 3. A scrim only closes on a press that started on it, so the release of the long-press (or an iOS ghost click) can't dismiss the peek. *Files:* `src/components/ui/Sheet.tsx (Scrim), src/components/workout/ExercisePicker.tsx`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3): a click with no press didn't close it, a real tap did. Long-press on iOS requires an iPhone.
 - **Problem:** After the 450 ms long-press the preview overlay appears under the finger. If iOS hit-tests the synthesised click at touchend, the click lands on the preview's scrim (whose `onClose` fires), so the preview closes the moment you lift your finger.
 - **Evidence:** `ExercisePicker.tsx:174-215, 456-465`.
 - **Confidence:** Requires iPhone (Suspected).
@@ -573,6 +646,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 ### 3.9 Sheets, gestures, scrolling, layout (cross-cutting)
 
 #### UI-001 · 🟡 P2 · Sheet → Exit swallows input
+- **Status:** ✅ Fixed — Phase 3. The sheet layer stops catching touches the moment its exit animation starts (useIsPresent). *Files:* `src/components/ui/Sheet.tsx`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3): 50 ms after close, taps reach the page and the scroll lock is released.
 - **Problem:** During the exit animation (about 300–400 ms) the `fixed inset-0 z-50` wrapper stays mounted with no `pointer-events:none`.
 - **Repro:** Close any sheet, then immediately scroll or tap.
 - **Actual:** The first gesture does nothing.
@@ -580,11 +654,13 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### UI-002 · 🟡 P2 · Sheet → Drag area
+- **Status:** ✅ Fixed — Phase 3. The sheet header (title row) is now a drag surface as well as the grabber. Pulling down from scrolled-to-top content is still not supported. *Files:* `src/components/ui/Sheet.tsx`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3): X still closes the sheet. The drag gesture itself is static only.
 - **Problem:** Drag-to-dismiss only starts from a grabber about 16 px tall. The header isn't draggable, and pulling down when the content is at scroll-top doesn't dismiss. That doesn't feel native.
 - **Evidence:** `Sheet.tsx:145-150`.
 - **Confidence:** Confirmed.
 
 #### UI-003 · 🟡 P2 · Sheet → iOS scroll lock
+- **Status:** 🟡 Partly fixed — Phase 3. The scrim and header are touch-action:none, so a drag that starts there can't scroll the page. The lock itself is still overflow:hidden on body. *Files:* `src/components/ui/Sheet.tsx`. *Verified:* Requires iPhone.
 - **Problem:** The lock is only `body { overflow:hidden }`. iOS Safari can still scroll or rubber-band the page behind via touches on the scrim, and there's no `position:fixed` lock.
 - **Evidence:** `Sheet.tsx:24-30`.
 - **Confidence:** Requires iPhone.
@@ -600,6 +676,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### UI-006 · 🟡 P2 · SwipeRow → Gesture handling
+- **Status:** ✅ Fixed — Phase 3. Each gesture's axis is locked when it starts; touch-action:pan-y is set; a tap on an open row closes it instead of hitting the content; the click that ends a swipe is swallowed. *Files:* `src/components/ui/SwipeRow.tsx`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3) (mouse): the swipe opened without opening the keypad, a tap closed the row, and the next tap opened the field. Touch requires an iPhone.
 - **Problem:**
   - No `touch-action: pan-y`.
   - The direction is re-derived from the cumulative delta on every move, so diagonal drags jitter and can leave the row half-open mid-gesture.
@@ -610,6 +687,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Highly likely.
 
 #### UI-007 · 🟡 P2 · Layout → Scroll reset on every navigation
+- **Status:** ✅ Fixed — Phase 3. Each history entry stores its own scroll position (in history.state). New navigations start at the top; Back and Forward restore the stored position. popstate can't be used, because Next 16 renders the page before it fires. *Files:* `src/app/(app)/layout.tsx`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3): workout at 700 px → exercise detail (0) → Back → 700 px.
 - **Problem:** `useLayoutEffect(() => scrollTo(0))` runs on every pathname change. Back from a history detail lands at the top of a long history list, and back from exercise detail lands at the top of the workout.
 - **Evidence:** `src/app/(app)/layout.tsx:19-21`.
 - **Confidence:** Confirmed.
@@ -620,11 +698,13 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Requires iPhone (well-known iOS behaviour).
 
 #### UI-009 · 🔵 P3 · iOS → Callouts and text selection
+- **Status:** 🟡 Partly fixed — Phase 3. The exercise-name link in cards no longer shows a callout or selects text. *Files:* `src/components/workout/ExerciseCard.tsx`. *Verified:* Requires iPhone.
 - **Problem:** Selection and callouts are only disabled on media and picker rows. A long-press on the exercise name `<Link>` in a card opens the iOS link preview, and long-presses on rows select text.
 - **Evidence:** `ExerciseCard.tsx:227-232`; `globals.css` (no global `user-select`).
 - **Confidence:** Requires iPhone.
 
 #### UI-010 · 🔵 P3 · iOS → Double-tap
+- **Status:** ✅ Fixed — Phase 3. touch-action: manipulation on controls, in the base layer so the touch-none and pan-y utilities still win. *Files:* `src/app/globals.css`. *Verified:* Requires iPhone.
 - **Problem:** There's no `touch-action: manipulation`. Rapid keypad or stepper taps may be treated as a double-tap zoom or merged into one.
 - **Evidence:** `globals.css`; `NumericKeypad.tsx:143-155`.
 - **Confidence:** Requires iPhone.
@@ -652,11 +732,13 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### STATE-002 · 🟡 P2 · History → Swipe delete
+- **Status:** ✅ Fixed — Phase 2. History swipe-delete asks for confirmation; a failed delete restores the row. *Files:* `src/app/(app)/history/page.tsx, src/hooks/use-workouts.ts`. *Verified:* Static/build only.
 - **Problem:** The optimistic removal has no rollback or error message: the row reappears silently on failure. There's no confirmation, so one swipe and tap irreversibly deletes a whole workout.
 - **Evidence:** `history/page.tsx:97`; `use-workouts.ts:47-60`.
 - **Confidence:** Confirmed.
 
 #### STATE-003 · 🟡 P2 · History detail → No error state
+- **Status:** ✅ Fixed — Phase 3. An error / not-found state with retry. *Files:* `src/app/(app)/history/[sessionId]/page.tsx`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3): /history/99999.
 - **Problem:** A missing or deleted session, or a network error, gives an endless skeleton.
 - **Evidence:** `history/[sessionId]/page.tsx:95-99`.
 - **Confidence:** Confirmed.
@@ -683,11 +765,13 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 - **Confidence:** Confirmed.
 
 #### PROF-002 · 🟡 P2 · Profile → Avatar
+- **Status:** ✅ Fixed — Phase 3. Messages for a wrong file type, a file that's too large, and a failed upload or remove. Shows "Uploading picture…" while uploading. *Files:* `src/app/(app)/profile/page.tsx`. *Verified:* Static/build only.
 - **Problem:** A wrong type or a file over 5 MB is silently ignored. Upload and remove errors are silent. There's no progress indicator during upload.
 - **Evidence:** `profile/page.tsx:64-71, 130`.
 - **Confidence:** Confirmed.
 
 #### PROF-003 · 🟡 P2 · Profile → Membership
+- **Status:** ✅ Fixed — Phase 2 + Phase 3. Phase 2: removing the payment asks for confirmation. Phase 3: log and remove errors are shown, the button reads "Logging…" while pending, and repeat taps are ignored. *Files:* `src/app/(app)/profile/page.tsx`. *Verified:* Static/build only.
 - **Problem:** The trash icon deletes the payment record in one tap with no confirmation. Log and delete errors are silent. A query error renders "No payment logged".
 - **Evidence:** `profile/page.tsx:268-271, 279-294, 339-347`.
 - **Confidence:** Confirmed.
@@ -705,6 +789,7 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 ### 3.12 PWA lifecycle, performance, build
 
 #### PWA-001 · 🟠 P1 · Boot → Mock build black screen
+- **Status:** ✅ Fixed — Phase 3. If the MSW service worker can't register, the mocks are served by wrapping fetch instead. The demo build no longer sits on a black screen. *Files:* `src/lib/mock/browser.ts`. *Verified:* Verified in browser (mock backend, 375×812, Phase 3): the pane blocks service workers, and the app now boots.
 - **Problem:** With `NEXT_PUBLIC_USE_MOCKS=true` (as `.env.local` sets it), `Providers` renders `null` until MSW starts, and it never handles a rejection. If service-worker registration fails (private browsing, SW disabled, storage evicted, some webviews), the screen is black forever.
 - **Evidence:** `src/app/providers.tsx:18-31, 41`.
 - **Confidence:** **Confirmed live** (black screen plus "[MSW] Failed to register the Service Worker" during this audit).
@@ -770,6 +855,44 @@ Each entry gives: severity, area, the problem, repro, expected vs actual, likely
 #### BUILD-003 · 🔵 P3 · Quality → No tests
 - **Problem:** There are no unit, integration or e2e tests, so nothing guards the regressions listed above. Highest-value targets: forward-fill, `workoutEndTime`, `suggestSplit`, `currentStreak`, `daysUntil`, and the optimistic hooks.
 - **Confidence:** Confirmed.
+
+### 3.13 New issues found in Phase 3
+
+#### NEW-001 · 🟡 P2 · Mock build → API routes collide with page routes
+- **Status:** ✅ Fixed — Phase 3. A guard handler passes page/RSC requests through before any mock handler runs. *Files:* `src/lib/mock/browser.ts`. *Verified:* static only (client navigation to /splits wasn't separately exercised).
+- **Problem:** The mock API shares the app's origin. `GET /splits` and `GET /splits/:id` also match the RSC fetches Next makes when navigating to the `/splits` and `/splits/new` pages, so the mock answered with JSON and Next fell back to a full page reload, which drops all in-memory state.
+- **Confidence:** Highly likely (handler paths vs. page routes).
+
+#### NEW-002 · 🟡 P2 · Start/Resume → Abandoned session offered as "Resume"
+- **Status:** ✅ Fixed — Phase 3. `isLiveSession()` (within the 3h window) decides what's resumable. start-or-resume closes an abandoned session at its last completed set, then starts the new one. *Files:* `src/hooks/use-workouts.ts`, `src/app/(app)/home/page.tsx`, `src/components/LaunchGate.tsx`. *Verified:* in the browser (a 5-hour-old session was closed and a new one started; Home showed "Choose split").
+- **Problem:** The gate and Home offered "Resume workout" for a session older than 3 h. Tapping it opened the session, the auto-end closed it, and the user landed on that session's history page instead of in a workout.
+- **Confidence:** Confirmed (reproduced in the browser with the demo data).
+
+#### NEW-003 · 🔵 P3 · Launch gate → Wrong instruction
+- **Status:** ✅ Fixed — Phase 3. The text now says "from the QR button on Today". *Files:* `src/components/LaunchGate.tsx`. *Verified:* static.
+- **Problem:** The placeholder said "Add your gym QR in Profile", but QR upload only exists on Today's QR sheet.
+
+#### NEW-004 · 🟡 P2 · Workout → Errors lost under rapid edits
+- **Status:** ✅ Fixed — Phase 3. Workout write call sites use `mutateAsync(...).catch(showError)`, which gives each call its own promise. *Files:* `src/app/(app)/workout/[sessionId]/page.tsx`. *Verified:* in the browser (an injected PATCH failure showed its toast).
+- **Problem:** React Query only runs the callbacks passed to `mutate(vars, { onError })` for the **latest** call on a hook. With several set edits, adds or deletes in flight, an earlier failure rolled back silently with no toast, and an earlier "Log first set" lost its autofill.
+- **Confidence:** Confirmed (documented React Query behaviour).
+
+#### NEW-005 · 🔵 P3 · Queries → 4xx responses retried
+- **Status:** ✅ Fixed — Phase 3. 4xx responses are no longer retried. *Files:* `src/app/providers.tsx`. *Verified:* in the browser (the 404 screen appears without the extra retry delay).
+- **Problem:** `retry: 1` applied to 404/403 too, which delayed every not-found or error screen by a retry round trip.
+
+#### NEW-006 · 🔵 P3 · History → Empty abandoned sessions become "0m" entries
+- **Status:** Open (needs a product decision).
+- **Problem:** When an abandoned session with no completed sets is closed out (by the 3h auto-end or by start-or-resume), it's saved as a 0-minute workout. It shows as "Last workout · 0m", appears in History, and counts toward the streak. Seen in the browser after NEW-002's close-out.
+- **Options:** Delete empty sessions instead of completing them, or hide 0-set sessions from History and the streak.
+
+#### NEW-007 · 🔵 P3 · Keypad → Page jumps when it closes near the bottom
+- **Status:** Open.
+- **Problem:** While the keypad is open, the body gets bottom padding the height of the keypad; closing it removes the padding at once. When the page is scrolled to the bottom, the page shrinks and the content jumps. This matters more now that scrolling with the keypad open is possible (WORKOUT-012).
+
+#### NEW-008 · 🔵 P3 · Workout → Discard failure is invisible
+- **Status:** Open (related to WORKOUT-024).
+- **Problem:** Discard navigates to Home before the DELETE finishes. If the DELETE fails, the rollback brings the workout back as "Resume", but no error is shown anywhere.
 
 ---
 
@@ -845,6 +968,13 @@ UI-008, UI-011, UI-012, UI-009, UI-010, HOME-003, HOME-004, HOME-005, HOME-006, 
 ---
 
 ## 7. Things I could NOT verify
+
+**Phase 3 update.** The app now runs in the audit browser (PWA-001 fix), so the Phase 3 items marked "Verified in browser" were exercised for real against the mock backend. Two limits apply:
+
+- **Mouse, not touch.** The embedded browser is desktop Chromium driven with a mouse at a 375×812 viewport. Native touch scrolling, `pointercancel` handoff to native scroll, momentum, iOS ghost clicks, long-press callouts, the keyboard and the visual viewport were not exercised.
+- **Throttled frames.** The pane delivers very few animation frames while idle, so animation timing (sheet springs, layout animations) couldn't be judged visually; screenshots were used to force frames when testing the scroll-spy.
+
+Everything marked "Requires iPhone" still does.
 
 - **A physical iPhone, iOS Safari, or an installed standalone PWA.** These were assessed from code and known WebKit behaviour only: REST-002/003, UI-003/008/009/010, PICK-001, SPLIT-004, EX-007, WORKOUT-018 (Low Power Mode), WORKOUT-038, the relaunch-at-`start_url` path in LAUNCH-001, keyboard and `visualViewport` behaviour (ViewportFix), momentum scrolling, the file pickers (HEIC conversion), audio-session "ambient" mixing, and backgrounding or eviction timing.
 - **Live interaction testing.** The audit browser couldn't register the MSW service worker, so the app never got past the black boot screen (which confirms PWA-001). Every race, gesture and animation item comes from tracing the code, not from observing it.

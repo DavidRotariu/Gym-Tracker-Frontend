@@ -9,6 +9,7 @@ import type { ExerciseType, Set, WorkoutExercise } from "@/types";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { setKeyAlias } from "@/hooks/use-workout-session";
+import { scrollIntoViewQuietly } from "@/lib/scroll";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 interface ExerciseCardProps {
@@ -115,10 +116,10 @@ export function ExerciseCard({
     if (!fresh) return;
     onActivate?.();
     const t = setTimeout(() => {
-      document
+      const row = document
         .getElementById(`we-${we.id}`)
-        ?.querySelector(`[data-set-key="${fresh}"]`)
-        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        ?.querySelector(`[data-set-key="${fresh}"]`);
+      if (row) scrollIntoViewQuietly(row, "nearest");
     }, 220);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -231,7 +232,8 @@ export function ExerciseCard({
           ) : (
             <Link
               href={`/exercises/${we.exercise_id}`}
-              className="block truncate text-body font-semibold text-white active:opacity-70"
+              // No iOS link-preview callout on a long press mid-workout.
+              className="block truncate text-body font-semibold text-white select-none active:opacity-70 [-webkit-touch-callout:none]"
             >
               {name}
             </Link>

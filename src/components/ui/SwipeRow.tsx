@@ -61,20 +61,29 @@ export function SwipeRow({ actions, children, className, bare }: SwipeRowProps) 
     settle(0);
   };
 
+  // Each gesture is locked to the axis it *started* on. Re-deciding from the
+  // running total on every move let a slightly diagonal scroll flip into a
+  // swipe mid-gesture and drag the row around.
+  const axis = useRef<"x" | "y" | null>(null);
+  // Set when this gesture is about the row itself (a swipe, or a tap on an
+  // already-open row) — the click it ends with must not reach the contents.
+  const swallowClick = useRef(false);
+
   const handlers = useSwipeable({
+    onSwipeStart: (e) => {
+      axis.current = e.absX > e.absY ? "x" : "y";
+      if (axis.current === "x") swallowClick.current = true;
+    },
     onSwiping: (e) => {
-      // A mostly-vertical drag is the page scrolling — don't let its sideways
-      // jitter drag the row around under the finger.
-      if (e.dir === "Up" || e.dir === "Down") return;
+      if (axis.current !== "x") return;
       // e.deltaX is negative when swiping left.
       const base = openRef.current ? -width : 0;
       x.set(Math.min(0, Math.max(base + e.deltaX, -width - 16)));
     },
     onSwiped: (e) => {
-      if (e.dir === "Up" || e.dir === "Down") {
-        settle(openRef.current ? -width : 0);
-        return;
-      }
+      const horizontal = axis.current === "x";
+      axis.current = null;
+      if (!horizontal) return; // a scroll — the row never moved
       const shouldOpen =
         e.deltaX < -width / 2 || (e.dir === "Left" && e.velocity > 0.4);
       openRef.current = shouldOpen;
@@ -146,7 +155,20 @@ export function SwipeRow({ actions, children, className, bare }: SwipeRowProps) 
       <motion.div
         {...handlers}
         style={{ x }}
-        className="relative bg-background-secondary"
+        // pan-y: vertical scrolling stays native; horizontal is ours.
+        className="relative touch-pan-y bg-background-secondary"
+        onPointerDownCapture={() => {
+          // A tap on an open row closes it — it shouldn't also open the
+          // keypad or follow the link the row happens to be shifted over.
+          swallowClick.current = openRef.current;
+        }}
+        onClickCapture={(e) => {
+          if (!swallowClick.current) return;
+          swallowClick.current = false;
+          e.preventDefault();
+          e.stopPropagation();
+          if (openRef.current && x.get() === -width) close();
+        }}
       >
         {children}
       </motion.div>

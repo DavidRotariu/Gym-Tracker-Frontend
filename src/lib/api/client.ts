@@ -79,6 +79,36 @@ function clearSession() {
   window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
 }
 
+// Long enough for a slow gym connection, short enough that a stalled one
+// ends in a retryable error instead of a spinner that never stops.
+const TIMEOUT_MS = 20_000;
+const UPLOAD_TIMEOUT_MS = 60_000;
+
+/**
+ * fetch with a timeout, and with network failures turned into readable
+ * errors — Safari's raw "Load failed" / "The operation timed out" used to
+ * reach the UI verbatim.
+ */
+async function send(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(timeoutMs) : undefined,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError")) {
+      throw new ApiRequestError(0, "timeout", "The connection timed out. Try again.");
+    }
+    throw new ApiRequestError(0, "network", "No connection. Check your signal and try again.");
+  }
+}
+
+function statusMessage(status: number): string {
+  if (status >= 500) return "The server had a problem. Try again.";
+  if (status === 404) return "Not found.";
+  return "Something went wrong.";
+}
+
 interface RequestOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
@@ -109,11 +139,11 @@ export async function apiRequest<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await send(`${BASE_URL}${path}`, {
     method,
     headers,
     body: payload,
-  });
+  }, body instanceof FormData ? UPLOAD_TIMEOUT_MS : TIMEOUT_MS);
 
   if (res.status === 204) {
     return undefined as T;
@@ -128,10 +158,17 @@ export async function apiRequest<T>(
   }
 
   const text = await res.text();
-  const data = text ? JSON.parse(text) : undefined;
+  let data: unknown;
+  try {
+    data = text ? JSON.parse(text) : undefined;
+  } catch {
+    // A gateway/timeout page (HTML) instead of the API's JSON — used to
+    // surface as "Unexpected token '<'…" in the UI.
+    throw new ApiRequestError(res.status, String(res.status), statusMessage(res.status));
+  }
 
   if (!res.ok) {
-    const message = (data as ApiError | undefined)?.error?.message ?? "Something went wrong.";
+    const message = (data as ApiError | undefined)?.error?.message ?? statusMessage(res.status);
     const code = (data as ApiError | undefined)?.error?.code ?? String(res.status);
     throw new ApiRequestError(res.status, code, message);
   }
@@ -140,12 +177,17 @@ export async function apiRequest<T>(
 }
 
 /** For endpoints returning raw binary (e.g. the QR PNG) instead of JSON. */
-export async function apiRequestBlob(path: string): Promise<Blob> {
+export async function apiRequestBlob(path: string, _retried = false): Promise<Blob> {
   const headers: Record<string, string> = {};
   const token = getToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(`${BASE_URL}${path}`, { headers });
+  const res = await send(`${BASE_URL}${path}`, { headers }, TIMEOUT_MS);
+  // Same renew-and-retry as apiRequest — without it an expired token made
+  // the QR/avatar silently "missing".
+  if (res.status === 401 && !_retried && (await refreshAccessToken())) {
+    return apiRequestBlob(path, true);
+  }
   if (!res.ok) {
     throw new ApiRequestError(res.status, String(res.status), "Couldn't load image.");
   }

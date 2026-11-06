@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { MediaThumb } from "@/components/ui/MediaThumb";
 import { useSplits } from "@/hooks/use-splits";
 import { useQrImage } from "@/hooks/use-users";
-import { useStartOrResumeWorkout, useWorkoutHistory } from "@/hooks/use-workouts";
+import { isLiveSession, useStartOrResumeWorkout, useWorkoutHistory } from "@/hooks/use-workouts";
 import { suggestSplit } from "@/lib/format";
 import { getSplitIcon } from "@/lib/splitIcon";
 import { motion } from "framer-motion";
@@ -25,7 +25,7 @@ export function LaunchGate() {
   const router = useRouter();
   const { data: splits, isLoading: splitsLoading } = useSplits();
   const { data: history, isLoading: historyLoading } = useWorkoutHistory();
-  const { url: qrUrl } = useQrImage(true);
+  const { url: qrUrl } = useQrImage();
   const startWorkout = useStartOrResumeWorkout();
 
   const [alreadyShown] = useState(
@@ -36,16 +36,30 @@ export function LaunchGate() {
   const suggested = useMemo(() => suggestSplit(splits, history), [splits, history]);
   const splitIcon = suggested ? getSplitIcon(suggested.name) : undefined;
 
+  // This gate is a greeting, not a blocker: if its data is slow (bad signal
+  // at the door) go straight on to Home, which has the QR too, rather than
+  // sit on a blank screen with no way out.
+  const [gaveUp, setGaveUp] = useState(false);
+  useEffect(() => {
+    if (!loading) return;
+    const t = setTimeout(() => setGaveUp(true), 2500);
+    return () => clearTimeout(t);
+  }, [loading]);
+
   const skip = !loading && (alreadyShown || !suggested);
 
   useEffect(() => {
+    if (gaveUp && loading) {
+      router.replace("/home");
+      return;
+    }
     if (loading) return;
     if (alreadyShown || !suggested) {
       router.replace("/home");
       return;
     }
     sessionStorage.setItem(SHOWN_KEY, "1");
-  }, [loading, alreadyShown, suggested, router]);
+  }, [loading, alreadyShown, suggested, router, gaveUp]);
 
   if (loading || skip) {
     // Deliberately blank rather than a skeleton — this gate resolves in one
@@ -56,7 +70,7 @@ export function LaunchGate() {
 
   // Reopening the app mid-workout lands here (iOS relaunches at "/") — the
   // button must take you back to that workout, not start a second one.
-  const inProgress = history?.some((s) => !s.completed_at);
+  const inProgress = history?.some((s) => isLiveSession(s));
 
   function start() {
     void startWorkout.run(suggested!.id, { replace: true });
@@ -79,7 +93,7 @@ export function LaunchGate() {
           />
         ) : (
           <div className="flex size-52 items-center justify-center rounded-card border border-dashed border-separator text-center text-caption text-label-tertiary">
-            Add your gym QR in Profile
+            Add your gym QR from the QR button on Today
           </div>
         )}
 
@@ -104,6 +118,11 @@ export function LaunchGate() {
       </div>
 
       <div className="flex flex-col gap-3">
+        {startWorkout.error && (
+          <p role="alert" className="text-center text-caption text-red">
+            {startWorkout.error}
+          </p>
+        )}
         <Button
           size="lg"
           block

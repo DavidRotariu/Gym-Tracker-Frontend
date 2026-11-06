@@ -5,10 +5,11 @@ import {
   AnimatePresence,
   motion,
   useDragControls,
+  useIsPresent,
   useReducedMotion,
   type Variants,
 } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 interface SheetProps {
@@ -95,16 +96,8 @@ export function Sheet({
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center">
-          <motion.div
-            className="absolute inset-0 bg-scrim"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={onClose}
-            aria-hidden
-          />
+        <PresenceLayer key="sheet" className="fixed inset-0 z-50 flex items-end justify-center">
+          <Scrim onClose={onClose} />
 
           <motion.div
             role="dialog"
@@ -149,8 +142,14 @@ export function Sheet({
               <div className="mx-auto h-1 w-9 rounded-pill bg-label-tertiary" />
             </div>
 
+            {/* The header drags the sheet too — a 16px grabber alone was too
+                small a target to find. touch-none: it's a drag surface, not
+                a scroll surface. */}
             {(title || action) && (
-              <div className="flex shrink-0 items-center justify-between gap-4 px-4 pt-2 pb-3">
+              <div
+                className="flex shrink-0 touch-none items-center justify-between gap-4 px-4 pt-2 pb-3"
+                onPointerDown={(e) => dragControls.start(e)}
+              >
                 <h2 className="font-stat text-stat-sm text-label">{title}</h2>
                 {action ?? (
                   <button
@@ -179,9 +178,59 @@ export function Sheet({
               {children}
             </div>
           </motion.div>
-        </div>
+        </PresenceLayer>
       )}
     </AnimatePresence>,
     document.body,
+  );
+}
+
+/**
+ * The full-screen layer stays mounted for the length of the exit animation.
+ * While it does, it must not catch touches: the first tap or scroll after
+ * closing a sheet used to land on this invisible layer and do nothing.
+ */
+export function PresenceLayer({
+  className,
+  children,
+}: {
+  className: string;
+  children: React.ReactNode;
+}) {
+  const isPresent = useIsPresent();
+  return (
+    <div
+      className={className}
+      style={{ pointerEvents: isPresent ? undefined : "none" }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Tap-outside-to-close. Only a press that *started* on the scrim counts —
+ * on iOS the click synthesized at the end of a long-press or a drag can land
+ * on a scrim that appeared under the finger and close what was just opened.
+ * touch-none: a drag starting here must not scroll the page behind the sheet.
+ */
+export function Scrim({ onClose }: { onClose: () => void }) {
+  const pressed = useRef(false);
+  return (
+    <motion.div
+      className="absolute inset-0 touch-none bg-scrim"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      onPointerDown={() => {
+        pressed.current = true;
+      }}
+      onClick={() => {
+        if (pressed.current) onClose();
+        pressed.current = false;
+      }}
+      aria-hidden
+    />
   );
 }

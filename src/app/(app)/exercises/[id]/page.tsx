@@ -27,7 +27,7 @@ export default function ExerciseDetailPage() {
 
   const { data: exercises } = useExercises();
   const { data: muscles } = useMuscles();
-  const { data: history, isLoading } = useExerciseHistory(exerciseId);
+  const { data: history, isLoading, error: historyError, refetch, isFetching } = useExerciseHistory(exerciseId);
   const { favorited, toggle, pending } = useFavorite(exerciseId);
   const [editOpen, setEditOpen] = useState(false);
 
@@ -133,10 +133,23 @@ export default function ExerciseDetailPage() {
 
       {!isLoading && !stats && (
         <Card flush>
-          <EmptyState
-            title="No logs yet"
-            description="Log this exercise in a workout and its history will build up here."
-          />
+          {historyError ? (
+            // A failed load used to read as "No logs yet".
+            <EmptyState
+              title="Couldn't load history"
+              description={historyError.message}
+              action={
+                <Button onClick={() => refetch()} disabled={isFetching}>
+                  {isFetching ? "Retrying…" : "Try again"}
+                </Button>
+              }
+            />
+          ) : (
+            <EmptyState
+              title="No logs yet"
+              description="Log this exercise in a workout and its history will build up here."
+            />
+          )}
         </Card>
       )}
 
@@ -204,9 +217,10 @@ export default function ExerciseDetailPage() {
                 </div>
 
                 <ul className="flex flex-col gap-2">
-                  {entry.sets.map((set) => (
+                  {entry.sets.map((set, i) => (
                     <li
-                      key={set.set_number}
+                      // set_number alone isn't guaranteed unique (WORKOUT-039).
+                      key={`${set.set_number}-${i}`}
                       className="flex flex-col gap-2 rounded-control bg-fill p-3"
                     >
                       <div className="flex items-center gap-3">

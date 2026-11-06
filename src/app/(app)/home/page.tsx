@@ -10,7 +10,7 @@ import { Sheet } from "@/components/ui/Sheet";
 import { useMuscles } from "@/hooks/use-muscles";
 import { useSplits } from "@/hooks/use-splits";
 import { useQrImage, useUploadQr } from "@/hooks/use-users";
-import { useStartOrResumeWorkout, useWorkoutHistory } from "@/hooks/use-workouts";
+import { isLiveSession, useStartOrResumeWorkout, useWorkoutHistory } from "@/hooks/use-workouts";
 import {
   currentStreak,
   formatDay,
@@ -52,8 +52,10 @@ export default function HomePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
-  const [qrRefresh, setQrRefresh] = useState(0);
-  const { url: qrUrl } = useQrImage(qrOpen, qrRefresh);
+  // Loaded with the page and cached, so the sheet opens straight onto it.
+  const qr = useQrImage();
+  const qrUrl = qr.url;
+  const [qrUploadError, setQrUploadError] = useState<string | null>(null);
 
   const today = useMemo(
     () =>
@@ -74,7 +76,9 @@ export default function HomePage() {
     [splits],
   );
 
-  const inProgress = history?.find((s) => !s.completed_at);
+  // Only a session still inside the auto-end window is resumable — an
+  // abandoned one gets closed out by start-or-resume instead.
+  const inProgress = history?.find((s) => isLiveSession(s));
   const completed = useMemo(
     () => history?.filter((s) => s.completed_at) ?? [],
     [history],
@@ -230,6 +234,11 @@ export default function HomePage() {
             </Link>
           )}
         </section>
+
+        {/* The floating CTA (and its fade) sit over the bottom of the page,
+            above the tab bar the layout already pads for — clear them too, or
+            the last card ends up underneath on shorter phones. */}
+        <div aria-hidden className="h-20 shrink-0" />
       </div>
 
       {/* Primary CTA — accent color, pinned in the thumb zone above the tab bar. */}
@@ -241,6 +250,11 @@ export default function HomePage() {
           "bg-gradient-to-t from-background via-background to-transparent",
         )}
       >
+        {startWorkout.error && !pickerOpen && (
+          <p role="alert" className="pointer-events-auto mb-2 rounded-control bg-red px-3 py-2 text-caption font-semibold text-white">
+            {startWorkout.error}
+          </p>
+        )}
         <Button
           size="lg"
           block
@@ -252,7 +266,7 @@ export default function HomePage() {
               : setPickerOpen(true)
           }
         >
-          {inProgress ? "Resume workout" : "Choose split"}
+          {startWorkout.isPending ? "Starting…" : inProgress ? "Resume workout" : "Choose split"}
         </Button>
       </div>
 
@@ -264,6 +278,7 @@ export default function HomePage() {
         muscleLookup={muscleLookup}
         onStart={start}
         pending={startWorkout.isPending}
+        error={startWorkout.error}
       />
 
       {/* Gym QR — scan this at the door. */}
@@ -277,8 +292,19 @@ export default function HomePage() {
               className="size-56 rounded-card bg-white object-contain p-3 shadow-sm"
             />
           ) : (
-            <div className="flex size-56 items-center justify-center rounded-card border border-dashed border-separator text-center text-caption text-label-tertiary">
-              No QR code uploaded yet
+            <div className="flex size-56 flex-col items-center justify-center gap-3 rounded-card border border-dashed border-separator p-4 text-center text-caption text-label-tertiary">
+              {qr.loading ? (
+                "Loading…"
+              ) : qr.failed ? (
+                <>
+                  Couldn&rsquo;t load your QR code
+                  <Button size="sm" variant="secondary" onClick={qr.retry} disabled={qr.retrying}>
+                    {qr.retrying ? "Retrying…" : "Try again"}
+                  </Button>
+                </>
+              ) : (
+                "No QR code uploaded yet"
+              )}
             </div>
           )}
 
@@ -289,11 +315,18 @@ export default function HomePage() {
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) {
-                uploadQr.mutate(file, {
-                  onSuccess: () => setQrRefresh((n) => n + 1),
-                });
+              // Reset so picking the same file again still fires onChange.
+              e.target.value = "";
+              if (!file) return;
+              if (!file.type.startsWith("image/")) {
+                setQrUploadError("That file isn't an image.");
+                return;
               }
+              setQrUploadError(null);
+              uploadQr.mutate(file, {
+                onError: (err) =>
+                  setQrUploadError(err.message || "Couldn't upload the QR code. Try again."),
+              });
             }}
           />
           <Button
@@ -308,6 +341,11 @@ export default function HomePage() {
                 ? "Replace QR code"
                 : "Upload QR code"}
           </Button>
+          {qrUploadError && (
+            <p role="alert" className="text-caption text-red">
+              {qrUploadError}
+            </p>
+          )}
         </div>
       </Sheet>
     </>
@@ -322,6 +360,7 @@ function StartSheet({
   muscleLookup,
   onStart,
   pending,
+  error,
 }: {
   open: boolean;
   onClose: () => void;
@@ -330,10 +369,16 @@ function StartSheet({
   muscleLookup: Map<string, string>;
   onStart: (splitId: string | null) => void;
   pending: boolean;
+  error: string | null;
 }) {
   return (
     <Sheet open={open} onClose={onClose} title="Choose split">
       <div className="flex flex-col gap-2">
+        {error && (
+          <p role="alert" className="text-caption text-red">
+            {error}
+          </p>
+        )}
         {splits?.map((split) => (
           <button
             key={split.id}

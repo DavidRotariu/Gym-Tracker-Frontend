@@ -12,6 +12,9 @@ const RING_C = 2 * Math.PI * RING_R;
 const STORAGE_KEY = "overload_rest_timer";
 
 interface StoredTimer {
+  /** The workout this countdown belongs to — a leftover from a finished or
+   *  discarded session must not reappear (and ring) in the next one. */
+  sessionId?: string;
   duration: number;
   /** Absolute ms timestamp the rest ends at, or null while paused/stopped. */
   endAt: number | null;
@@ -19,18 +22,19 @@ interface StoredTimer {
   pausedRemaining: number;
 }
 
-function readStored(): StoredTimer | null {
+function writeStored(state: StoredTimer) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function readStored(sessionId: string): StoredTimer | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as StoredTimer) : null;
+    const stored = raw ? (JSON.parse(raw) as StoredTimer) : null;
+    return stored?.sessionId === sessionId ? stored : null;
   } catch {
     return null;
   }
-}
-
-function writeStored(state: StoredTimer) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
 /**
@@ -41,6 +45,11 @@ function writeStored(state: StoredTimer) {
  */
 let audioCtx: AudioContext | null = null;
 function unlockAudio() {
+  // Runs on every tap (not just the first): iOS suspends/interrupts the
+  // context when the app is backgrounded or the phone locks, and only a user
+  // gesture may resume it — a one-time unlock left the chime silent for the
+  // rest of the workout after the first lock.
+  if (audioCtx?.state === "running") return;
   try {
     const nav = navigator as Navigator & { audioSession?: { type: string } };
     if (nav.audioSession) nav.audioSession.type = "ambient";
@@ -70,6 +79,7 @@ function ring() {
 }
 
 interface RestTimerProps {
+  sessionId: string;
   /** Bump to (re)start the timer — the session screen does this when a set
    *  is marked complete. */
   startSignal: number;
@@ -88,7 +98,7 @@ interface RestTimerProps {
  * comes back, tick or no tick. The end time is also persisted, so it
  * survives closing the browser entirely, not just switching tabs.
  */
-export function RestTimer({ startSignal, restSeconds }: RestTimerProps) {
+export function RestTimer({ sessionId, startSignal, restSeconds }: RestTimerProps) {
   const [duration, setDuration] = useState(90);
   const [endAt, setEndAt] = useState<number | null>(null);
   const [pausedRemaining, setPausedRemaining] = useState(0);
@@ -98,14 +108,14 @@ export function RestTimer({ startSignal, restSeconds }: RestTimerProps) {
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    document.addEventListener("pointerdown", unlockAudio, { once: true });
+    document.addEventListener("pointerdown", unlockAudio);
     return () => document.removeEventListener("pointerdown", unlockAudio);
   }, []);
 
   // Resume whatever was running (or paused) when this last unmounted —
   // covers both a full browser close and just navigating away and back.
   useEffect(() => {
-    const stored = readStored();
+    const stored = readStored(sessionId);
     if (!stored) return;
     setDuration(stored.duration);
     if (stored.endAt !== null && stored.endAt > Date.now()) {
@@ -113,13 +123,13 @@ export function RestTimer({ startSignal, restSeconds }: RestTimerProps) {
     } else if (stored.pausedRemaining > 0) {
       setPausedRemaining(stored.pausedRemaining);
     }
-  }, []);
+  }, [sessionId]);
 
   function start(seconds: number) {
     const next = Date.now() + seconds * 1000;
     setEndAt(next);
     setPausedRemaining(0);
-    writeStored({ duration: seconds, endAt: next, pausedRemaining: 0 });
+    writeStored({ sessionId, duration: seconds, endAt: next, pausedRemaining: 0 });
   }
 
   // Only a *change* of signal starts the clock. Comparing the value (rather
@@ -130,9 +140,12 @@ export function RestTimer({ startSignal, restSeconds }: RestTimerProps) {
     if (startSignal === lastSignal.current) return;
     lastSignal.current = startSignal;
     const seconds = restSeconds ?? durationRef.current;
+    const next = Date.now() + seconds * 1000;
     setDuration(seconds);
-    start(seconds);
-  }, [startSignal, restSeconds]);
+    setEndAt(next);
+    setPausedRemaining(0);
+    writeStored({ sessionId, duration: seconds, endAt: next, pausedRemaining: 0 });
+  }, [startSignal, restSeconds, sessionId]);
 
   // Tick every second while running, and re-sync immediately the moment the
   // tab regains focus/visibility instead of waiting for the next tick.
@@ -170,9 +183,9 @@ export function RestTimer({ startSignal, restSeconds }: RestTimerProps) {
       if (Date.now() - endAt < 5000) ring();
       setEndAt(null);
       setPausedRemaining(0);
-      writeStored({ duration, endAt: null, pausedRemaining: 0 });
+      writeStored({ sessionId, duration, endAt: null, pausedRemaining: 0 });
     }
-  }, [endAt, remaining, duration]);
+  }, [endAt, remaining, duration, sessionId]);
 
   const visible = running || pausedRemaining > 0;
   const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
@@ -265,7 +278,7 @@ export function RestTimer({ startSignal, restSeconds }: RestTimerProps) {
               if (running) {
                 setPausedRemaining(remaining);
                 setEndAt(null);
-                writeStored({ duration, endAt: null, pausedRemaining: remaining });
+                writeStored({ sessionId, duration, endAt: null, pausedRemaining: remaining });
               } else {
                 const seconds = pausedRemaining > 0 ? pausedRemaining : duration;
                 start(seconds);
@@ -297,7 +310,7 @@ export function RestTimer({ startSignal, restSeconds }: RestTimerProps) {
             onClick={() => {
               setEndAt(null);
               setPausedRemaining(0);
-              writeStored({ duration, endAt: null, pausedRemaining: 0 });
+              writeStored({ sessionId, duration, endAt: null, pausedRemaining: 0 });
             }}
             aria-label="Dismiss rest timer"
             className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-pill text-label-tertiary active:bg-fill"

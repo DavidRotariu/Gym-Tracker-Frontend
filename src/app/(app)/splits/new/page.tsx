@@ -16,7 +16,8 @@ export default function NewSplitPage() {
         submitLabel="Create split"
         onSubmit={async (input) => {
           await createSplit.mutateAsync(input);
-          router.push("/splits");
+          // replace: Back from the list must not return to the submitted form.
+          router.replace("/splits");
         }}
       />
     </>

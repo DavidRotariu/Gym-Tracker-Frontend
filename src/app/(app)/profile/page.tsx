@@ -61,13 +61,26 @@ export default function ProfilePage() {
   const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
   const MAX_BYTES = 5 * 1024 * 1024;
 
+  // Rejected files and failed uploads used to be silently ignored — the
+  // picker just closed and nothing changed.
+  const [pictureError, setPictureError] = useState<string | null>(null);
+
   function handlePictureChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!ACCEPTED_TYPES.includes(file.type)) return;
-    if (file.size > MAX_BYTES) return;
-    uploadPicture.mutate(file);
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      setPictureError("Use a JPEG, PNG or WebP image.");
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      setPictureError("That image is over 5 MB.");
+      return;
+    }
+    setPictureError(null);
+    uploadPicture.mutate(file, {
+      onError: (err) => setPictureError(err.message || "Couldn't upload the picture."),
+    });
   }
 
   function handleLogout() {
@@ -95,8 +108,10 @@ export default function ProfilePage() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
+            disabled={uploadPicture.isPending}
             aria-label="Change profile picture"
-            className="relative flex size-14 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-pill bg-accent font-display text-large-title text-accent-foreground"
+            aria-busy={uploadPicture.isPending}
+            className="relative flex size-14 disabled:opacity-50 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-pill bg-accent font-display text-large-title text-accent-foreground"
           >
             {profilePictureUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
@@ -123,11 +138,23 @@ export default function ProfilePage() {
             <p className="truncate text-body font-semibold text-label">
               {user?.email}
             </p>
+            {uploadPicture.isPending && (
+              <p className="text-caption text-label-secondary">Uploading picture…</p>
+            )}
+            {pictureError && (
+              <p role="alert" className="text-caption text-red">
+                {pictureError}
+              </p>
+            )}
           </div>
           {profilePictureUrl && (
             <button
               type="button"
-              onClick={() => deletePicture.mutate()}
+              onClick={() =>
+                deletePicture.mutate(undefined, {
+                  onError: (err) => setPictureError(err.message || "Couldn't remove the picture."),
+                })
+              }
               disabled={deletePicture.isPending}
               className="shrink-0 text-caption font-medium text-red active:opacity-60 disabled:opacity-40"
             >
@@ -265,9 +292,14 @@ function MembershipSection() {
   const progress =
     daysLeft === null ? 0 : Math.min(1, Math.max(0, daysLeft / MEMBERSHIP_DAYS));
 
+  const [membershipError, setMembershipError] = useState<string | null>(null);
+
   function handleLogPayment() {
-    if (!paidAt) return;
-    logPayment.mutate(paidAt);
+    if (!paidAt || logPayment.isPending) return;
+    setMembershipError(null);
+    logPayment.mutate(paidAt, {
+      onError: (err) => setMembershipError(err.message || "Couldn't log the payment."),
+    });
   }
 
   return (
@@ -339,7 +371,12 @@ function MembershipSection() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (window.confirm("Remove the logged payment?")) deleteMembership.mutate();
+                    if (!window.confirm("Remove the logged payment?")) return;
+                    setMembershipError(null);
+                    deleteMembership.mutate(undefined, {
+                      onError: (err) =>
+                        setMembershipError(err.message || "Couldn't remove the payment."),
+                    });
                   }}
                   disabled={deleteMembership.isPending}
                   aria-label="Remove logged payment"
@@ -367,9 +404,14 @@ function MembershipSection() {
               onClick={handleLogPayment}
               disabled={logPayment.isPending || !paidAt}
             >
-              Log
+              {logPayment.isPending ? "Logging…" : "Log"}
             </Button>
           </div>
+          {membershipError && (
+            <p role="alert" className="text-caption text-red">
+              {membershipError}
+            </p>
+          )}
         </div>
       </Card>
     </section>

@@ -5,12 +5,20 @@ import { MotionConfig } from "framer-motion";
 import { useEffect, useState } from "react";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ViewportFix } from "@/components/ViewportFix";
+import { ApiRequestError } from "@/lib/api/client";
 
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { staleTime: 30_000, retry: 1 },
+    queries: {
+      staleTime: 30_000,
+      // One retry for flaky signal — but a 4xx (gone, not allowed) won't
+      // change on retry, and retrying it only delays the error screen.
+      retry: (failureCount, error) =>
+        failureCount < 1 &&
+        !(error instanceof ApiRequestError && error.status >= 400 && error.status < 500),
+    },
   },
 });
 

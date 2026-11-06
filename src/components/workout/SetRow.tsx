@@ -196,6 +196,7 @@ function NumberField({
     <button
       ref={buttonRef}
       type="button"
+      data-keypad-field
       onClick={openField}
       aria-label={label}
       className={cn(
@@ -238,6 +239,7 @@ export function SetRow({
   const [burst, setBurst] = useState(0);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openReps = useRef<(() => void) | null>(null);
+  const lastToggleAt = useRef(-Infinity);
   useEffect(
     () => () => {
       if (flashTimer.current) clearTimeout(flashTimer.current);
@@ -362,6 +364,12 @@ export function SetRow({
             openReps.current?.();
             return;
           }
+          // ✓ is a toggle, so a double tap used to tick *and untick* the set
+          // (restarting the rest timer twice on the way). A second tap this
+          // soon is the same intention repeated, not a request to undo.
+          const t = performance.now();
+          if (t - lastToggleAt.current < 400) return;
+          lastToggleAt.current = t;
           if (!set.completed) celebrate();
           onChange({
             completed: !set.completed,

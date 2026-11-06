@@ -41,10 +41,14 @@ export function MediaThumb({
   className,
   static: stillOnly,
 }: MediaThumbProps) {
-  const [failed, setFailed] = useState(false);
+  // Which src failed, not a flag: the same instance is reused when its
+  // exercise is swapped, and a flag left the *new* media stuck on fallback.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const failed = !!src && failedSrc === src;
   const reduceMotion = useReducedMotion();
   const videoRef = useRef<HTMLVideoElement>(null);
   const wantsMotion = !stillOnly && !reduceMotion;
+  const showsVideo = !!src && !failed && isVideo(src);
 
   // Play only while the clip is actually on screen, pause the instant it
   // isn't — decoding is driven by the IntersectionObserver, not by whether
@@ -70,7 +74,11 @@ export function MediaThumb({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [wantsMotion]);
+    // Re-attach whenever the <video> element itself appears or changes. With
+    // only [wantsMotion], a video that mounted after the first render (the
+    // exercise list arriving after the session, or a swap to a video
+    // exercise) was never observed — and with preload="none", never loaded.
+  }, [wantsMotion, showsVideo, src]);
 
   if (!src || failed) {
     return (
@@ -93,15 +101,17 @@ export function MediaThumb({
       <video
         ref={videoRef}
         key={wantsMotion ? "motion" : "still"}
-        src={url}
+        // Still mode never calls play(), so it needs a frame of its own to
+        // show: metadata preload plus a #t fragment (iOS paints that frame).
+        src={wantsMotion ? url : `${url}#t=0.1`}
         loop={wantsMotion}
         muted
         playsInline
         // Off-screen cards in a list (the exercise picker, muscle grids)
         // shouldn't compete for bandwidth with the one actually playing —
         // nothing loads until the IntersectionObserver below calls play().
-        preload="none"
-        onError={() => setFailed(true)}
+        preload={wantsMotion ? "none" : "metadata"}
+        onError={() => setFailedSrc(src)}
         // A long-press meant to trigger our own UI (the exercise picker's
         // preview peek, the drag handle) shouldn't also pop the browser's
         // native "save video"/text-selection callout on top of it.
@@ -120,7 +130,7 @@ export function MediaThumb({
       src={url}
       alt={alt}
       draggable={false}
-      onError={() => setFailed(true)}
+      onError={() => setFailedSrc(src)}
       className={cn(
         "bg-fill object-cover select-none [-webkit-touch-callout:none]",
         className,

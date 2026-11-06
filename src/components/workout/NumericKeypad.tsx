@@ -95,8 +95,12 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
     const h = panelRef.current?.offsetHeight ?? 240;
     const prev = document.body.style.paddingBottom;
     document.body.style.paddingBottom = `${h}px`;
+    // "Open" for the rest of the page (the workout scroll-spy) — cleared the
+    // instant it closes, not after the exit animation like the panel itself.
+    document.body.dataset.keypadOpen = "";
     return () => {
       document.body.style.paddingBottom = prev;
+      delete document.body.dataset.keypadOpen;
     };
   }, [isOpen]);
   const activeId = field?.id;
@@ -129,14 +133,42 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
     };
   }, [close]);
 
+  // Outside the panel: the typed value is saved the moment a finger lands
+  // (so a tap on ✓ or Finish reads it), but the keypad only *closes* if that
+  // press turns out to be a tap. A scroll used to slam it shut on the first
+  // touch, making the lower sets impossible to reach while typing. A press
+  // on another number field leaves it open — that field's own click
+  // switches to it, without a close/reopen flicker.
   useEffect(() => {
     if (!field) return;
-    function handlePointerDown(e: PointerEvent) {
+    let press: { x: number; y: number; onField: boolean } | null = null;
+    function onDown(e: PointerEvent) {
       if (panelRef.current?.contains(e.target as Node)) return;
-      close();
+      fieldRef.current?.onCommit();
+      const onField = !!(e.target as Element | null)?.closest?.("[data-keypad-field]");
+      press = { x: e.clientX, y: e.clientY, onField };
     }
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
+    function onMove(e: PointerEvent) {
+      if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) press = null;
+    }
+    function onUp() {
+      if (press && !press.onField) close();
+      press = null;
+    }
+    // The browser took the gesture over (it became a native scroll).
+    function onCancel() {
+      press = null;
+    }
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onCancel);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", onCancel);
+    };
   }, [field, close]);
 
   return (
@@ -148,6 +180,7 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
             {field && (
               <motion.div
                 ref={panelRef}
+                data-numeric-keypad
                 initial={{ y: "100%" }}
                 animate={{ y: 0 }}
                 exit={{ y: "100%" }}

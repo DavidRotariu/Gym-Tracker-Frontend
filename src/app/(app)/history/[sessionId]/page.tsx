@@ -1,6 +1,9 @@
 "use client";
 
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ApiRequestError } from "@/lib/api/client";
 import { LargeTitle } from "@/components/ui/LargeTitle";
 import { StatDisplay } from "@/components/ui/StatDisplay";
 import { ExerciseCard } from "@/components/workout/ExerciseCard";
@@ -27,7 +30,7 @@ export default function HistorySessionPage() {
   const params = useParams<{ sessionId: string }>();
   const sessionId = params.sessionId;
 
-  const { data: session, isLoading } = useWorkout(sessionId);
+  const { data: session, isLoading, error, refetch, isFetching } = useWorkout(sessionId);
   const { data: split } = useSplit(session?.split_id ?? null);
   const { data: exercises } = useExercises();
   const { data: muscles } = useMuscles();
@@ -92,7 +95,26 @@ export default function HistorySessionPage() {
         backLabel="History"
       />
 
-      {isLoading || !session || !stats ? (
+      {!session && error ? (
+        // Used to be an endless skeleton for a deleted session or a failed load.
+        <Card flush>
+          <EmptyState
+            title={
+              error instanceof ApiRequestError && error.status === 404
+                ? "This workout no longer exists"
+                : "Couldn't load this workout"
+            }
+            description={error.message}
+            action={
+              !(error instanceof ApiRequestError && error.status === 404) && (
+                <Button onClick={() => refetch()} disabled={isFetching}>
+                  {isFetching ? "Retrying…" : "Try again"}
+                </Button>
+              )
+            }
+          />
+        </Card>
+      ) : isLoading || !session || !stats ? (
         <div className="flex flex-col gap-3">
           <div className="h-24 animate-pulse rounded-card bg-fill" />
           <div className="h-40 animate-pulse rounded-card bg-fill" />

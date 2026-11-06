@@ -27,7 +27,9 @@ import type { SetPatch } from "@/hooks/use-workout-session";
 import { useDeleteWorkout, usePatchWorkout, useWorkout } from "@/hooks/use-workouts";
 import { getExerciseHistory } from "@/lib/api/exercises";
 import { MAX_WORKOUT_MS, formatElapsed, shortMuscleName, workoutEndTime } from "@/lib/format";
+import { isProgrammaticScroll, scrollIntoViewQuietly } from "@/lib/scroll";
 import { cn } from "@/lib/utils";
+import { ApiRequestError } from "@/lib/api/client";
 import type { Set, WorkoutExercise, WorkoutSession } from "@/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { Reorder, useDragControls } from "framer-motion";
@@ -69,13 +71,24 @@ function saveOrder(sessionId: string, order: string[]) {
   localStorage.setItem(ORDER_KEY_PREFIX + sessionId, JSON.stringify(order));
 }
 
+/** A group's id as the server knows it — survives a reload, unlike its render key. */
+function persistId(group: WorkoutExercise[]): string {
+  const gid = group[0].superset_group_id;
+  return group.length > 1 && gid !== null ? `ss-${gid}` : group[0].id;
+}
+
+function toPersistIds(groups: WorkoutExercise[][], keys: string[]): string[] {
+  const pidByKey = new Map(groups.map((g) => [groupKey(g), persistId(g)]));
+  return keys.map((k) => pidByKey.get(k) ?? k);
+}
+
 export default function WorkoutSessionPage() {
   const params = useParams<{ sessionId: string }>();
   const router = useRouter();
   const sessionId = params.sessionId;
   const qc = useQueryClient();
 
-  const { data: session, isLoading } = useWorkout(sessionId);
+  const { data: session, isLoading, error: loadError, refetch, isFetching } = useWorkout(sessionId);
   const { data: split } = useSplit(session?.split_id ?? null);
   const { data: exercises } = useExercises();
   const { data: muscles } = useMuscles();
@@ -98,7 +111,8 @@ export default function WorkoutSessionPage() {
   const [now, setNow] = useState(() => Date.now());
   // Failed set/exercise actions used to vanish silently (the optimistic row
   // just rolled back), which read as "the button doesn't work".
-  const addingSet = useRef(new globalThis.Set<string>());
+  /** Highest set_number handed out per exercise — see handleAddSet. */
+  const issuedSetNumber = useRef(new Map<string, number>());
   const [actionError, setActionError] = useState<string | null>(null);
   const errorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   function showError(err: unknown) {
@@ -183,17 +197,30 @@ export default function WorkoutSessionPage() {
 
   // Re-derive display order whenever the group set changes: keep the saved
   // drag order for groups that still exist, append anything new at the end.
+  //
+  // What's *stored* is each group's server id (persistId), not its render
+  // key: an exercise added this session keeps its optimistic id as its key
+  // for the page's lifetime (exerciseKeyAlias, memory only), so saving keys
+  // meant the order of every in-session exercise was lost on reload. The
+  // re-save here also swaps a just-confirmed placeholder's id for its real one.
   useEffect(() => {
+    // Nothing loaded yet — re-saving now would wipe the stored order.
+    if (groups.length === 0) {
+      setOrder([]);
+      return;
+    }
     const keys = groups.map(groupKey);
+    const keyByPid = new Map(groups.map((g) => [persistId(g), groupKey(g)]));
     const saved = readOrder(sessionId);
     if (!saved) {
       setOrder(keys);
       return;
     }
-    const known = new Set(keys);
-    const kept = saved.filter((k) => known.has(k));
-    const added = keys.filter((k) => !saved.includes(k));
-    setOrder([...kept, ...added]);
+    const kept = saved.map((p) => keyByPid.get(p)).filter((k): k is string => !!k);
+    const keptSet = new Set(kept);
+    const next = [...kept, ...keys.filter((k) => !keptSet.has(k))];
+    setOrder(next);
+    saveOrder(sessionId, toPersistIds(groups, next));
   }, [groups, sessionId]);
 
   const orderedGroups = useMemo(() => {
@@ -203,7 +230,7 @@ export default function WorkoutSessionPage() {
 
   function handleReorder(next: string[]) {
     setOrder(next);
-    saveOrder(sessionId, next);
+    saveOrder(sessionId, toPersistIds(groups, next));
   }
 
   const flatExerciseOrder = useMemo(() => orderedGroups.flat(), [orderedGroups]);
@@ -254,9 +281,8 @@ export default function WorkoutSessionPage() {
           return;
         }
         // Looked up by order_index, not id — the id changes on the swap.
-        document
-          .querySelector(`.exercise-card[data-order-index="${target.orderIndex}"]`)
-          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+        const card = document.querySelector(`.exercise-card[data-order-index="${target.orderIndex}"]`);
+        if (card) scrollIntoViewQuietly(card, "center");
       };
       setTimeout(go, 150);
     }
@@ -275,20 +301,39 @@ export default function WorkoutSessionPage() {
     let raf = 0;
     const update = () => {
       raf = 0;
-      const cards =
-        listRef.current?.querySelectorAll<HTMLElement>(".exercise-card") ?? [];
-      const center = (56 + window.innerHeight) / 2; // 56 = fixed session bar
+      // An app-started smooth scroll passes over other cards on its way —
+      // those frames aren't the lifter choosing a card.
+      if (isProgrammaticScroll()) return;
+      // While a set is being typed into, its card keeps focus: scrolling to
+      // glance at another exercise mustn't dim the one being edited.
+      if ("keypadOpen" in document.body.dataset) return;
+      const cards = [...(listRef.current?.querySelectorAll<HTMLElement>(".exercise-card") ?? [])];
+      if (cards.length === 0) return;
+      // Measured, not a hard-coded 56px — the bar also includes the
+      // safe-area inset (~59px under the Dynamic Island).
+      const top =
+        document.querySelector("[data-session-bar]")?.getBoundingClientRect().bottom ?? 56;
+      const center = (top + window.innerHeight) / 2;
       let best: HTMLElement | null = null;
       let bestDist = Infinity;
-      cards.forEach((el) => {
+      for (const el of cards) {
         const r = el.getBoundingClientRect();
         const dist = center < r.top ? r.top - center : center > r.bottom ? center - r.bottom : 0;
         if (dist < bestDist) {
           best = el;
           bestDist = dist;
         }
-      });
-      if (best) setFocusedExerciseId((best as HTMLElement).id.replace("we-", ""));
+      }
+      // Scrolled all the way down, a short last card can never reach the
+      // center — it still counts once its top has made it above the center.
+      const atBottom =
+        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+      const last = cards[cards.length - 1];
+      if (atBottom && last.getBoundingClientRect().top < center) best = last;
+      // Mirror image at the top: scrolled all the way up, the first card is
+      // the one in front of you even though it sits above the center.
+      if (window.scrollY <= 2) best = cards[0];
+      if (best) setFocusedExerciseId(best.id.replace("we-", ""));
     };
     const onScroll = () => {
       if (!raf) raf = requestAnimationFrame(update);
@@ -322,7 +367,7 @@ export default function WorkoutSessionPage() {
     setTimeout(() => {
       const el = document.getElementById(`we-${next.id}`);
       if (!el) return;
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      scrollIntoViewQuietly(el, "center");
       // A freshly-added exercise has no sets yet — no weight input to land
       // in, so focus its "Log first set" button instead. Either way
       // something inside the card ends up focused.
@@ -340,10 +385,7 @@ export default function WorkoutSessionPage() {
     if (swapTarget) {
       const target = swapTarget;
       setSwapTarget(null);
-      swapExercise.mutate(
-        { workoutExerciseId: target.id, exerciseId },
-        { onError: showError },
-      );
+      swapExercise.mutateAsync({ workoutExerciseId: target.id, exerciseId }).catch(showError);
       return;
     }
     // Next free slot, not `length` — removing an exercise leaves a gap, and
@@ -351,7 +393,7 @@ export default function WorkoutSessionPage() {
     const orderIndex =
       Math.max(-1, ...(session?.exercises.map((e) => e.order_index) ?? [])) + 1;
     justAdded.current = { orderIndex, scrolled: false };
-    addExercise.mutate({ exerciseId, orderIndex }, { onError: showError });
+    addExercise.mutateAsync({ exerciseId, orderIndex }).catch(showError);
   }
 
   /**
@@ -372,40 +414,57 @@ export default function WorkoutSessionPage() {
    * a "last set" endpoint that ignored set_number entirely, so e.g. a
    * 2-set exercise would seed set 1 from last workout's set 2.
    */
-  async function handleAddSet(we: WorkoutExercise) {
-    // Two taps in the same frame both read the same stale `we.sets` and POST
-    // the same set_number; the button's `disabled` only lands a render later.
-    if (addingSet.current.has(we.id)) return;
-    addingSet.current.add(we.id);
-    try {
-      await addSetOnce(we);
-    } finally {
-      addingSet.current.delete(we.id);
-    }
-  }
-
-  async function addSetOnce(we: WorkoutExercise) {
+  /**
+   * Each tap adds exactly one set, right away — even several taps in a row
+   * on a slow connection (the writes queue up in order, see sessionWrite).
+   * This used to block further taps until the server answered, so three
+   * quick taps gave one set. Reads the live cache rather than the render's
+   * `we`, and reserves set numbers, so taps landing before the previous
+   * optimistic row has rendered never reuse a set_number.
+   */
+  function handleAddSet(weId: string) {
+    const we = qc
+      .getQueryData<WorkoutSession>(["workouts", sessionId])
+      ?.exercises.find((e) => e.id === weId);
+    if (!we) return;
     const previous = [...we.sets].sort((a, b) => b.set_number - a.set_number)[0];
     // Next free number, not `length + 1` — deleting a middle set leaves a gap
     // and length + 1 would then duplicate an existing set_number.
-    const setNumber = Math.max(0, ...we.sets.map((s) => s.set_number)) + 1;
+    const setNumber =
+      Math.max(0, issuedSetNumber.current.get(weId) ?? 0, ...we.sets.map((s) => s.set_number)) + 1;
+    issuedSetNumber.current.set(weId, setNumber);
 
-    const created = await logSet.mutateAsync({
-      workoutExerciseId: we.id,
-      input: {
-        set_number: setNumber,
-        set_type: previous?.set_type ?? "standard",
-        target_weight: null,
-        target_reps: null,
-        target_rir: null,
-        actual_weight: previous?.actual_weight ?? null,
-        actual_reps: previous?.actual_reps ?? null,
-        actual_rir: previous?.actual_rir ?? null,
-        completed: false,
-      },
-    });
+    // mutateAsync, not mutate(…, callbacks): React Query only runs per-call
+    // callbacks for the *latest* call on a hook, so with several taps in
+    // flight an earlier set's failure (or first-set seed) was silently lost.
+    logSet
+      .mutateAsync({
+        workoutExerciseId: we.id,
+        input: {
+          set_number: setNumber,
+          set_type: previous?.set_type ?? "standard",
+          target_weight: null,
+          target_reps: null,
+          target_rir: null,
+          actual_weight: previous?.actual_weight ?? null,
+          actual_reps: previous?.actual_reps ?? null,
+          actual_rir: previous?.actual_rir ?? null,
+          completed: false,
+        },
+      })
+      .then(
+        (created) => {
+          if (!previous) void seedFirstSet(we, created.id, setNumber);
+        },
+        (err) => {
+          // Re-derive from the cache next time, now that this row is gone.
+          issuedSetNumber.current.delete(weId);
+          showError(err);
+        },
+      );
+  }
 
-    if (previous) return;
+  async function seedFirstSet(we: WorkoutExercise, createdId: string, setNumber: number) {
     const history = await getExerciseHistory(we.exercise_id, { limit: 2 }).catch(() => null);
     const last = history?.find((h) => h.workout_session_id !== sessionId)?.sets.find((s) => s.set_number === setNumber);
     if (!last) return;
@@ -415,11 +474,11 @@ export default function WorkoutSessionPage() {
     const now = qc
       .getQueryData<WorkoutSession>(["workouts", sessionId])
       ?.exercises.flatMap((e) => e.sets)
-      .find((s) => s.id === created.id);
+      .find((s) => s.id === createdId);
     if (!now || now.completed || now.actual_weight !== null || now.actual_reps !== null) return;
     patchSets.mutate([
       {
-        id: created.id,
+        id: createdId,
         patch: {
           actual_weight: last.actual_weight,
           actual_reps: last.actual_reps,
@@ -466,7 +525,7 @@ export default function WorkoutSessionPage() {
       }
     }
 
-    patchSets.mutate(updates, { onError: showError });
+    patchSets.mutateAsync(updates).catch(showError);
 
     if (patch.completed === true) {
       // Each exercise carries its own configured rest time, so the timer
@@ -506,6 +565,7 @@ export default function WorkoutSessionPage() {
       // has rolled itself back by this point, so this matches the server.
       const latest = qc.getQueryData<WorkoutSession>(["workouts", sessionId]) ?? session;
       setSummary({ ...latest, completed_at: updated?.completed_at ?? endedAt });
+      localStorage.removeItem(ORDER_KEY_PREFIX + sessionId); // local-only state, done with
     } catch (err) {
       showError(err);
     }
@@ -516,7 +576,7 @@ export default function WorkoutSessionPage() {
     const n = we.sets.length;
     if (n > 0 && !window.confirm(`Remove ${exerciseNames.get(we.exercise_id) ?? "this exercise"} and its ${n} logged set${n === 1 ? "" : "s"}?`))
       return;
-    removeExercise.mutate(we.id, { onError: showError });
+    removeExercise.mutateAsync(we.id).catch(showError);
   }
 
   /** Swapping clears the exercise's sets — ask first when there are any. */
@@ -536,7 +596,36 @@ export default function WorkoutSessionPage() {
     // invalidates the whole ["workouts"] prefix, this session's key
     // included) and refetch a now-404ing workout while still mounted.
     router.push("/home");
+    localStorage.removeItem(ORDER_KEY_PREFIX + sessionId);
     deleteWorkout.mutate(session.id);
+  }
+
+  if (!session && loadError) {
+    // No error state used to mean an endless skeleton — and with the session
+    // bar not rendered and the tab bar hidden here, no way out of it.
+    const gone = loadError instanceof ApiRequestError && loadError.status === 404;
+    return (
+      <div className="pt-[calc(env(safe-area-inset-top)+64px)]">
+        <Card flush>
+          <EmptyState
+            title={gone ? "This workout no longer exists" : "Couldn't load this workout"}
+            description={gone ? "It may have been discarded." : loadError.message}
+            action={
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={() => router.push("/home")}>
+                  Home
+                </Button>
+                {!gone && (
+                  <Button onClick={() => refetch()} disabled={isFetching}>
+                    {isFetching ? "Retrying…" : "Try again"}
+                  </Button>
+                )}
+              </div>
+            }
+          />
+        </Card>
+      </div>
+    );
   }
 
   if (isLoading || !session) {
@@ -558,7 +647,10 @@ export default function WorkoutSessionPage() {
   return (
     <NumericKeypadProvider>
       {/* Session bar ---------------------------------------------------- */}
-      <div className="fixed inset-x-0 top-0 z-30 mx-auto w-full max-w-[480px] border-b border-separator bg-chrome pt-[env(safe-area-inset-top)] [backdrop-filter:blur(20px)]">
+      <div
+        data-session-bar
+        className="fixed inset-x-0 top-0 z-30 mx-auto w-full max-w-[480px] border-b border-separator bg-chrome pt-[env(safe-area-inset-top)] [backdrop-filter:blur(20px)]"
+      >
         <div className="flex h-14 items-center gap-3 px-4">
           <button
             onClick={() => router.push("/home")}
@@ -601,8 +693,10 @@ export default function WorkoutSessionPage() {
             </svg>
           </button>
 
+          {/* Finish waits behind any queued set saves — say so rather than
+              look unresponsive. */}
           <Button size="sm" onClick={finish} disabled={patchWorkout.isPending}>
-            Finish
+            {patchWorkout.isPending ? "Saving…" : "Finish"}
           </Button>
         </div>
       </div>
@@ -655,15 +749,12 @@ export default function WorkoutSessionPage() {
                           exerciseType={exerciseType.get(we.exercise_id)}
                           sessionId={sessionId}
                           onChangeSet={(setId, patch) => handleChangeSet(we, setId, patch)}
-                          onDeleteSet={(setId) => deleteSet.mutate(setId, { onError: showError })}
-                          onAddSet={() => handleAddSet(we).catch(showError)}
+                          onDeleteSet={(setId) => deleteSet.mutateAsync(setId).catch(showError)}
+                          onAddSet={() => handleAddSet(we.id)}
                           onRemove={() => confirmRemove(we)}
                           onSwap={() => confirmSwap(we)}
                           onDragHandlePointerDown={startDrag}
                           onActivate={() => setFocusedExerciseId(we.id)}
-                          addPending={
-                            logSet.isPending && logSet.variables?.workoutExerciseId === we.id
-                          }
                           dimmed={
                             focusedExerciseId !== null && focusedExerciseId !== we.id
                           }
@@ -671,7 +762,7 @@ export default function WorkoutSessionPage() {
                       ));
 
                       return group.length > 1 && groupId !== null ? (
-                        <SupersetGroup onUngroup={() => removeSuperset.mutate(groupId, { onError: showError })}>
+                        <SupersetGroup onUngroup={() => removeSuperset.mutateAsync(groupId).catch(showError)}>
                           {cards}
                         </SupersetGroup>
                       ) : (
@@ -713,7 +804,7 @@ export default function WorkoutSessionPage() {
       {/* Rest timer, pinned above the safe area. */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[480px] px-4 pb-[calc(env(safe-area-inset-bottom)+12px)]">
         <div className="pointer-events-auto">
-          <RestTimer startSignal={restSignal} restSeconds={restSeconds} />
+          <RestTimer sessionId={sessionId} startSignal={restSignal} restSeconds={restSeconds} />
         </div>
       </div>
 

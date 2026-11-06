@@ -2,7 +2,7 @@
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { MediaThumb } from "@/components/ui/MediaThumb";
-import { Sheet } from "@/components/ui/Sheet";
+import { PresenceLayer, Scrim, Sheet } from "@/components/ui/Sheet";
 import { useExercises, useLastSet } from "@/hooks/use-exercises";
 import { readFavoriteIds } from "@/hooks/use-favorites";
 import { useMuscles } from "@/hooks/use-muscles";
@@ -453,16 +453,10 @@ function ExercisePreview({
   return createPortal(
     <AnimatePresence>
       {exercise && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
-          <motion.div
-            className="absolute inset-0 bg-scrim"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            onClick={onClose}
-            aria-hidden
-          />
+        // The long-press that opens this ends with the finger lifting over
+        // the new scrim — Scrim ignores that release, so the peek stays open.
+        <PresenceLayer key="preview" className="fixed inset-0 z-[60] flex items-center justify-center p-6">
+          <Scrim onClose={onClose} />
           <motion.div
             role="dialog"
             aria-modal="true"
@@ -536,7 +530,7 @@ function ExercisePreview({
               </div>
             </div>
           </motion.div>
-        </div>
+        </PresenceLayer>
       )}
     </AnimatePresence>,
     document.body,

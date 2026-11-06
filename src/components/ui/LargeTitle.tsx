@@ -37,7 +37,10 @@ export function LargeTitle({
 
   function goBack() {
     if (typeof back === "string") router.push(back);
-    else router.back();
+    // Opened directly (a fresh PWA launch, a reload with no history before
+    // it): there's nothing to go back to, and router.back() did nothing.
+    else if (window.history.length > 1) router.back();
+    else router.push("/home");
   }
 
   return (

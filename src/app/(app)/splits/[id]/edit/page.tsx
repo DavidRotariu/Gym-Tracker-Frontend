@@ -32,11 +32,11 @@ export default function EditSplitPage() {
           submitLabel="Save changes"
           onSubmit={async (input) => {
             await updateSplit.mutateAsync({ id: splitId, input });
-            router.push("/splits");
+            router.replace("/splits");
           }}
           onDelete={async () => {
             await deleteSplit.mutateAsync(splitId);
-            router.push("/splits");
+            router.replace("/splits");
           }}
         />
       )}
