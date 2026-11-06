@@ -26,7 +26,7 @@ import {
 import type { SetPatch } from "@/hooks/use-workout-session";
 import { useDeleteWorkout, usePatchWorkout, useWorkout } from "@/hooks/use-workouts";
 import { getExerciseHistory } from "@/lib/api/exercises";
-import { formatElapsed, shortMuscleName } from "@/lib/format";
+import { MAX_WORKOUT_MS, formatElapsed, shortMuscleName, workoutEndTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Set, WorkoutExercise, WorkoutSession } from "@/types";
 import { Reorder, useDragControls } from "framer-motion";
@@ -112,6 +112,25 @@ export default function WorkoutSessionPage() {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  // A finished workout isn't editable here — if one is opened anyway (stale
+  // "Resume" button, old link), send it to its read-only history page. The
+  // finish screen itself (`summary`) stays up until dismissed.
+  // Past 3 hours it's no longer a live workout: close it out at the last
+  // logged set (see workoutEndTime). Once saved, the redirect below sends it
+  // to its history page.
+  const autoEnded = useRef(false);
+  useEffect(() => {
+    if (!session || session.completed_at || summary || autoEnded.current) return;
+    if (now - new Date(session.started_at).getTime() <= MAX_WORKOUT_MS) return;
+    autoEnded.current = true;
+    patchWorkout.mutate({ completed_at: workoutEndTime(session, Date.now()) });
+  }, [session, summary, now, patchWorkout]);
+
+  const alreadyCompleted = !!session?.completed_at && !summary;
+  useEffect(() => {
+    if (alreadyCompleted) router.replace(`/history/${sessionId}`);
+  }, [alreadyCompleted, router, sessionId]);
 
   const exerciseNames = useMemo(
     () => new Map(exercises?.map((e) => [e.id, e.name])),
@@ -461,13 +480,9 @@ export default function WorkoutSessionPage() {
 
   async function finish() {
     if (!session) return;
-    const updated = await patchWorkout.mutateAsync({
-      completed_at: new Date().toISOString(),
-    });
-    setSummary({
-      ...session,
-      completed_at: updated?.completed_at ?? new Date().toISOString(),
-    });
+    const endedAt = workoutEndTime(session, Date.now());
+    const updated = await patchWorkout.mutateAsync({ completed_at: endedAt });
+    setSummary({ ...session, completed_at: updated?.completed_at ?? endedAt });
   }
 
   function discard() {

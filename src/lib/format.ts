@@ -66,6 +66,29 @@ export function formatDuration(
   return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
+/** A workout running longer than this is treated as abandoned. */
+export const MAX_WORKOUT_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * When a workout should be recorded as ending if it's being closed at `now`:
+ * normally right now, but past MAX_WORKOUT_MS it ends at the last logged
+ * (completed) set instead — a workout left open overnight shouldn't get an
+ * 11-hour duration. With no completed sets it falls back to the start.
+ */
+export function workoutEndTime(session: WorkoutSession, now: number): string {
+  const started = new Date(session.started_at).getTime();
+  if (now - started <= MAX_WORKOUT_MS) return new Date(now).toISOString();
+  let last = started;
+  for (const we of session.exercises) {
+    for (const set of we.sets) {
+      if (!set.completed || !set.completed_at) continue;
+      const t = new Date(set.completed_at).getTime();
+      if (t > last) last = t;
+    }
+  }
+  return new Date(last).toISOString();
+}
+
 /** Elapsed time as mm:ss / h:mm:ss, for the live session clock. */
 export function formatElapsed(startedAt: string, now: number): string {
   const seconds = Math.max(

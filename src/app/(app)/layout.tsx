@@ -5,10 +5,20 @@ import { VideoPrefetcher } from "@/components/VideoPrefetcher";
 import { useRequireAuth } from "@/hooks/use-auth";
 import { motion } from "framer-motion";
 import { usePathname } from "next/navigation";
+import { useLayoutEffect } from "react";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useRequireAuth();
   const pathname = usePathname();
+
+  // Every route change starts at the top. Next's own scroll-to-top doesn't
+  // reliably win here (the page remounts under a keyed fade, and a long
+  // workout page leaves the window scrolled far down — e.g. discarding a
+  // workout landed Home mid-scroll and glitching). Runs before paint so
+  // there's no visible jump.
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [pathname]);
 
   if (loading || !user) return null;
 
