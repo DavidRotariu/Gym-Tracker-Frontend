@@ -56,6 +56,20 @@ export function SplitForm({
     }
   }
 
+  async function handleDelete() {
+    if (!onDelete || submitting) return;
+    if (!window.confirm(`Delete "${initial?.name ?? name}"? This can't be undone.`)) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await onDelete();
+    } catch {
+      setError("Couldn't delete this split. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   const nameError = error && !name.trim() ? error : undefined;
 
   return (
@@ -101,7 +115,7 @@ export function SplitForm({
           {submitting ? "Saving…" : submitLabel}
         </Button>
         {onDelete && (
-          <Button type="button" variant="destructive" block onClick={onDelete}>
+          <Button type="button" variant="destructive" block onClick={handleDelete} disabled={submitting}>
             Delete split
           </Button>
         )}

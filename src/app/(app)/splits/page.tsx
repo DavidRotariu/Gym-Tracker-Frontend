@@ -10,7 +10,7 @@ import { Sheet } from "@/components/ui/Sheet";
 import { SwipeRow } from "@/components/ui/SwipeRow";
 import { useMuscles } from "@/hooks/use-muscles";
 import { useCreateSplit, useDeleteSplit, useSplits } from "@/hooks/use-splits";
-import { useStartWorkout, useWorkoutHistory } from "@/hooks/use-workouts";
+import { useStartOrResumeWorkout } from "@/hooks/use-workouts";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -20,22 +20,15 @@ export default function SplitsPage() {
   const router = useRouter();
   const { data: splits, isLoading } = useSplits();
   const { data: muscles } = useMuscles();
-  const startWorkout = useStartWorkout();
-  const { data: history } = useWorkoutHistory();
+  const startWorkout = useStartOrResumeWorkout();
   const createSplit = useCreateSplit();
   const deleteSplit = useDeleteSplit();
   const [createOpen, setCreateOpen] = useState(false);
 
-  async function start(splitId: string) {
-    // Same as the home screen: resume rather than orphan a second workout.
-    const inProgress = history?.find((s) => !s.completed_at);
-    if (inProgress) {
-      router.push(`/workout/${inProgress.id}`);
-      return;
-    }
-    if (startWorkout.isPending) return;
-    const session = await startWorkout.mutateAsync(splitId);
-    router.push(`/workout/${session.id}`);
+  // Same as the home screen: resume rather than orphan a second workout —
+  // and wait for the history list rather than assume nothing's in progress.
+  function start(splitId: string) {
+    void startWorkout.run(splitId);
   }
 
   return (

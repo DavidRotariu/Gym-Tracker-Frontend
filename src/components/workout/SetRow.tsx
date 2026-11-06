@@ -75,9 +75,15 @@ function NumberField({
   onDraft,
   onEditEnd,
   prefix = "",
+  integer = false,
+  openRef,
 }: {
   /** Display-only (e.g. "−" for negative exercises); never part of the stored number. */
   prefix?: string;
+  /** Whole numbers only (reps, seconds) — no "." key, and no fractions stored. */
+  integer?: boolean;
+  /** Lets the row open this field programmatically (see the ✓ guard). */
+  openRef?: React.RefObject<(() => void) | null>;
   value: number | null;
   placeholder: string;
   onCommit: (value: number | null) => void;
@@ -120,13 +126,19 @@ function NumberField({
   function commit() {
     const trimmed = draftRef.current.trim();
     onEditEnd?.();
-    if (trimmed === "") {
-      onCommit(null);
+    const parsed = Number(trimmed.replace(",", "."));
+    if (trimmed !== "" && !Number.isFinite(parsed)) {
+      setDraft(valueRef.current === null ? "" : String(valueRef.current));
       return;
     }
-    const parsed = Number(trimmed.replace(",", "."));
-    if (Number.isFinite(parsed)) onCommit(Math.max(0, parsed));
-    else setDraft(valueRef.current === null ? "" : String(valueRef.current));
+    const next = trimmed === "" ? null : Math.max(0, integer ? Math.round(parsed) : parsed);
+    // Opening and closing a field without changing it isn't an edit — don't
+    // queue a write for it.
+    if (next === valueRef.current) {
+      setDraft(next === null ? "" : String(next));
+      return;
+    }
+    onCommit(next);
   }
 
   function handleKey(key: KeypadKey) {
@@ -137,7 +149,7 @@ function NumberField({
       next = key === "del" ? "" : key === "." ? "0." : key;
     } else if (key === "del") {
       next = prev.slice(0, -1);
-    } else if (key === "." && prev.includes(".")) {
+    } else if (key === "." && (integer || prev.includes("."))) {
       next = prev;
     } else if (prev.length >= 6) {
       next = prev;
@@ -164,6 +176,7 @@ function NumberField({
       onKey: handleKey,
       onCommit: commit,
       target: buttonRef.current,
+      decimal: !integer,
     });
     // Safari/iOS doesn't focus a <button> on tap the way it does a real
     // <input> — without this, tapping a weight/reps field never bubbles a
@@ -171,6 +184,10 @@ function NumberField({
     // handleExerciseAreaFocus) never learns this card is now the active one.
     buttonRef.current?.focus();
   }
+
+  useEffect(() => {
+    if (openRef) openRef.current = openField;
+  });
 
   const active = keypad.activeId === fieldId;
   const shown = override ?? draft;
@@ -220,6 +237,7 @@ export function SetRow({
   const [flash, setFlash] = useState(false);
   const [burst, setBurst] = useState(0);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openReps = useRef<(() => void) | null>(null);
   useEffect(
     () => () => {
       if (flashTimer.current) clearTimeout(flashTimer.current);
@@ -324,6 +342,8 @@ export function SetRow({
 
       <NumberField
         value={set.actual_reps}
+        integer
+        openRef={openReps}
         placeholder={previous?.reps != null ? String(previous.reps) : "—"}
         onCommit={(v) => onChange({ actual_reps: v })}
         label={`Set ${set.set_number} ${isTimer ? "seconds" : "reps"}`}
@@ -335,6 +355,13 @@ export function SetRow({
       <motion.button
         type="button"
         onClick={() => {
+          // A completed set with no reps (nothing typed, nothing to carry over
+          // from last time) would be logged as a done set with no data — open
+          // the reps field instead of ticking it off.
+          if (!set.completed && set.actual_reps === null && previous?.reps == null) {
+            openReps.current?.();
+            return;
+          }
           if (!set.completed) celebrate();
           onChange({
             completed: !set.completed,

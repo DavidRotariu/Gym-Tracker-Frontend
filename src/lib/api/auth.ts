@@ -8,19 +8,6 @@ export interface AuthResponse {
   user: User;
 }
 
-export interface TokenPair {
-  access_token: string;
-  refresh_token: string;
-}
-
-export function refreshTokens(refreshToken: string) {
-  return apiRequest<TokenPair>("/auth/refresh", {
-    method: "POST",
-    body: { refresh_token: refreshToken },
-    auth: false,
-  });
-}
-
 export function signup(email: string, password: string) {
   return apiRequest<AuthResponse>("/auth/signup", {
     method: "POST",

@@ -23,9 +23,11 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(email, password);
-      // "/" is the launch gate (QR + next split) — it decides on its own
-      // whether it has anything to show and falls through to /home if not.
-      router.replace("/");
+      // Back to where an expired session left off (e.g. mid-workout), else
+      // "/" — the launch gate (QR + next split), which falls through to
+      // /home on its own if it has nothing to show. Same-origin paths only.
+      const next = new URLSearchParams(window.location.search).get("next");
+      router.replace(next && /^\/(?![/\\])/.test(next) ? next : "/");
     } catch (err) {
       setError(
         err instanceof ApiRequestError

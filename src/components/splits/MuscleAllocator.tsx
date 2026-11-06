@@ -29,7 +29,8 @@ export function MuscleAllocator({
     onChange(
       allocation.map((a) =>
         a.muscle_id === muscleId
-          ? { ...a, nr_of_exercises: Math.max(1, count) }
+          ? // A count of exercises — the Stepper's tap-to-type accepts "2.5".
+            { ...a, nr_of_exercises: Math.max(1, Math.round(count)) }
           : a,
       ),
     );

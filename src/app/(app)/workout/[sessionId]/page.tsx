@@ -29,6 +29,7 @@ import { getExerciseHistory } from "@/lib/api/exercises";
 import { MAX_WORKOUT_MS, formatElapsed, shortMuscleName, workoutEndTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Set, WorkoutExercise, WorkoutSession } from "@/types";
+import { useQueryClient } from "@tanstack/react-query";
 import { Reorder, useDragControls } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -72,6 +73,7 @@ export default function WorkoutSessionPage() {
   const params = useParams<{ sessionId: string }>();
   const router = useRouter();
   const sessionId = params.sessionId;
+  const qc = useQueryClient();
 
   const { data: session, isLoading } = useWorkout(sessionId);
   const { data: split } = useSplit(session?.split_id ?? null);
@@ -407,6 +409,14 @@ export default function WorkoutSessionPage() {
     const history = await getExerciseHistory(we.exercise_id, { limit: 2 }).catch(() => null);
     const last = history?.find((h) => h.workout_session_id !== sessionId)?.sets.find((s) => s.set_number === setNumber);
     if (!last) return;
+    // The history fetch can land seconds later on a slow connection — only
+    // fill a set that's still untouched, never over what the lifter typed
+    // (or ticked off) in the meantime.
+    const now = qc
+      .getQueryData<WorkoutSession>(["workouts", sessionId])
+      ?.exercises.flatMap((e) => e.sets)
+      .find((s) => s.id === created.id);
+    if (!now || now.completed || now.actual_weight !== null || now.actual_reps !== null) return;
     patchSets.mutate([
       {
         id: created.id,
@@ -421,7 +431,8 @@ export default function WorkoutSessionPage() {
 
   /**
    * Filling in a set's weight or reps carries that value forward to any
-   * later set in the same exercise whose *same field* is still untouched —
+   * later, not-yet-completed set in the same exercise whose *same field* is
+   * still untouched (a completed set is logged history — never rewritten) —
    * logging a straight-sets exercise becomes "type once, tap complete" for
    * every set after the first instead of retyping the same numbers. Weight
    * and reps propagate independently, since they're typed one after the
@@ -441,14 +452,14 @@ export default function WorkoutSessionPage() {
     if (current) {
       if (patch.actual_weight !== undefined && patch.actual_weight !== null) {
         for (const s of we.sets) {
-          if (isSaved(s) && s.set_number > current.set_number && s.actual_weight === null) {
+          if (isSaved(s) && !s.completed && s.set_number > current.set_number && s.actual_weight === null) {
             updates.push({ id: s.id, patch: { actual_weight: patch.actual_weight } });
           }
         }
       }
       if (patch.actual_reps !== undefined && patch.actual_reps !== null) {
         for (const s of we.sets) {
-          if (isSaved(s) && s.set_number > current.set_number && s.actual_reps === null) {
+          if (isSaved(s) && !s.completed && s.set_number > current.set_number && s.actual_reps === null) {
             updates.push({ id: s.id, patch: { actual_reps: patch.actual_reps } });
           }
         }
@@ -461,8 +472,12 @@ export default function WorkoutSessionPage() {
       // Each exercise carries its own configured rest time, so the timer
       // that pops up after this set matches this exercise, not whatever was
       // last used.
-      setRestSeconds(exercises?.find((e) => e.id === we.exercise_id)?.rest_time);
-      setRestSignal((n) => n + 1);
+      // 0 means "no rest timer" — starting one would chime on the spot.
+      const rest = exercises?.find((e) => e.id === we.exercise_id)?.rest_time;
+      if (rest !== 0) {
+        setRestSeconds(rest);
+        setRestSignal((n) => n + 1);
+      }
 
       // First real set logged for this exercise — favourite it so the
       // picker's "liked" sort (see ExercisePicker) surfaces it without the
@@ -480,9 +495,36 @@ export default function WorkoutSessionPage() {
 
   async function finish() {
     if (!session) return;
-    const endedAt = workoutEndTime(session, Date.now());
-    const updated = await patchWorkout.mutateAsync({ completed_at: endedAt });
-    setSummary({ ...session, completed_at: updated?.completed_at ?? endedAt });
+    // `now` is the page's 1s clock — close enough, and keeps the React
+    // Compiler from flagging Date.now() in this handler as impure.
+    const endedAt = workoutEndTime(session, now);
+    try {
+      // patchWorkout shares the session's write queue, so this resolves only
+      // after every set edit made before Finish has reached the server.
+      const updated = await patchWorkout.mutateAsync({ completed_at: endedAt });
+      // Summarize what the cache holds *now* — any queued write that failed
+      // has rolled itself back by this point, so this matches the server.
+      const latest = qc.getQueryData<WorkoutSession>(["workouts", sessionId]) ?? session;
+      setSummary({ ...latest, completed_at: updated?.completed_at ?? endedAt });
+    } catch (err) {
+      showError(err);
+    }
+  }
+
+  /** Removing an exercise deletes its logged sets with it — ask first when there are any. */
+  function confirmRemove(we: WorkoutExercise) {
+    const n = we.sets.length;
+    if (n > 0 && !window.confirm(`Remove ${exerciseNames.get(we.exercise_id) ?? "this exercise"} and its ${n} logged set${n === 1 ? "" : "s"}?`))
+      return;
+    removeExercise.mutate(we.id, { onError: showError });
+  }
+
+  /** Swapping clears the exercise's sets — ask first when there are any. */
+  function confirmSwap(we: WorkoutExercise) {
+    const n = we.sets.length;
+    if (n > 0 && !window.confirm(`Swapping clears the ${n} set${n === 1 ? "" : "s"} logged for ${exerciseNames.get(we.exercise_id) ?? "this exercise"}. Continue?`))
+      return;
+    setSwapTarget(we);
   }
 
   function discard() {
@@ -615,8 +657,8 @@ export default function WorkoutSessionPage() {
                           onChangeSet={(setId, patch) => handleChangeSet(we, setId, patch)}
                           onDeleteSet={(setId) => deleteSet.mutate(setId, { onError: showError })}
                           onAddSet={() => handleAddSet(we).catch(showError)}
-                          onRemove={() => removeExercise.mutate(we.id, { onError: showError })}
-                          onSwap={() => setSwapTarget(we)}
+                          onRemove={() => confirmRemove(we)}
+                          onSwap={() => confirmSwap(we)}
                           onDragHandlePointerDown={startDrag}
                           onActivate={() => setFocusedExerciseId(we.id)}
                           addPending={
@@ -629,7 +671,7 @@ export default function WorkoutSessionPage() {
                       ));
 
                       return group.length > 1 && groupId !== null ? (
-                        <SupersetGroup onUngroup={() => removeSuperset.mutate(groupId)}>
+                        <SupersetGroup onUngroup={() => removeSuperset.mutate(groupId, { onError: showError })}>
                           {cards}
                         </SupersetGroup>
                       ) : (
@@ -658,7 +700,9 @@ export default function WorkoutSessionPage() {
       {actionError && (
         <div
           role="alert"
-          className="fixed inset-x-0 top-[calc(env(safe-area-inset-top)+64px)] z-40 mx-auto w-full max-w-[480px] px-4"
+          // Above the finish summary (z-50) — a write that fails after Finish
+          // must not be hidden under it.
+          className="fixed inset-x-0 top-[calc(env(safe-area-inset-top)+64px)] z-[60] mx-auto w-full max-w-[480px] px-4"
         >
           <p className="rounded-control bg-red px-3 py-2 text-caption font-semibold text-white shadow-sheet">
             {actionError}

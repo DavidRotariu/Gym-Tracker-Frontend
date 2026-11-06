@@ -73,7 +73,10 @@ export function ExerciseCard({
     if (!liveEdit || liveEdit.field !== field || liveEdit.setId === setId) return undefined;
     const activeSet = we.sets.find((s) => s.id === liveEdit.setId);
     const thisSet = we.sets.find((s) => s.id === setId);
+    // Same rule as the commit's forward-fill (see the session page): saved,
+    // not completed, later — so the preview never shows a value that won't stick.
     if (!activeSet || !thisSet || thisSet.set_number <= activeSet.set_number) return undefined;
+    if (thisSet.completed || thisSet.id.startsWith("optimistic-")) return undefined;
     const committed = field === "weight" ? thisSet.actual_weight : thisSet.actual_reps;
     return committed === null ? liveEdit.draft : undefined;
   }
@@ -173,8 +176,9 @@ export function ExerciseCard({
               <button
                 type="button"
                 onClick={onSwap}
+                disabled={unsaved}
                 aria-label={`Swap ${name}`}
-                className="flex size-10 cursor-pointer items-center justify-center rounded-pill text-white/80 active:text-white"
+                className="flex size-10 cursor-pointer items-center justify-center rounded-pill text-white/80 active:text-white disabled:opacity-40"
               >
                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
                   <path
@@ -190,8 +194,9 @@ export function ExerciseCard({
             <button
               type="button"
               onClick={onRemove}
+              disabled={unsaved}
               aria-label={`Remove ${name}`}
-              className="flex size-10 cursor-pointer items-center justify-center rounded-pill text-white/80 active:text-red"
+              className="flex size-10 cursor-pointer items-center justify-center rounded-pill text-white/80 active:text-red disabled:opacity-40"
             >
               <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
                 <path

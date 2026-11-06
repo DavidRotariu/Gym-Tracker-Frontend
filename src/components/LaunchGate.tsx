@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { MediaThumb } from "@/components/ui/MediaThumb";
 import { useSplits } from "@/hooks/use-splits";
 import { useQrImage } from "@/hooks/use-users";
-import { useStartWorkout, useWorkoutHistory } from "@/hooks/use-workouts";
+import { useStartOrResumeWorkout, useWorkoutHistory } from "@/hooks/use-workouts";
 import { suggestSplit } from "@/lib/format";
 import { getSplitIcon } from "@/lib/splitIcon";
 import { motion } from "framer-motion";
@@ -26,7 +26,7 @@ export function LaunchGate() {
   const { data: splits, isLoading: splitsLoading } = useSplits();
   const { data: history, isLoading: historyLoading } = useWorkoutHistory();
   const { url: qrUrl } = useQrImage(true);
-  const startWorkout = useStartWorkout();
+  const startWorkout = useStartOrResumeWorkout();
 
   const [alreadyShown] = useState(
     () => typeof window !== "undefined" && sessionStorage.getItem(SHOWN_KEY) === "1",
@@ -54,9 +54,12 @@ export function LaunchGate() {
     return <div className="fixed inset-0 z-50 bg-background" />;
   }
 
-  async function start() {
-    const session = await startWorkout.mutateAsync(suggested!.id);
-    router.replace(`/workout/${session.id}`);
+  // Reopening the app mid-workout lands here (iOS relaunches at "/") — the
+  // button must take you back to that workout, not start a second one.
+  const inProgress = history?.some((s) => !s.completed_at);
+
+  function start() {
+    void startWorkout.run(suggested!.id, { replace: true });
   }
 
   return (
@@ -107,7 +110,7 @@ export function LaunchGate() {
           onClick={start}
           disabled={startWorkout.isPending}
         >
-          {startWorkout.isPending ? "Starting…" : "Let's do it!"}
+          {startWorkout.isPending ? "Starting…" : inProgress ? "Resume workout" : "Let's do it!"}
         </Button>
         <Button size="lg" block variant="secondary" onClick={() => router.replace("/home")}>
           Home screen

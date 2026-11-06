@@ -94,7 +94,12 @@ export default function HistoryPage() {
                       {
                         label: "Delete",
                         variant: "destructive",
-                        onAction: () => deleteWorkout.mutate(session.id),
+                        // A whole logged workout, gone for good — ask first.
+                        onAction: () => {
+                          if (window.confirm("Delete this workout? This can't be undone.")) {
+                            deleteWorkout.mutate(session.id);
+                          }
+                        },
                       },
                     ]}
                   >

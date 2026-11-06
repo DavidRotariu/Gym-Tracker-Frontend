@@ -292,9 +292,10 @@ function ExerciseEditForm({
       setError("Give this exercise a name.");
       return;
     }
+    // Number("") is 0 — an emptied field must not silently save "no rest".
     const restTimeSeconds = Number(restTime);
-    if (!Number.isFinite(restTimeSeconds) || restTimeSeconds < 0) {
-      setError("Rest time must be a positive number of seconds.");
+    if (restTime.trim() === "" || !Number.isInteger(restTimeSeconds) || restTimeSeconds < 0) {
+      setError("Rest time must be a whole number of seconds (0 turns the timer off).");
       return;
     }
     setError(null);

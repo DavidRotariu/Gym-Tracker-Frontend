@@ -338,7 +338,9 @@ function MembershipSection() {
 
                 <button
                   type="button"
-                  onClick={() => deleteMembership.mutate()}
+                  onClick={() => {
+                    if (window.confirm("Remove the logged payment?")) deleteMembership.mutate();
+                  }}
                   disabled={deleteMembership.isPending}
                   aria-label="Remove logged payment"
                   className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-pill text-label-tertiary active:bg-fill active:text-red disabled:opacity-40"

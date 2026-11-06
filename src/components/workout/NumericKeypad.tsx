@@ -22,6 +22,8 @@ interface ActiveField {
   onCommit: () => void;
   /** The field's own element, so the page can keep it above the keypad. */
   target?: HTMLElement | null;
+  /** False for whole-number fields (reps, seconds) — the "." key is disabled. */
+  decimal?: boolean;
 }
 
 interface KeypadApi {
@@ -107,6 +109,26 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
     if (r.bottom > limit) window.scrollBy({ top: r.bottom - limit, behavior: "smooth" });
   }, [activeId]);
 
+  // A draft only exists in the field until it's committed. Backgrounding the
+  // app (iOS may then evict it) or leaving the page must commit it, not drop
+  // it — same as tapping elsewhere.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden" && fieldRef.current) close();
+    };
+    const onPageHide = () => {
+      if (fieldRef.current) close();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onPageHide);
+      fieldRef.current?.onCommit();
+      fieldRef.current = null;
+    };
+  }, [close]);
+
   useEffect(() => {
     if (!field) return;
     function handlePointerDown(e: PointerEvent) {
@@ -144,10 +166,11 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
                       key={key}
                       type="button"
                       onClick={() => fieldRef.current?.onKey(key)}
+                      disabled={key === "." && field.decimal === false}
                       aria-label={key === "del" ? "Delete" : key}
                       className={cn(
                         "flex h-14 cursor-pointer items-center justify-center bg-background-elevated",
-                        "text-2xl font-semibold text-label active:bg-fill",
+                        "text-2xl font-semibold text-label active:bg-fill disabled:text-label-tertiary disabled:opacity-40",
                       )}
                     >
                       {key === "del" ? <BackspaceIcon /> : key}

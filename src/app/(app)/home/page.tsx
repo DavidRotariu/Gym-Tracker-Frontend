@@ -10,7 +10,7 @@ import { Sheet } from "@/components/ui/Sheet";
 import { useMuscles } from "@/hooks/use-muscles";
 import { useSplits } from "@/hooks/use-splits";
 import { useQrImage, useUploadQr } from "@/hooks/use-users";
-import { useStartWorkout, useWorkoutHistory } from "@/hooks/use-workouts";
+import { useStartOrResumeWorkout, useWorkoutHistory } from "@/hooks/use-workouts";
 import {
   currentStreak,
   formatDay,
@@ -48,7 +48,7 @@ export default function HomePage() {
   const { data: history } = useWorkoutHistory();
   const { data: muscles } = useMuscles();
   const uploadQr = useUploadQr();
-  const startWorkout = useStartWorkout();
+  const startWorkout = useStartOrResumeWorkout();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
@@ -99,18 +99,10 @@ export default function HomePage() {
     return muscleImage(muscles?.find((m) => m.id === primary.muscle_id)?.name);
   }, [suggested, suggestedIcon, muscles]);
 
-  async function start(splitId: string | null) {
-    // Already mid-workout: starting another would orphan it as a second
-    // "in progress" session. Go back to it instead.
-    if (inProgress) {
-      setPickerOpen(false);
-      router.push(`/workout/${inProgress.id}`);
-      return;
-    }
-    if (startWorkout.isPending) return;
-    const session = await startWorkout.mutateAsync(splitId);
-    setPickerOpen(false);
-    router.push(`/workout/${session.id}`);
+  // Resumes an in-progress workout instead of orphaning it with a second one
+  // (see useStartOrResumeWorkout).
+  function start(splitId: string | null) {
+    void startWorkout.run(splitId, { onDone: () => setPickerOpen(false) });
   }
 
   return (

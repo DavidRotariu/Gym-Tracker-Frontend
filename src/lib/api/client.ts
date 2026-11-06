@@ -27,8 +27,21 @@ function getToken(): string | null {
  * in for a new access token instead of forcing a re-login every time the
  * old one expires — this is what actually keeps someone signed in across
  * closing and reopening the browser.
+ *
+ * Single-flight: every caller (each concurrent 401, the scheduled refresh in
+ * use-auth) shares one in-flight request. Refresh tokens rotate, so a second
+ * parallel refresh would present an already-spent token and log the user out.
  */
-async function refreshAccessToken(): Promise<string | null> {
+let refreshing: Promise<string | null> | null = null;
+
+export function refreshAccessToken(): Promise<string | null> {
+  refreshing ??= doRefresh().finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+
+async function doRefresh(): Promise<string | null> {
   if (typeof window === "undefined") return null;
   const refreshToken = localStorage.getItem(REFRESH_KEY);
   if (!refreshToken) return null;
@@ -49,15 +62,21 @@ async function refreshAccessToken(): Promise<string | null> {
   }
 }
 
-/** No usable session left — clear it and send the person back to sign in. */
+/** Fired when the session can't be renewed — use-auth listens and signs out. */
+export const SESSION_EXPIRED_EVENT = "overload:session-expired";
+
+/**
+ * No usable session left — clear it and let the app route to sign-in
+ * client-side (see use-auth). This used to hard-reload to /login, which
+ * threw away everything in memory mid-workout: the write queue, the open
+ * keypad draft, the page itself.
+ */
 function clearSession() {
   if (typeof window === "undefined") return;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(REFRESH_KEY);
   localStorage.removeItem(USER_KEY);
-  if (!["/login", "/signup"].includes(window.location.pathname)) {
-    window.location.href = "/login";
-  }
+  window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
 }
 
 interface RequestOptions {
@@ -84,7 +103,10 @@ export async function apiRequest<T>(
 
   if (auth) {
     const token = getToken();
-    if (token) headers["Authorization"] = `Bearer ${token}`;
+    // Signed out: don't send a request that can only 401 (e.g. a query
+    // refetching while the screen unmounts after logout).
+    if (!token) throw new ApiRequestError(401, "unauthenticated", "You're signed out.");
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
   const res = await fetch(`${BASE_URL}${path}`, {
