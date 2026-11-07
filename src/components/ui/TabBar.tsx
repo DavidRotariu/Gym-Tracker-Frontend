@@ -29,7 +29,7 @@ export function TabBar() {
         aria-label="Primary"
         className={cn(
           "pointer-events-auto mx-auto flex h-16 w-full max-w-[420px] items-stretch",
-          "rounded-full bg-chrome shadow-sheet",
+          "rounded-pill bg-chrome shadow-sheet",
           "[backdrop-filter:blur(20px)_saturate(180%)]",
           // Faint full-perimeter edge instead of the old top-only hairline —
           // a pill's rounding has no single "top" to catch light on, so the
@@ -56,7 +56,7 @@ export function TabBar() {
                   {active && (
                     <motion.span
                       layoutId="tab-active-pill"
-                      className="absolute inset-1 rounded-full bg-fill"
+                      className="absolute inset-1 rounded-pill bg-fill"
                       transition={{ type: "spring", stiffness: 420, damping: 34 }}
                     />
                   )}

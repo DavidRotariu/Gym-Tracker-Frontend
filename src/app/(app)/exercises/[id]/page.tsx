@@ -2,6 +2,7 @@
 
 import { ApiRequestError } from "@/lib/api/client";
 import { Button } from "@/components/ui/Button";
+import { SectionLabel } from "@/components/ui/SectionLabel";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Gauge } from "@/components/ui/Gauge";
@@ -200,7 +201,7 @@ export default function ExerciseDetailPage() {
           </Card>
 
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-body font-semibold text-label">History</h2>
+            <SectionLabel>History</SectionLabel>
 
             {history?.map((entry) => (
               <Card key={entry.workout_session_id} className="flex flex-col gap-3">

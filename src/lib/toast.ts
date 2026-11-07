@@ -6,15 +6,17 @@
  */
 type Listener = () => void;
 
-let current: { id: number; message: string } | null = null;
+export type ToastTone = "error" | "warning";
+
+let current: { id: number; message: string; tone: ToastTone } | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let seq = 0;
 const listeners = new Set<Listener>();
 
 const emit = () => listeners.forEach((l) => l());
 
-export function showToast(message: string, ms = 6000) {
-  current = { id: ++seq, message };
+export function showToast(message: string, ms = 6000, tone: ToastTone = "error") {
+  current = { id: ++seq, message, tone };
   clearTimeout(timer);
   timer = setTimeout(dismissToast, ms);
   emit();

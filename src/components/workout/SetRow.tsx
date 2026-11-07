@@ -1,11 +1,11 @@
 "use client";
 
 import { SwipeRow } from "@/components/ui/SwipeRow";
-import { SET_TYPE_ORDER, SET_TYPE_SHORT } from "@/components/ui/SetTypeBadge";
+import { SET_TYPE_ORDER, SET_TYPE_SHORT, SET_TYPE_STYLES } from "@/components/ui/SetTypeBadge";
 import { useNumericKeypad, type KeypadKey } from "@/components/workout/NumericKeypad";
 import { playCompleteFeedback } from "@/lib/feedback";
 import { cn } from "@/lib/utils";
-import type { ExerciseType, Set, SetType } from "@/types";
+import type { ExerciseType, Set } from "@/types";
 import { motion } from "framer-motion";
 import { useEffect, useId, useRef, useState } from "react";
 
@@ -32,15 +32,6 @@ interface SetRowProps {
   onFieldDraft?: (field: NumberFieldKind, draft: string) => void;
   onFieldEditEnd?: (field: NumberFieldKind) => void;
 }
-
-/* Set-type dot: tap the set number to cycle. Mapped to iOS system colors,
-   matching SetTypeBadge. */
-const dotStyles: Record<SetType, string> = {
-  standard: "bg-fill text-label-secondary",
-  warmup: "bg-orange-soft text-orange",
-  drop: "bg-purple-soft text-purple",
-  myorep: "bg-red-soft text-red",
-};
 
 /** weighted/negative log kg + reps; body_weight logs reps only; timer logs
  *  seconds only (still stored in actual_reps — there's no duration column). */
@@ -230,7 +221,7 @@ function NumberField({
       onClick={openField}
       aria-label={label}
       className={cn(
-        "tabular h-9 w-full min-w-0 cursor-pointer rounded-control bg-fill text-center text-body font-semibold text-label",
+        "tabular h-10 w-full min-w-0 cursor-pointer rounded-control bg-fill text-center text-body font-semibold text-label",
         active && "outline-2 outline-offset-0 outline-blue",
         shown === "" && "font-normal text-label-tertiary",
       )}
@@ -287,7 +278,7 @@ export function SetRow({
         <span
           className={cn(
             "flex size-7 shrink-0 items-center justify-center rounded-pill text-caption font-bold",
-            dotStyles[set.set_type],
+            SET_TYPE_STYLES[set.set_type],
           )}
         >
           {set.set_number}
@@ -314,7 +305,7 @@ export function SetRow({
   const row = (
     <div
       className={cn(
-        "grid min-h-12 items-center gap-2 px-2 transition-colors duration-200",
+        "grid min-h-13 items-center gap-2 px-2 transition-colors duration-200",
         isNew && "set-new",
         unsaved && "pointer-events-none opacity-70",
         showWeight ? "grid-cols-[32px_1fr_64px_56px_44px]" : "grid-cols-[32px_1fr_64px_44px]",
@@ -327,7 +318,7 @@ export function SetRow({
         aria-label={`Set ${set.set_number}, type ${set.set_type}. Tap to change type.`}
         className={cn(
           "relative flex size-8 cursor-pointer items-center justify-center rounded-pill text-caption font-bold active:opacity-70 before:absolute before:-inset-1.5 before:content-['']",
-          dotStyles[set.set_type],
+          SET_TYPE_STYLES[set.set_type],
         )}
       >
         {set.set_type === "standard" ? set.set_number : SET_TYPE_SHORT[set.set_type]}
@@ -431,7 +422,7 @@ export function SetRow({
         <span
           className={cn(
             "flex size-8 items-center justify-center rounded-pill transition-colors duration-150",
-            set.completed ? "bg-green text-white" : "bg-fill text-label-tertiary",
+            set.completed ? "bg-green text-background" : "bg-fill text-label-tertiary",
           )}
         >
           <svg width="16" height="16" viewBox="0 0 20 20" fill="none">

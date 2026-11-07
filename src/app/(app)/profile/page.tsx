@@ -2,6 +2,7 @@
 
 import { ThemePreference, useTheme } from "@/components/ThemeProvider";
 import { Button } from "@/components/ui/Button";
+import { SectionLabel } from "@/components/ui/SectionLabel";
 import { Card, CardList } from "@/components/ui/Card";
 import { LargeTitle } from "@/components/ui/LargeTitle";
 import { SET_TYPE_LABEL, SetTypeDot } from "@/components/ui/SetTypeBadge";
@@ -39,7 +40,7 @@ function SoundToggle() {
         }}
         className={cn(
           "relative h-8 w-14 shrink-0 cursor-pointer rounded-pill transition-colors",
-          on ? "bg-green" : "bg-fill-strong",
+          on ? "bg-accent" : "bg-fill-strong",
         )}
       >
         <span
@@ -149,7 +150,7 @@ export default function ProfilePage() {
             disabled={uploadPicture.isPending}
             aria-label="Change profile picture"
             aria-busy={uploadPicture.isPending}
-            className="relative flex size-14 disabled:opacity-50 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-pill bg-accent font-display text-large-title text-accent-foreground"
+            className="relative flex size-14 disabled:opacity-50 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-pill bg-fill-strong font-display text-title text-label"
           >
             {profilePictureUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
@@ -172,9 +173,7 @@ export default function ProfilePage() {
             onChange={handlePictureChange}
           />
           <div className="min-w-0 flex-1">
-            <p className="text-kicker text-label-tertiary uppercase">
-              Signed in as
-            </p>
+            <p className="text-caption text-label-secondary">Signed in as</p>
             {userLoading ? (
               <div aria-hidden className="mt-1 h-5 w-40 animate-pulse rounded-control bg-fill" />
             ) : (
@@ -209,9 +208,7 @@ export default function ProfilePage() {
 
         {/* Appearance ----------------------------------------------------- */}
         <section className="flex flex-col gap-2">
-          <h2 className="px-1 text-kicker text-label-tertiary uppercase">
-            Appearance
-          </h2>
+          <SectionLabel>Appearance</SectionLabel>
           <Card className="flex items-center justify-between gap-3">
             <span className="text-body text-label">Theme</span>
             <div
@@ -228,7 +225,7 @@ export default function ProfilePage() {
                     aria-checked={selected}
                     onClick={() => setPreference(option.value)}
                     className={cn(
-                      "relative h-8 cursor-pointer rounded-[0.5rem] before:absolute before:-inset-y-1.5 before:inset-x-0 before:content-[''] px-3 text-caption font-semibold transition-colors",
+                      "relative h-8 cursor-pointer rounded-sm before:absolute before:-inset-y-1.5 before:inset-x-0 before:content-[''] px-3 text-caption font-semibold transition-colors",
                       selected
                         ? "bg-background text-label shadow-sm"
                         : "text-label-secondary",
@@ -245,9 +242,7 @@ export default function ProfilePage() {
 
         {/* Set types -------------------------------------------------------- */}
         <section className="flex flex-col gap-2">
-          <h2 className="px-1 text-kicker text-label-tertiary uppercase">
-            Set types
-          </h2>
+          <SectionLabel>Set types</SectionLabel>
           <CardList>
             {SET_TYPE_DESCRIPTIONS.map(({ type, description }) => (
               <div
@@ -268,9 +263,7 @@ export default function ProfilePage() {
 
         {USE_MOCKS && (
           <section className="flex flex-col gap-2">
-            <h2 className="px-1 text-kicker text-label-tertiary uppercase">
-              Demo
-            </h2>
+            <SectionLabel>Demo</SectionLabel>
             <Card className="flex flex-col gap-3">
               <p className="text-caption text-label-secondary">
                 This build runs on demo data stored on this device.
@@ -315,13 +308,13 @@ type MembershipTone = "ok" | "warning" | "expired";
 
 const TONE_STROKE: Record<MembershipTone, string> = {
   ok: "var(--color-green)",
-  warning: "var(--color-orange)",
+  warning: "var(--color-warning)",
   expired: "var(--color-red)",
 };
 
 const TONE_TEXT: Record<MembershipTone, string> = {
   ok: "text-green",
-  warning: "text-orange",
+  warning: "text-warning",
   expired: "text-red",
 };
 
@@ -354,9 +347,7 @@ function MembershipSection() {
 
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="px-1 text-kicker text-label-tertiary uppercase">
-        Membership
-      </h2>
+      <SectionLabel>Membership</SectionLabel>
       <Card className="flex flex-col gap-5">
         {membershipLoadFailed && membership === undefined && (
           <div className="flex items-center justify-between gap-4">

@@ -133,13 +133,13 @@ export default function SplitsPage() {
       </motion.div>
 
       {startWorkout.error && (
-        <p role="alert" className="px-1 pt-3 text-caption text-red">
+        <p role="alert" className="pt-3 text-caption text-red">
           {startWorkout.error}
         </p>
       )}
 
       {splits && splits.length > 0 && (
-        <p className="px-1 pt-3 text-caption text-label-tertiary">
+        <p className="pt-3 text-caption text-label-tertiary">
           Swipe right to edit a split, left to delete it.
         </p>
       )}

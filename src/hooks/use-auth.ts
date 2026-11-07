@@ -167,7 +167,7 @@ export function useAuth() {
     }
     if (qc.isMutating() > 0) {
       // Still unsent (offline, or the server is stalled) — say so rather than drop it quietly.
-      showToast("Signed out before your last changes were saved. Check them when you sign back in.");
+      showToast("Signed out before your last changes were saved. Check them when you sign back in.", 8000, "warning");
     }
     clearTimeout(refreshTimer);
     localStorage.removeItem(TOKEN_KEY);

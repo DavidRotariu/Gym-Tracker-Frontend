@@ -176,7 +176,7 @@ export function Sheet({
               className="shrink-0 cursor-grab touch-none pt-2 pb-1 active:cursor-grabbing"
               onPointerDown={(e) => dragControls.start(e)}
             >
-              <div className="mx-auto h-1 w-9 rounded-pill bg-label-tertiary" />
+              <div className="mx-auto h-1 w-9 rounded-pill bg-fill-strong" />
             </div>
 
             {/* The header drags the sheet too — a 16px grabber alone was too
@@ -187,7 +187,7 @@ export function Sheet({
                 className="flex shrink-0 touch-none items-center justify-between gap-4 px-4 pt-2 pb-3"
                 onPointerDown={(e) => dragControls.start(e)}
               >
-                <h2 className="font-stat text-stat-sm text-label">{title}</h2>
+                <h2 className="text-title text-label">{title}</h2>
                 {action ?? (
                   <button
                     onClick={onClose}

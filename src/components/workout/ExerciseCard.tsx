@@ -228,12 +228,12 @@ function ExerciseCardImpl({
 
         <div className="absolute inset-x-0 bottom-0 p-3">
           {readOnly ? (
-            <p className="truncate text-body font-semibold text-white">{name}</p>
+            <p className="truncate text-title text-white">{name}</p>
           ) : (
             <Link
               href={`/exercises/${we.exercise_id}`}
               // No iOS link-preview callout on a long press mid-workout.
-              className="block truncate text-body font-semibold text-white select-none active:opacity-70 [-webkit-touch-callout:none]"
+              className="block truncate text-title text-white select-none active:opacity-70 [-webkit-touch-callout:none]"
             >
               {name}
             </Link>
@@ -249,7 +249,8 @@ function ExerciseCardImpl({
                   className={cn(
                     "tabular",
                     completed > 0 && "count-pop",
-                    completed === we.sets.length && "font-semibold text-green",
+                    // On the always-dark media gradient: the dark-theme green, in both themes.
+                    completed === we.sets.length && "font-semibold text-[#30d158]",
                   )}
                 >
                   {completed}

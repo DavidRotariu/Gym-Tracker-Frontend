@@ -32,7 +32,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
           aria-describedby={describedBy}
           className={cn(
             "h-12 rounded-control bg-fill px-4 text-body text-label",
-            "placeholder:text-label-tertiary",
+            "placeholder:text-label-tertiary disabled:opacity-50",
             "focus:outline-2 focus:outline-offset-0 focus:outline-blue",
             error && "outline-2 outline-red",
             className,

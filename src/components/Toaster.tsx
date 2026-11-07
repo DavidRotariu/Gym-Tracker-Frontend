@@ -1,6 +1,7 @@
 "use client";
 
 import { dismissToast, getToast, subscribeToast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
 import { useSyncExternalStore } from "react";
 
 /** Tap to dismiss. Above sheets and the finish summary (z-50). */
@@ -15,7 +16,11 @@ export function Toaster() {
       <button
         type="button"
         onClick={dismissToast}
-        className="w-full cursor-pointer rounded-control bg-red-strong px-3 py-2 text-left text-caption font-semibold text-white shadow-sheet"
+        className={cn(
+          "w-full cursor-pointer rounded-control px-4 py-3 text-left text-subhead font-semibold shadow-sheet",
+          // Red only for errors; a heads-up that isn't a failure is amber.
+          toast.tone === "warning" ? "bg-warning-soft text-warning" : "bg-red-strong text-white",
+        )}
       >
         {toast.message}
       </button>

@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/Button";
+import { SectionLabel } from "@/components/ui/SectionLabel";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LargeTitle } from "@/components/ui/LargeTitle";
@@ -142,9 +143,7 @@ export default function HistoryPage() {
       >
         {months.map(([month, sessions]) => (
           <section key={month} className="flex flex-col gap-2">
-            <h2 className="px-1 text-kicker text-label-tertiary uppercase">
-              {month}
-            </h2>
+            <SectionLabel>{month}</SectionLabel>
 
             <div className="flex flex-col gap-2">
               {sessions.map((session) => (

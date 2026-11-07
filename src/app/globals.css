@@ -6,6 +6,28 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ===========================================================================
+   OVERLOAD DESIGN SYSTEM — one semantic layer, both themes.
+
+   Surface ladder (each step a little lifted from the one below it):
+     --background            app background (page)
+     --background-secondary  surface: cards, grouped lists
+     --background-elevated   elevated surface: sheets, dialogs, rest timer
+     --fill                  control on a surface: inputs, chips, secondary buttons
+     --fill-strong           active / pressed control, handles
+     --separator             hairline — only where spacing can't separate
+
+   Text:   --label (primary) · --label-secondary · --label-tertiary (muted)
+   Colour has one meaning each — never decoration:
+     --accent   action / active / selected (the Overload orange)
+     --green    success / completed
+     --red      destructive / error
+     --warning  needs attention, not an error (amber)
+     gray       neutral / inactive
+   Categorical hues (set types) use --blue/--purple/--teal so orange, green
+   and red keep their meaning.
+   =========================================================================== */
+
+/* ===========================================================================
    LIGHT (default)
    iOS system colors, with Nike Run Club's black/white/gray restraint and a
    single Nike-orange accent.
@@ -48,8 +70,8 @@
   --label-secondary: #5c5c61;
   --label-tertiary: #66666b;
 
-  /* Hairline separator (opaque separator) */
-  --separator: #c6c6c8;
+  /* Hairline separator — soft; spacing does most of the separating. */
+  --separator: #d6d6db;
 
   /* The one loud color — fixed, not user-selectable (the old Profile >
      Accent color swatch picker was removed). A fill color: black ink always
@@ -62,12 +84,16 @@
   --accent-ink: #b04a08;
 
   /* iOS system colors, used semantically */
-  --blue: #007aff;
-  --green: #34c759;
+  --blue: #0066d6; /* 5.4:1 on white — usable as text, not just a ring */
+  --green: #1f8a3c; /* accessible green: 4.6:1 as text on white, and under white ink */
   --red: #d70015; /* text-safe on white and on --red-soft (was #ff3b30, 3.5:1) */
   /* Fill behind white text (swipe Delete, error toast): --red itself is only 3.4:1 against white. */
   --red-strong: #d1241b;
   --orange: #a85a00; /* text-safe on --orange-soft (was #ff9500, 2:1) */
+  /* Warning — amber, clearly not the accent orange. Text-safe on its soft fill. */
+  --warning: #8a5a00;
+  --warning-soft: #fff4d6;
+  --teal: #087080;
   --yellow: #ffcc00;
   --purple: #8944ab; /* text-safe on --purple-soft (was #af52de, 3.6:1) */
 
@@ -75,6 +101,8 @@
   --red-soft: #ffe9e7;
   --orange-soft: #fff1de;
   --purple-soft: #f6ecfd;
+  --blue-soft: #e6f0ff;
+  --teal-soft: #e0f5f7;
 
   /* Translucent nav/tab chrome */
   --chrome: rgba(255, 255, 255, 0.94);
@@ -95,23 +123,26 @@
 .dark {
   color-scheme: dark;
 
-  /* Premium near-black: pure-black page, visibly lifted cards. */
-  --background: #000000;
-  --background-secondary: #121214;
-  --background-grouped: #000000;
+  /* Near-black ladder, a small even step per level (~+6–8 L each) — depth
+     without visual noise. Cards read as lifted off the page, sheets above
+     cards, and controls are visible on BOTH (fill used to be #1f1f22, almost
+     the same as the #1c1c1e sheet it sits on). Slightly cool neutral. */
+  --background: #08080a;
+  --background-secondary: #151518;
+  --background-grouped: #08080a;
   /* Sheets, the rest-timer bar, anything floating above the card layer. */
-  --background-elevated: #1c1c1e;
+  --background-elevated: #1b1b1f;
 
-  --fill: #1f1f22;
-  --fill-strong: #2c2c2e;
+  --fill: #26262b;
+  --fill-strong: #323238;
 
   --label: #ffffff;
   --label-secondary: #98989e;
   /* Was #5c5c61 — ~3.2:1 on true black, under AA. #747479 lands at ~4.5:1
      while staying dimmer than secondary's 7.3:1. */
-  --label-tertiary: #8a8a90;
+  --label-tertiary: #929298; /* ≥4.5:1 on every dark surface incl. --fill */
 
-  --separator: #2a2a2c;
+  --separator: #26262b;
 
   --accent: #ff5f1f;
   --accent-foreground: #111111;
@@ -122,6 +153,9 @@
   --green: #30d158;
   --red: #ff453a;
   --orange: #ff9f0a;
+  --warning: #ffc53d;
+  --warning-soft: #33280a;
+  --teal: #40c8e0;
   --yellow: #ffd60a;
   --purple: #bf5af2;
 
@@ -129,9 +163,11 @@
   --red-soft: #34100d;
   --orange-soft: #33230a;
   --purple-soft: #26173a;
+  --blue-soft: #0b1d38;
+  --teal-soft: #0b2a30;
 
   /* Less translucency in dark, per the spec. */
-  --chrome: rgba(28, 28, 30, 0.96);
+  --chrome: rgba(27, 27, 31, 0.96);
   --scrim: rgba(0, 0, 0, 0.6);
 
   /* Shadows don't read on true black — a deep glow stands in for the one
@@ -171,6 +207,11 @@
   --color-orange: var(--orange);
   --color-yellow: var(--yellow);
   --color-purple: var(--purple);
+  --color-teal: var(--teal);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-blue-soft: var(--blue-soft);
+  --color-teal-soft: var(--teal-soft);
 
   --color-green-soft: var(--green-soft);
   --color-red-soft: var(--red-soft);
@@ -181,16 +222,37 @@
   --color-chrome: var(--chrome);
   --color-scrim: var(--scrim);
 
-  /* Radii — continuous-ish rounding */
-  --radius-control: 0.625rem; /* 10px — inputs, small controls */
-  --radius-button: 0.75rem; /* 12px — buttons */
-  --radius-card: 1.125rem; /* 18px — cards */
-  --radius-sheet: 1.5rem; /* 24px — sheet top corners */
+  /* Radius scale — shape says what a thing is:
+       sm      8px   segments inside a control, tiny badges
+       control 12px  inputs, set rows, list rows, toasts
+       button  12px  buttons (same step as controls, so a button and the
+                     field beside it share a corner)
+       card    18px  cards
+       sheet   24px  sheet / dialog top corners
+       pill          chips, tags, icon buttons, the tab bar — compact controls only */
+  --radius-sm: 0.5rem;
+  --radius-control: 0.75rem;
+  --radius-button: 0.75rem;
+  --radius-card: 1.125rem;
+  --radius-sheet: 1.5rem;
   --radius-pill: 9999px;
 
   --shadow-sheet: var(--shadow-sheet-value);
 
   /* -------------------------------------------------------------------------
+     Type hierarchy (use these, not ad-hoc sizes):
+       Display   text-stat / text-stat-sm  hero numbers, brand moments (Archivo)
+       H1        text-large-title          screen titles
+       H2        text-title                sheet titles, feature headings
+       H3        text-body font-semibold   card / row headings, exercise names
+       Body      text-body                 content
+       Body sm   text-subhead              supporting text
+       Caption   text-caption              metadata
+       Label     text-kicker uppercase     section labels, categories ONLY
+       Numeric   .tabular (+ any of the above) weights, reps, timers
+     Importance comes from size + weight + colour (label → secondary →
+     tertiary), not from bold-white-everything or uppercase.
+
      iOS text styles. Sizes are 1:1 pt→px; letter-spacing is Apple's actual
      tracking per size, which is most of why iOS type reads as iOS type.
      ------------------------------------------------------------------------- */
@@ -205,6 +267,12 @@
   --text-body: 1.0625rem;
   --text-body--line-height: 1.294;
   --text-body--letter-spacing: -0.43px;
+
+  /* Title (H2: sheet titles, section/feature headings) — 22 Bold, −0.26 */
+  --text-title: 1.375rem;
+  --text-title--line-height: 1.27;
+  --text-title--letter-spacing: -0.26px;
+  --text-title--font-weight: 700;
 
   /* Secondary — 15, −0.24 */
   --text-subhead: 0.9375rem;
@@ -288,7 +356,8 @@ body {
 
 /* SF Pro Display for anything 20px and up — the native iOS shell. */
 .font-display,
-.text-large-title {
+.text-large-title,
+.text-title {
   font-family: var(--font-display);
 }
 
@@ -367,7 +436,7 @@ body {
 /* Set rows: a new row's tint fades out; completed rows just settle to a soft green fill. */
 @keyframes row-new {
   from {
-    background-color: var(--accent-muted);
+    background-color: var(--fill-strong);
   }
 }
 .set-new {

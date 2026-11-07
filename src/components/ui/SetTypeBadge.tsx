@@ -23,13 +23,14 @@ export const SET_TYPE_ORDER: SetType[] = [
   "myorep",
 ];
 
-/* Mapped to iOS system colors semantically: warm-up = orange, drop = purple,
-   myo-rep = red. */
-const styles: Record<SetType, string> = {
+/* Set types are categories, not states — so they use the categorical hues
+   (blue / purple / teal), never accent-orange (action), green (done) or
+   red (destructive). Shared by every set-type chip in the app. */
+export const SET_TYPE_STYLES: Record<SetType, string> = {
   standard: "bg-fill text-label-secondary",
-  warmup: "bg-orange-soft text-orange",
+  warmup: "bg-blue-soft text-blue",
   drop: "bg-purple-soft text-purple",
-  myorep: "bg-red-soft text-red",
+  myorep: "bg-teal-soft text-teal",
 };
 
 /**
@@ -48,7 +49,7 @@ export function SetTypeDot({
     <span
       className={cn(
         "flex size-8 shrink-0 items-center justify-center rounded-pill text-caption font-bold",
-        styles[type],
+        SET_TYPE_STYLES[type],
         className,
       )}
     >
@@ -75,7 +76,7 @@ export function SetTypeBadge({
   const base = cn(
     "inline-flex items-center justify-center rounded-pill px-2 py-1",
     "text-tab font-bold uppercase",
-    styles[type],
+    SET_TYPE_STYLES[type],
     className,
   );
 

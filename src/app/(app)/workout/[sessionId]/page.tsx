@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/Button";
+import { SectionLabel } from "@/components/ui/SectionLabel";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ExerciseCard } from "@/components/workout/ExerciseCard";
@@ -828,9 +829,7 @@ export default function WorkoutSessionPage() {
 
       <div className="pt-[calc(env(safe-area-inset-top)+3.5rem+1rem)]">
         {hasExercises && (
-          <h2 className="mb-3 px-1 text-body font-semibold text-label">
-            Exercises
-          </h2>
+          <SectionLabel className="mb-2">Exercises</SectionLabel>
         )}
 
         {/* Exercises ---------------------------------------------------- */}

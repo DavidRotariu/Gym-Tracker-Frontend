@@ -312,7 +312,7 @@ export function ExercisePicker({
               aria-pressed={selected}
               className={cn(
                 "rounded-pill px-3 py-1.5 text-tab font-bold uppercase active:opacity-70",
-                selected ? "bg-accent-ink text-white" : "bg-fill text-label-secondary",
+                selected ? "bg-accent text-accent-foreground" : "bg-fill text-label-secondary",
               )}
             >
               {name}
@@ -329,7 +329,7 @@ export function ExercisePicker({
             ? Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="flex w-16 shrink-0 flex-col items-center gap-1.5">
                   <div className="size-14 animate-pulse rounded-pill bg-fill" />
-                  <div className="h-3 w-10 animate-pulse rounded-full bg-fill" />
+                  <div className="h-3 w-10 animate-pulse rounded-pill bg-fill" />
                 </div>
               ))
             : orderedMuscles.map((m) => {
@@ -352,7 +352,7 @@ export function ExercisePicker({
                       <span
                         className={cn(
                           "flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-pill bg-fill",
-                          selected && "ring-2 ring-accent-ink",
+                          selected && "ring-2 ring-accent",
                         )}
                       >
                         <MediaThumb

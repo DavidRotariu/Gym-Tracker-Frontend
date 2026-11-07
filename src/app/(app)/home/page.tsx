@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/Button";
+import { SectionLabel } from "@/components/ui/SectionLabel";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LargeTitle } from "@/components/ui/LargeTitle";
@@ -145,17 +146,13 @@ export default function HomePage() {
         {suggested && musclesPending ? (
           // Name/summary/art all depend on the muscle list — hold the card's
           // exact footprint rather than render it half-resolved.
-          <section className="flex flex-col gap-3" aria-busy>
-            <p className="text-kicker text-label-tertiary uppercase">
-              Recommended for you
-            </p>
+          <section className="flex flex-col gap-2" aria-busy>
+            <SectionLabel>Recommended for you</SectionLabel>
             <div className="h-64 animate-pulse rounded-card bg-fill" />
           </section>
         ) : suggested ? (
-          <section className="flex flex-col gap-3">
-            <p className="text-kicker text-label-tertiary uppercase">
-              Recommended for you
-            </p>
+          <section className="flex flex-col gap-2">
+            <SectionLabel>Recommended for you</SectionLabel>
             <motion.div
               initial={{ opacity: 0, scale: 0.97, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -222,20 +219,21 @@ export default function HomePage() {
         )}
 
         {/* Last workout ----------------------------------------------------- */}
-        <section className="flex flex-col gap-3">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-kicker text-label-tertiary uppercase">
-              Last workout
-            </h2>
-            {completed.length > 0 && (
-              <Link
-                href="/history"
-                className="text-caption font-semibold text-label-secondary"
-              >
-                See all
-              </Link>
-            )}
-          </div>
+        <section className="flex flex-col gap-2">
+          <SectionLabel
+            action={
+              completed.length > 0 && (
+                <Link
+                  href="/history"
+                  className="relative text-caption font-semibold text-accent-ink before:absolute before:-inset-3 before:content-[''] active:opacity-60"
+                >
+                  See all
+                </Link>
+              )
+            }
+          >
+            Last workout
+          </SectionLabel>
 
           {!lastWorkout ? (
             <Card flush>
@@ -468,7 +466,7 @@ function StreakBadge({ streak }: { streak: number }) {
       >
         <path
           d="M10 1.5c.6 2.4-.4 3.9-1.7 5.3C7 8 5.8 9.3 5.8 11.4a4.2 4.2 0 0 0 8.4 0c0-1.3-.5-2.2-1-3 .9.3 2.3 1.5 2.3 4a5.5 5.5 0 1 1-11 0c0-4.6 3.2-6.6 5.5-10.9Z"
-          fill="var(--color-orange)"
+          fill="var(--color-accent)"
         />
       </motion.svg>
       <span className="tabular relative inline-grid text-caption font-bold text-label">
