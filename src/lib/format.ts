@@ -263,3 +263,17 @@ export function currentStreak(history: WorkoutSessionSummary[] | undefined): num
   }
   return streak;
 }
+
+/** Equipment filter options in the exercise picker. */
+export const EQUIPMENT_FILTERS = ["Barbell", "Dumbbell", "Cable", "Machine"] as const;
+export type EquipmentFilter = (typeof EQUIPMENT_FILTERS)[number];
+
+/** Equipment lives in its own field, but the name only mentions it for some
+ *  exercises ("Cable Fly") — so match either. */
+export function matchesEquipment(
+  exercise: { name: string; equipment?: string | null },
+  wanted: EquipmentFilter,
+): boolean {
+  const w = wanted.toLowerCase();
+  return exercise.name.toLowerCase().includes(w) || !!exercise.equipment?.toLowerCase().includes(w);
+}

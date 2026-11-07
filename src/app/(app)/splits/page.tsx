@@ -100,12 +100,12 @@ export default function SplitsPage() {
         {splits?.map((split) => (
           <motion.div key={split.id} variants={staggerItem}>
             <SwipeRow
+              leadingAction={{
+                label: "Edit",
+                variant: "accent",
+                onAction: () => router.push(`/splits/${split.id}/edit`),
+              }}
               actions={[
-                {
-                  label: "Edit",
-                  variant: "neutral",
-                  onAction: () => router.push(`/splits/${split.id}/edit`),
-                },
                 {
                   label: "Delete",
                   variant: "destructive",
@@ -140,7 +140,7 @@ export default function SplitsPage() {
 
       {splits && splits.length > 0 && (
         <p className="px-1 pt-3 text-caption text-label-tertiary">
-          Swipe a split left to edit or delete it.
+          Swipe right to edit a split, left to delete it.
         </p>
       )}
 

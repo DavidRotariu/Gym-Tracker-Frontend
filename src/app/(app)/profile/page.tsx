@@ -16,10 +16,42 @@ import {
   useProfilePicture,
   useUploadProfilePicture,
 } from "@/hooks/use-users";
+import { isSoundMuted, setSoundMuted } from "@/lib/feedback";
 import { daysUntil, formatMembershipDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+
+/** Set-complete chime on/off — a per-device preference (localStorage). */
+function SoundToggle() {
+  const [on, setOn] = useState(() => !isSoundMuted());
+  return (
+    <Card className="flex items-center justify-between gap-3">
+      <span className="text-body text-label">Set complete sound</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label="Set complete sound"
+        onClick={() => {
+          setSoundMuted(on);
+          setOn(!on);
+        }}
+        className={cn(
+          "relative h-8 w-14 shrink-0 cursor-pointer rounded-pill transition-colors",
+          on ? "bg-green" : "bg-fill-strong",
+        )}
+      >
+        <span
+          className={cn(
+            "absolute top-1 left-1 size-6 rounded-pill bg-white shadow-sm transition-transform",
+            on && "translate-x-6",
+          )}
+        />
+      </button>
+    </Card>
+  );
+}
 
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
 
@@ -50,7 +82,7 @@ const SET_TYPE_DESCRIPTIONS: { type: SetType; description: string }[] = [
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, loading: userLoading, logout } = useAuth();
   const { preference, setPreference } = useTheme();
   const profilePictureUrl = useProfilePicture();
   const uploadPicture = useUploadProfilePicture();
@@ -99,7 +131,7 @@ export default function ProfilePage() {
     });
   }
 
-  const initial = user?.email?.[0]?.toUpperCase() ?? "?";
+  const initial = user?.email?.[0]?.toUpperCase() ?? "";
 
   return (
     <>
@@ -126,6 +158,8 @@ export default function ProfilePage() {
                 alt=""
                 className="size-full object-cover"
               />
+            ) : userLoading || !user ? (
+              <span aria-hidden className="size-full animate-pulse bg-fill" />
             ) : (
               initial
             )}
@@ -141,9 +175,13 @@ export default function ProfilePage() {
             <p className="text-kicker text-label-tertiary uppercase">
               Signed in as
             </p>
-            <p className="truncate text-body font-semibold text-label">
-              {user?.email}
-            </p>
+            {userLoading ? (
+              <div aria-hidden className="mt-1 h-5 w-40 animate-pulse rounded-control bg-fill" />
+            ) : (
+              <p className="truncate text-body font-semibold text-label">
+                {user?.email ?? "Account unavailable"}
+              </p>
+            )}
             {uploadPicture.isPending && (
               <p className="text-caption text-label-secondary">Uploading picture…</p>
             )}
@@ -202,6 +240,7 @@ export default function ProfilePage() {
               })}
             </div>
           </Card>
+          <SoundToggle />
         </section>
 
         {/* Set types -------------------------------------------------------- */}

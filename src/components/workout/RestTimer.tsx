@@ -1,5 +1,6 @@
 "use client";
 
+import { getAudioCtx, unlockAudio } from "@/lib/feedback";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
@@ -55,26 +56,9 @@ function readStored(sessionId: string): StoredTimer | null {
  * mixes over the user's music instead of pausing it; the context is created
  * lazily on the first tap, since browsers refuse audio before a gesture.
  */
-let audioCtx: AudioContext | null = null;
-function unlockAudio() {
-  // Runs on every tap (not just the first): iOS suspends/interrupts the
-  // context when the app is backgrounded or the phone locks, and only a user
-  // gesture may resume it — a one-time unlock left the chime silent for the
-  // rest of the workout after the first lock.
-  if (audioCtx?.state === "running") return;
-  try {
-    const nav = navigator as Navigator & { audioSession?: { type: string } };
-    if (nav.audioSession) nav.audioSession.type = "ambient";
-    audioCtx ??= new AudioContext();
-    if (audioCtx.state === "suspended") void audioCtx.resume();
-  } catch {
-    /* no audio available — the vibration below still fires */
-  }
-}
-
 function ring() {
   navigator.vibrate?.([120, 60, 120]);
-  const ctx = audioCtx;
+  const ctx = getAudioCtx();
   if (!ctx || ctx.state !== "running") return;
   const t = ctx.currentTime;
   [880, 1175].forEach((freq, i) => {

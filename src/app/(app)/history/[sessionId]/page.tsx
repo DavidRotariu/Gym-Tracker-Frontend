@@ -80,7 +80,8 @@ export default function HistorySessionPage() {
     [session],
   );
 
-  const title = split?.name ?? "Ad-hoc workout";
+  // A split-based workout whose split is still loading must not briefly read "Ad-hoc".
+  const title = split?.name ?? (session?.split_id ? "Workout" : "Ad-hoc workout");
 
   return (
     <>

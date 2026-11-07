@@ -38,15 +38,17 @@ function splitSummary(split: Split, muscleLookup: Map<string, string>): string {
   const topMuscles = [...split.muscles]
     .sort((a, b) => b.nr_of_exercises - a.nr_of_exercises)
     .slice(0, 2)
-    .map((m) => muscleLookup.get(m.muscle_id) ?? `#${m.muscle_id}`);
-  return `${exerciseCount} exercise${exerciseCount === 1 ? "" : "s"} · ${topMuscles.join(" & ")}`;
+    .map((m) => muscleLookup.get(m.muscle_id))
+    .filter((n): n is string => !!n);
+  const count = `${exerciseCount} exercise${exerciseCount === 1 ? "" : "s"}`;
+  return topMuscles.length ? `${count} · ${topMuscles.join(" & ")}` : count;
 }
 
 export default function HomePage() {
   const router = useRouter();
   const { data: splits, isLoading: splitsLoading, isError: splitsError, refetch: refetchSplits } = useSplits();
   const { data: history } = useWorkoutHistory();
-  const { data: muscles } = useMuscles();
+  const { data: muscles, isPending: musclesPending } = useMuscles();
   const uploadQr = useUploadQr();
   const startWorkout = useStartOrResumeWorkout();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -140,7 +142,16 @@ export default function HomePage() {
 
       <div className="flex flex-col gap-8">
         {/* Recommended ------------------------------------------------------ */}
-        {suggested ? (
+        {suggested && musclesPending ? (
+          // Name/summary/art all depend on the muscle list — hold the card's
+          // exact footprint rather than render it half-resolved.
+          <section className="flex flex-col gap-3" aria-busy>
+            <p className="text-kicker text-label-tertiary uppercase">
+              Recommended for you
+            </p>
+            <div className="h-64 animate-pulse rounded-card bg-fill" />
+          </section>
+        ) : suggested ? (
           <section className="flex flex-col gap-3">
             <p className="text-kicker text-label-tertiary uppercase">
               Recommended for you

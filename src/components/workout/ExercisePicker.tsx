@@ -7,7 +7,15 @@ import { PresenceLayer, Scrim, Sheet } from "@/components/ui/Sheet";
 import { useExercises, useLastSet } from "@/hooks/use-exercises";
 import { readFavoriteIds } from "@/hooks/use-favorites";
 import { useMuscles } from "@/hooks/use-muscles";
-import { formatDay, isTailMuscle, muscleImage, shortMuscleName } from "@/lib/format";
+import {
+  EQUIPMENT_FILTERS,
+  type EquipmentFilter,
+  formatDay,
+  isTailMuscle,
+  matchesEquipment,
+  muscleImage,
+  shortMuscleName,
+} from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Exercise } from "@/types";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -15,9 +23,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 const LONG_PRESS_MS = 450;
-
-/** Equipment badges — a name-substring filter, not a real taxonomy field. */
-const EQUIPMENT_FILTERS = ["Machine", "Cable", "Dumbbell"] as const;
 
 interface ExercisePickerProps {
   open: boolean;
@@ -48,9 +53,7 @@ export function ExercisePicker({
    *  than adding to it. */
   const [selectedMuscleId, setSelectedMuscleId] = useState<string | null>(null);
   /** Same one-at-a-time toggle as the muscle circles. */
-  const [selectedEquipment, setSelectedEquipment] = useState<(typeof EQUIPMENT_FILTERS)[number] | null>(
-    null,
-  );
+  const [selectedEquipment, setSelectedEquipment] = useState<EquipmentFilter | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null);
@@ -87,7 +90,7 @@ export function ExercisePicker({
     setSelectedMuscleId((prev) => (prev === id ? null : id));
   }
 
-  function toggleEquipment(name: (typeof EQUIPMENT_FILTERS)[number]) {
+  function toggleEquipment(name: EquipmentFilter) {
     setSelectedEquipment((prev) => (prev === name ? null : name));
   }
 
@@ -118,13 +121,7 @@ export function ExercisePicker({
       .filter((e) => {
         if (q && !e.name.toLowerCase().includes(q)) return false;
         if (selectedMuscleId && e.muscle_id !== selectedMuscleId) return false;
-        // Equipment lives in its own field; the name only mentions it for some
-        // exercises ("Cable Fly"), so match either.
-        if (selectedEquipment) {
-          const wanted = selectedEquipment.toLowerCase();
-          if (!e.name.toLowerCase().includes(wanted) && !e.equipment?.toLowerCase().includes(wanted))
-            return false;
-        }
+        if (selectedEquipment && !matchesEquipment(e, selectedEquipment)) return false;
         return true;
       })
       .sort((a, b) => {
@@ -302,26 +299,60 @@ export function ExercisePicker({
         {addError && <p className="mt-2 text-caption text-red">{addError}</p>}
       </div>
 
-      {/* Equipment badges — same name-substring filter as typing "cable"
-          into search, just one tap instead. */}
-      <div className="mb-3 flex gap-2">
-        {EQUIPMENT_FILTERS.map((name) => {
-          const selected = selectedEquipment === name;
-          return (
+      {/* Filters — equipment (one at a time) and muscle narrow the list
+          below together with the search box. Chips are 44px tall and the
+          selected one carries a check, so state isn't colour-only. */}
+      <div className="mb-4 flex flex-col gap-2" role="group" aria-label="Exercise filters">
+        <div className="flex items-center justify-between px-0.5">
+          <p className="text-kicker text-label-secondary uppercase">Equipment</p>
+          {(selectedEquipment || selectedMuscleId) && (
             <button
-              key={name}
               type="button"
-              onClick={() => toggleEquipment(name)}
-              aria-pressed={selected}
-              className={cn(
-                "rounded-pill px-3 py-1.5 text-tab font-bold uppercase active:opacity-70",
-                selected ? "bg-accent-ink text-white" : "bg-fill text-label-secondary",
-              )}
+              onClick={() => {
+                setSelectedEquipment(null);
+                setSelectedMuscleId(null);
+              }}
+              className="relative cursor-pointer text-caption font-semibold text-accent-ink before:absolute before:-inset-2 before:content-[''] active:opacity-60"
             >
-              {name}
+              Clear filters
             </button>
-          );
-        })}
+          )}
+        </div>
+        <div className="no-scrollbar -mx-4 overflow-x-auto">
+          <div className="flex gap-2 px-4">
+            {EQUIPMENT_FILTERS.map((name) => {
+              const selected = selectedEquipment === name;
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => toggleEquipment(name)}
+                  aria-pressed={selected}
+                  className={cn(
+                    "flex h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-pill border-2 px-4 text-body font-semibold transition-colors active:opacity-70",
+                    selected
+                      ? "border-label bg-accent text-accent-foreground"
+                      : "border-separator bg-fill text-label",
+                  )}
+                >
+                  {selected && (
+                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden>
+                      <path
+                        d="M4.5 10.5l3.6 3.6L15.5 6"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <p className="mt-1 px-0.5 text-kicker text-label-secondary uppercase">Muscle</p>
       </div>
 
       {/* Muscle filter — a horizontal strip of circles, not a browse step:
@@ -381,7 +412,7 @@ export function ExercisePicker({
                     <span
                       className={cn(
                         "w-full truncate text-center text-tab font-medium",
-                        selected ? "text-accent-ink" : "text-label-secondary",
+                        selected ? "font-bold text-accent-ink" : "text-label-secondary",
                       )}
                     >
                       {shortMuscleName(m.name)}

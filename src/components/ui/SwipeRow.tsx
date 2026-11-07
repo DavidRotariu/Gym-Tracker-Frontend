@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { animate, motion, useMotionValue } from "framer-motion";
+import { animate, motion, useMotionValue, useTransform } from "framer-motion";
 import { useEffect, useRef } from "react";
 import { useSwipeable } from "react-swipeable";
 
@@ -13,8 +13,10 @@ export interface SwipeAction {
 }
 
 interface SwipeRowProps {
-  /** Revealed right-to-left, in order. */
+  /** Swipe LEFT reveals these (destructive side — Delete). */
   actions: SwipeAction[];
+  /** Swipe RIGHT reveals this (editing side — Edit). */
+  leadingAction?: SwipeAction;
   children: React.ReactNode;
   className?: string;
   /** Skip the rounded-card treatment for use inside a flat list (e.g. a set table row). */
@@ -39,11 +41,21 @@ const actionStyles: Record<NonNullable<SwipeAction["variant"]>, string> = {
  * The action still has to be tapped, so a stray swipe never destroys
  * anything.
  */
-export function SwipeRow({ actions, children, className, bare }: SwipeRowProps) {
+// Only one row may stay open: opening one closes whichever was open before.
+let closeOpenRow: (() => void) | null = null;
+
+export function SwipeRow({ actions, leadingAction, children, className, bare }: SwipeRowProps) {
   const x = useMotionValue(0);
-  const openRef = useRef(false);
+  /** 0 closed, -1 trailing (left swipe) open, 1 leading (right swipe) open. */
+  const openRef = useRef<-1 | 0 | 1>(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const width = actions.length * ACTION_WIDTH;
+  const leadWidth = leadingAction ? ACTION_WIDTH : 0;
+  // Action layers are invisible until the row actually moves: otherwise a
+  // compositing quirk (or a translucent row colour mid-animation) lets the
+  // red Delete layer flash through the row edge.
+  const trailingOpacity = useTransform(x, [-1, 0], [1, 0]);
+  const leadingOpacity = useTransform(x, [0, 1], [0, 1]);
 
   // Critically damped (no overshoot) — this is a snap-to-position, not a
   // momentum throw, so bounce would read as sloppy rather than physical.
@@ -57,7 +69,8 @@ export function SwipeRow({ actions, children, className, bare }: SwipeRowProps) 
     });
 
   const close = () => {
-    openRef.current = false;
+    openRef.current = 0;
+    if (closeOpenRow === close) closeOpenRow = null;
     settle(0);
   };
 
@@ -77,18 +90,28 @@ export function SwipeRow({ actions, children, className, bare }: SwipeRowProps) 
     onSwiping: (e) => {
       if (axis.current !== "x") return;
       // e.deltaX is negative when swiping left.
-      const base = openRef.current ? -width : 0;
-      x.set(Math.min(0, Math.max(base + e.deltaX, -width - 16)));
+      const base = openRef.current === 1 ? leadWidth : openRef.current === -1 ? -width : 0;
+      const min = width ? -width - 16 : 0;
+      const max = leadWidth ? leadWidth + 16 : 0;
+      x.set(Math.min(max, Math.max(base + e.deltaX, min)));
     },
     onSwiped: (e) => {
       const horizontal = axis.current === "x";
       axis.current = null;
       if (!horizontal) return; // a scroll — the row never moved
-      const shouldOpen =
-        e.deltaX < -width / 2 || (e.dir === "Left" && e.velocity > 0.4);
-      openRef.current = shouldOpen;
+      // Where the row would coast to: its position plus a short look-ahead
+      // along the release velocity (px/ms, signed). Must pass half an action
+      // to open, so a tiny movement never reveals anything.
+      const projected = x.get() + e.vxvy[0] * 150;
+      const side: -1 | 0 | 1 =
+        width && projected < -width / 2 ? -1 : leadWidth && projected > leadWidth / 2 ? 1 : 0;
+      openRef.current = side;
+      if (side) {
+        if (closeOpenRow && closeOpenRow !== close) closeOpenRow();
+        closeOpenRow = close;
+      } else if (closeOpenRow === close) closeOpenRow = null;
       // vxvy is px/ms — scale to px/s, the unit Motion's spring expects.
-      settle(shouldOpen ? -width : 0, e.vxvy[0] * 1000);
+      settle(side === -1 ? -width : side === 1 ? leadWidth : 0, e.vxvy[0] * 1000);
     },
     trackMouse: true,
     preventScrollOnSwipe: false,
@@ -103,7 +126,10 @@ export function SwipeRow({ actions, children, className, bare }: SwipeRowProps) 
       close();
     };
     document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      if (closeOpenRow === close) closeOpenRow = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -124,33 +150,28 @@ export function SwipeRow({ actions, children, className, bare }: SwipeRowProps) 
           at rest. Rounding this row's own corner to match is what actually
           closes it, regardless of the clipping quirk. This was "that
           border" — not a stray outline, the delete/edit action underneath. */}
-      <div
+      {leadingAction && (
+        <motion.div
+          style={{ opacity: leadingOpacity }}
+          className={cn(
+            "absolute inset-y-0 left-0 flex overflow-hidden",
+            !bare ? "rounded-l-card" : "rounded-l-control",
+          )}
+        >
+          <ActionButton action={leadingAction} onDone={close} />
+        </motion.div>
+      )}
+      <motion.div
+        style={{ opacity: trailingOpacity }}
         className={cn(
           "absolute inset-y-0 right-0 flex overflow-hidden",
           !bare ? "rounded-r-card" : "rounded-r-control",
         )}
       >
         {actions.map((action) => (
-          <button
-            key={action.label}
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              close();
-              action.onAction();
-            }}
-            style={{ width: ACTION_WIDTH }}
-            className={cn(
-              "flex cursor-pointer flex-col items-center justify-center gap-1",
-              "text-caption font-semibold active:opacity-80",
-              actionStyles[action.variant ?? "neutral"],
-            )}
-          >
-            {action.icon}
-            {action.label}
-          </button>
+          <ActionButton key={action.label} action={action} onDone={close} />
         ))}
-      </div>
+      </motion.div>
 
       <motion.div
         {...handlers}
@@ -160,18 +181,40 @@ export function SwipeRow({ actions, children, className, bare }: SwipeRowProps) 
         onPointerDownCapture={() => {
           // A tap on an open row closes it — it shouldn't also open the
           // keypad or follow the link the row happens to be shifted over.
-          swallowClick.current = openRef.current;
+          swallowClick.current = openRef.current !== 0;
         }}
         onClickCapture={(e) => {
           if (!swallowClick.current) return;
           swallowClick.current = false;
           e.preventDefault();
           e.stopPropagation();
-          if (openRef.current && x.get() === -width) close();
+          if (openRef.current && Math.abs(x.get()) === (openRef.current === 1 ? leadWidth : width)) close();
         }}
       >
         {children}
       </motion.div>
     </div>
+  );
+}
+
+function ActionButton({ action, onDone }: { action: SwipeAction; onDone: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onDone();
+        action.onAction();
+      }}
+      style={{ width: ACTION_WIDTH }}
+      className={cn(
+        "flex cursor-pointer flex-col items-center justify-center gap-1",
+        "text-caption font-semibold active:opacity-80",
+        actionStyles[action.variant ?? "neutral"],
+      )}
+    >
+      {action.icon}
+      {action.label}
+    </button>
   );
 }

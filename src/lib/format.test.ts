@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { MAX_WORKOUT_MS, hasCompletedSets, workoutEndTime } from "./format.ts";
+import { MAX_WORKOUT_MS, hasCompletedSets, matchesEquipment, workoutEndTime } from "./format.ts";
 import type { WorkoutSession } from "../types/index.ts";
 
 const set = (completed: boolean, completed_at: string | null = null) =>
@@ -34,4 +34,10 @@ test("within the cap it ends right now", () => {
   const started = "2026-01-01T10:00:00Z";
   const now = new Date(started).getTime() + 30 * 60_000;
   assert.equal(workoutEndTime(session([], started), now), new Date(now).toISOString());
+});
+
+test("matchesEquipment matches name or equipment field, case-insensitively", () => {
+  assert.equal(matchesEquipment({ name: "Barbell Row" }, "Barbell"), true);
+  assert.equal(matchesEquipment({ name: "Bench Press", equipment: "barbell" }, "Barbell"), true);
+  assert.equal(matchesEquipment({ name: "Cable Fly", equipment: null }, "Barbell"), false);
 });
