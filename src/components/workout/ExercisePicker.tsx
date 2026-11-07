@@ -299,60 +299,26 @@ export function ExercisePicker({
         {addError && <p className="mt-2 text-caption text-red">{addError}</p>}
       </div>
 
-      {/* Filters — equipment (one at a time) and muscle narrow the list
-          below together with the search box. Chips are 44px tall and the
-          selected one carries a check, so state isn't colour-only. */}
-      <div className="mb-4 flex flex-col gap-2" role="group" aria-label="Exercise filters">
-        <div className="flex items-center justify-between px-0.5">
-          <p className="text-kicker text-label-secondary uppercase">Equipment</p>
-          {(selectedEquipment || selectedMuscleId) && (
+      {/* Equipment badges — same name-substring filter as typing "cable"
+          into search, just one tap instead. */}
+      <div className="mb-3 flex gap-2">
+        {EQUIPMENT_FILTERS.map((name) => {
+          const selected = selectedEquipment === name;
+          return (
             <button
+              key={name}
               type="button"
-              onClick={() => {
-                setSelectedEquipment(null);
-                setSelectedMuscleId(null);
-              }}
-              className="relative cursor-pointer text-caption font-semibold text-accent-ink before:absolute before:-inset-2 before:content-[''] active:opacity-60"
+              onClick={() => toggleEquipment(name)}
+              aria-pressed={selected}
+              className={cn(
+                "rounded-pill px-3 py-1.5 text-tab font-bold uppercase active:opacity-70",
+                selected ? "bg-accent-ink text-white" : "bg-fill text-label-secondary",
+              )}
             >
-              Clear filters
+              {name}
             </button>
-          )}
-        </div>
-        <div className="no-scrollbar -mx-4 overflow-x-auto">
-          <div className="flex gap-2 px-4">
-            {EQUIPMENT_FILTERS.map((name) => {
-              const selected = selectedEquipment === name;
-              return (
-                <button
-                  key={name}
-                  type="button"
-                  onClick={() => toggleEquipment(name)}
-                  aria-pressed={selected}
-                  className={cn(
-                    "flex h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-pill border-2 px-4 text-body font-semibold transition-colors active:opacity-70",
-                    selected
-                      ? "border-label bg-accent text-accent-foreground"
-                      : "border-separator bg-fill text-label",
-                  )}
-                >
-                  {selected && (
-                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden>
-                      <path
-                        d="M4.5 10.5l3.6 3.6L15.5 6"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  )}
-                  {name}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <p className="mt-1 px-0.5 text-kicker text-label-secondary uppercase">Muscle</p>
+          );
+        })}
       </div>
 
       {/* Muscle filter — a horizontal strip of circles, not a browse step:
@@ -412,7 +378,7 @@ export function ExercisePicker({
                     <span
                       className={cn(
                         "w-full truncate text-center text-tab font-medium",
-                        selected ? "font-bold text-accent-ink" : "text-label-secondary",
+                        selected ? "text-accent-ink" : "text-label-secondary",
                       )}
                     >
                       {shortMuscleName(m.name)}
