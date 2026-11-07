@@ -7,13 +7,13 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { LargeTitle } from "@/components/ui/LargeTitle";
 import { MediaThumb } from "@/components/ui/MediaThumb";
 import { MuscleChips } from "@/components/ui/MuscleChips";
+import { StreakBadge } from "@/components/streak/StreakSheet";
 import { Sheet } from "@/components/ui/Sheet";
 import { useMuscles } from "@/hooks/use-muscles";
 import { useSplits } from "@/hooks/use-splits";
 import { useQrImage, useUploadQr } from "@/hooks/use-users";
 import { isLiveSession, useStartOrResumeWorkout, useWorkoutHistory } from "@/hooks/use-workouts";
 import {
-  currentStreak,
   formatDay,
   formatDuration,
   muscleImage,
@@ -23,7 +23,7 @@ import {
 import { getSplitIcon } from "@/lib/splitIcon";
 import { cn } from "@/lib/utils";
 import type { Split } from "@/types";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -101,7 +101,6 @@ export default function HomePage() {
     [splits, history],
   );
 
-  const streak = useMemo(() => currentStreak(history), [history]);
   const lastWorkout = completed[0];
 
   /** The split's own icon takes priority; otherwise fall back to the muscle
@@ -129,7 +128,7 @@ export default function HomePage() {
         eyebrow={today}
         action={
           <div className="flex items-center gap-2">
-            <StreakBadge streak={streak} />
+            <StreakBadge />
             <button
               onClick={() => setQrOpen(true)}
               aria-label="Show gym QR code"
@@ -444,47 +443,6 @@ function StartSheet({
         </button>
       </div>
     </Sheet>
-  );
-}
-
-function StreakBadge({ streak }: { streak: number }) {
-  return (
-    <div
-      className="flex items-center gap-1 overflow-hidden rounded-pill bg-fill py-1 pr-3 pl-2"
-      role="img"
-      aria-label={`${streak} day streak`}
-    >
-      <motion.svg
-        width="16"
-        height="16"
-        viewBox="0 0 20 20"
-        fill="none"
-        // Only a live streak pulses; a flame that never stops moving next to a
-        // "0" reads as noise.
-        animate={streak > 0 ? { scale: [1, 1.08, 1] } : undefined}
-        transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-      >
-        <path
-          d="M10 1.5c.6 2.4-.4 3.9-1.7 5.3C7 8 5.8 9.3 5.8 11.4a4.2 4.2 0 0 0 8.4 0c0-1.3-.5-2.2-1-3 .9.3 2.3 1.5 2.3 4a5.5 5.5 0 1 1-11 0c0-4.6 3.2-6.6 5.5-10.9Z"
-          fill="var(--color-accent)"
-        />
-      </motion.svg>
-      <span className="tabular relative inline-grid text-caption font-bold text-label">
-        <AnimatePresence mode="popLayout" initial={false}>
-          <motion.span
-            key={streak}
-            initial={{ y: 10, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -10, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            className="col-start-1 row-start-1"
-          >
-            {streak}
-          </motion.span>
-        </AnimatePresence>
-      </span>
-      <span className="text-caption font-bold text-label">streak</span>
-    </div>
   );
 }
 

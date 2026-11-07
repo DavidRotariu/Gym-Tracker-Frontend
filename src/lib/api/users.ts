@@ -1,5 +1,5 @@
 import { apiRequest, apiRequestBlob, ApiRequestError } from "./client";
-import type { Membership } from "@/types";
+import type { Membership, RestDays } from "@/types";
 
 export function uploadQr(file: File) {
   const form = new FormData();
@@ -60,4 +60,16 @@ export async function getMembership() {
 
 export function deleteMembership() {
   return apiRequest<void>("/users/membership", { method: "DELETE" });
+}
+
+export function getRestDays() {
+  return apiRequest<RestDays>("/users/rest-days");
+}
+
+export function setRestDate(date: string, rest: boolean) {
+  return apiRequest<void>(`/users/rest-days/${date}`, { method: rest ? "PUT" : "DELETE" });
+}
+
+export function setRestWeekdays(weekdays: number[]) {
+  return apiRequest<RestDays>("/users/rest-weekdays", { method: "PUT", body: { weekdays } });
 }

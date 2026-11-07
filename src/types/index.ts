@@ -17,6 +17,12 @@ export interface Membership {
   expires_at: string;
 }
 
+/** Rest days that keep a streak alive: explicit dates plus recurring weekdays (0 = Sunday). */
+export interface RestDays {
+  dates: string[];
+  weekdays: number[];
+}
+
 export type ExerciseType = "body_weight" | "weighted" | "negative" | "timer";
 
 export interface Exercise {

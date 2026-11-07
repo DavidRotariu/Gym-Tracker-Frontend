@@ -12,6 +12,9 @@ export interface MockUser extends User {
   qr_code_url: string | null;
   profile_picture_url: string | null;
   membership_paid_at: string | null;
+  /** Optional: databases saved before rest days existed lack them. */
+  rest_dates?: string[];
+  rest_weekdays?: number[];
 }
 
 export interface MockDB {

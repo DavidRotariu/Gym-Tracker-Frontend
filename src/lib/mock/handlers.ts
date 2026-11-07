@@ -656,6 +656,54 @@ export const handlers = [
     saveDb(db);
     return new HttpResponse(null, { status: 204 });
   }),
+
+  http.get("/users/rest-days", ({ request }) => {
+    const userId = requireAuth(request);
+    if (isErr(userId)) return userId;
+    const user = getDb().users.find((u) => u.id === userId);
+    if (!user) return errorResponse(404, "User not found.");
+    return HttpResponse.json({ dates: user.rest_dates ?? [], weekdays: user.rest_weekdays ?? [] });
+  }),
+
+  http.put("/users/rest-days/:date", ({ params, request }) => {
+    const userId = requireAuth(request);
+    if (isErr(userId)) return userId;
+    const date = String(params.date);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return errorResponse(400, "Date must be YYYY-MM-DD.");
+    const db = getDb();
+    const user = db.users.find((u) => u.id === userId);
+    if (!user) return errorResponse(404, "User not found.");
+    user.rest_dates = [...new Set([...(user.rest_dates ?? []), date])].sort();
+    saveDb(db);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.delete("/users/rest-days/:date", ({ params, request }) => {
+    const userId = requireAuth(request);
+    if (isErr(userId)) return userId;
+    const db = getDb();
+    const user = db.users.find((u) => u.id === userId);
+    if (!user) return errorResponse(404, "User not found.");
+    user.rest_dates = (user.rest_dates ?? []).filter((d) => d !== params.date);
+    saveDb(db);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.put("/users/rest-weekdays", async ({ request }) => {
+    const userId = requireAuth(request);
+    if (isErr(userId)) return userId;
+    const body = (await request.json()) as { weekdays?: unknown };
+    const days = body.weekdays;
+    if (!Array.isArray(days) || !days.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)) {
+      return errorResponse(400, "weekdays must be integers 0-6.");
+    }
+    const db = getDb();
+    const user = db.users.find((u) => u.id === userId);
+    if (!user) return errorResponse(404, "User not found.");
+    user.rest_weekdays = [...new Set(days as number[])].sort();
+    saveDb(db);
+    return HttpResponse.json({ dates: user.rest_dates ?? [], weekdays: user.rest_weekdays });
+  }),
 ];
 
 /**

@@ -239,31 +239,6 @@ export function suggestSplit(
   return splits[(lastIndex + 1) % splits.length];
 }
 
-/** Consecutive days ending today (or yesterday) with a completed workout. */
-export function currentStreak(history: WorkoutSessionSummary[] | undefined): number {
-  if (!history?.length) return 0;
-
-  const days = new Set<number>();
-  for (const session of history) {
-    if (!session.completed_at) continue;
-    const d = new Date(session.started_at);
-    days.add(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime());
-  }
-  if (days.size === 0) return 0;
-
-  const today = new Date();
-  const cursor = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  // A rest day today shouldn't wipe a streak — start from yesterday if needed.
-  if (!days.has(cursor.getTime())) cursor.setDate(cursor.getDate() - 1);
-
-  let streak = 0;
-  while (days.has(cursor.getTime())) {
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
-}
-
 /** Equipment filter options in the exercise picker. */
 export const EQUIPMENT_FILTERS = ["Barbell", "Dumbbell", "Cable", "Machine"] as const;
 export type EquipmentFilter = (typeof EQUIPMENT_FILTERS)[number];
