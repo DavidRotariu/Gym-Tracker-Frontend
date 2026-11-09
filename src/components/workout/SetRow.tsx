@@ -2,12 +2,15 @@
 
 import { SwipeRow } from "@/components/ui/SwipeRow";
 import { SET_TYPE_ORDER, SET_TYPE_SHORT, SET_TYPE_STYLES } from "@/components/ui/SetTypeBadge";
+import { EquipmentLoadPanel } from "@/components/workout/EquipmentLoadPanel";
 import { useNumericKeypad, type KeypadKey } from "@/components/workout/NumericKeypad";
+import { formatWeight, loadView, weightUnit, type EquipmentType } from "@/lib/equipment";
 import { playCompleteFeedback } from "@/lib/feedback";
 import { cn } from "@/lib/utils";
 import type { ExerciseType, Set } from "@/types";
 import { motion } from "framer-motion";
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type NumberFieldKind = "weight" | "reps";
 
@@ -23,6 +26,8 @@ interface SetRowProps {
    *  body_weight shows reps only, timer shows seconds only (stored in the
    *  same actual_reps field — there's no separate duration column). */
   exerciseType?: ExerciseType;
+  /** Governs how the weight reads and how it's loaded — see lib/equipment. */
+  equipment?: EquipmentType | null;
   /** Live-mirrored text from an earlier set still being typed into (see
    *  ExerciseCard) — shown in place of this field's own value while set. */
   weightOverride?: string;
@@ -44,11 +49,12 @@ function formatSet(
   reps: number | null,
   exerciseType: ExerciseType | undefined,
   empty: string,
+  equipment?: EquipmentType | null,
 ): string {
   if (exerciseType === "timer") return `${reps ?? empty}s`;
   if (exerciseType === "body_weight") return `${reps ?? empty} reps`;
   const sign = exerciseType === "negative" && weight ? "−" : "";
-  return `${sign}${weight ?? empty} kg × ${reps ?? empty}`;
+  return `${sign}${formatWeight(weight ?? empty, equipment)} × ${reps ?? empty}`;
 }
 
 /**
@@ -74,7 +80,10 @@ function NumberField({
   integer = false,
   max,
   openRef,
+  accessory,
 }: {
+  /** Shown on top of the keypad while this field is the one being edited. */
+  accessory?: (shown: string) => React.ReactNode;
   /** Display-only (e.g. "−" for negative exercises); never part of the stored number. */
   prefix?: string;
   /** Whole numbers only (reps, seconds) — no "." key, and no fractions stored. */
@@ -214,20 +223,23 @@ function NumberField({
   const shown = override ?? draft;
 
   return (
-    <button
-      ref={buttonRef}
-      type="button"
-      data-keypad-field
-      onClick={openField}
-      aria-label={label}
-      className={cn(
-        "tabular h-10 w-full min-w-0 cursor-pointer rounded-control bg-fill text-center text-body font-semibold text-label",
-        active && "outline-2 outline-offset-0 outline-blue",
-        shown === "" && "font-normal text-label-tertiary",
-      )}
-    >
-      {shown ? prefix + shown : placeholder}
-    </button>
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        data-keypad-field
+        onClick={openField}
+        aria-label={label}
+        className={cn(
+          "tabular h-10 w-full min-w-0 cursor-pointer rounded-control bg-fill text-center text-body font-semibold text-label",
+          active && "outline-2 outline-offset-0 outline-blue",
+          shown === "" && "font-normal text-label-tertiary",
+        )}
+      >
+        {shown ? prefix + shown : placeholder}
+      </button>
+      {active && accessory && keypad.accessorySlot && createPortal(accessory(shown), keypad.accessorySlot)}
+    </>
   );
 }
 
@@ -243,6 +255,7 @@ export function SetRow({
   onDelete,
   readOnly,
   exerciseType,
+  equipment,
   weightOverride,
   repsOverride,
   onFieldDraft,
@@ -266,7 +279,7 @@ export function SetRow({
     const summary =
       weight === null && reps === null
         ? "Not logged"
-        : formatSet(weight, reps, exerciseType, "0");
+        : formatSet(weight, reps, exerciseType, "0", equipment);
 
     return (
       <div
@@ -302,6 +315,14 @@ export function SetRow({
   // real row replaces it (a beat later).
   const unsaved = set.id.startsWith("optimistic-");
 
+  // Blank means the placeholder (last time's weight), which is what ✓ would log.
+  function loadPanel(shown: string) {
+    if (exerciseType !== "weighted") return null;
+    const typed = shown === "" ? NaN : Number(shown.replace(",", "."));
+    const view = loadView(equipment, Number.isFinite(typed) ? typed : (previous?.weight ?? null));
+    return view && <EquipmentLoadPanel view={view} />;
+  }
+
   const row = (
     <div
       className={cn(
@@ -328,7 +349,7 @@ export function SetRow({
         type="button"
         onClick={copyPrevious}
         disabled={!hasPrevious}
-        aria-label={hasPrevious ? `Copy previous: ${formatSet(previous!.weight, previous!.reps, exerciseType, "—")}` : "No previous set"}
+        aria-label={hasPrevious ? `Copy previous: ${formatSet(previous!.weight, previous!.reps, exerciseType, "—", equipment)}` : "No previous set"}
         className="tabular truncate text-left text-caption text-label-tertiary disabled:cursor-default active:opacity-60"
       >
         {hasPrevious ? formatSet(previous!.weight, previous!.reps, exerciseType, "—") : "—"}
@@ -341,7 +362,8 @@ export function SetRow({
           max={MAX_WEIGHT}
           prefix={exerciseType === "negative" ? "−" : ""}
           onCommit={(v) => onChange({ actual_weight: v })}
-          label={`Set ${set.set_number} weight`}
+          label={`Set ${set.set_number} weight, ${weightUnit(equipment)}`}
+          accessory={loadPanel}
           override={weightOverride}
           onDraft={(d) => onFieldDraft?.("weight", d)}
           onEditEnd={() => onFieldEditEnd?.("weight")}

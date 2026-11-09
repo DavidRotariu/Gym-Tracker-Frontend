@@ -12,6 +12,7 @@ import { useExercises } from "@/hooks/use-exercises";
 import { useMuscles } from "@/hooks/use-muscles";
 import { useSplit } from "@/hooks/use-splits";
 import { useWorkout } from "@/hooks/use-workouts";
+import { parseEquipment } from "@/lib/equipment";
 import {
   formatDay,
   formatDuration,
@@ -51,6 +52,10 @@ export default function HistorySessionPage() {
   );
   const exerciseType = useMemo(
     () => new Map(exercises?.map((e) => [e.id, e.exercise_type])),
+    [exercises],
+  );
+  const exerciseEquipment = useMemo(
+    () => new Map(exercises?.map((e) => [e.id, parseEquipment(e.equipment)])),
     [exercises],
   );
 
@@ -154,6 +159,7 @@ export default function HistorySessionPage() {
                   muscle={exerciseMuscle.get(we.exercise_id)}
                   mediaUrl={exerciseMedia.get(we.exercise_id)}
                   exerciseType={exerciseType.get(we.exercise_id)}
+                  equipment={exerciseEquipment.get(we.exercise_id)}
                   readOnly
                   onChangeSet={noop}
                   onDeleteSet={noop}

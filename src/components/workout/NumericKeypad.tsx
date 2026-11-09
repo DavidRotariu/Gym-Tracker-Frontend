@@ -30,6 +30,8 @@ interface ActiveField {
 interface KeypadApi {
   activeId: string | null;
   open: (field: ActiveField) => void;
+  /** Top of the open keypad, for the active field to portal context into. */
+  accessorySlot: HTMLDivElement | null;
 }
 
 const KeypadContext = createContext<KeypadApi | null>(null);
@@ -62,9 +64,18 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
   // a commit synchronously without waiting on a state update to land first.
   const fieldRef = useRef<ActiveField | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const [accessorySlot, setAccessorySlot] = useState<HTMLDivElement | null>(null);
   const mounted = useMounted();
   const reduceMotion = useReducedMotion();
 
+  const revealField = useCallback(() => {
+    const el = fieldRef.current?.target;
+    if (!el) return;
+    const h = panelRef.current?.offsetHeight ?? 240;
+    const r = el.getBoundingClientRect();
+    const limit = window.innerHeight - h - 12;
+    if (r.bottom > limit) window.scrollBy({ top: r.bottom - limit, behavior: "smooth" });
+  }, []);
 
   const close = useCallback(() => {
     fieldRef.current?.onCommit();
@@ -102,7 +113,16 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
     // "Open" for the rest of the page (the workout scroll-spy) — cleared the
     // instant it closes, not after the exit animation like the panel itself.
     body.dataset.keypadOpen = "";
+    // The panel changes height as a field's accessory comes and goes.
+    const panel = panelRef.current;
+    const observer = new ResizeObserver(() => {
+      if (!panel) return;
+      body.style.paddingBottom = `${panel.offsetHeight}px`;
+      revealField();
+    });
+    if (panel) observer.observe(panel);
     return () => {
+      observer.disconnect();
       // Closing eases the room away in step with the panel sliding down. Taking
       // it all at once, with the page scrolled to the bottom, shrank the
       // document in one frame and the browser clamped the scroll position —
@@ -114,16 +134,11 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
         if (!("keypadOpen" in body.dataset)) body.style.transition = "";
       }, 350);
     };
-  }, [isOpen]);
+  }, [isOpen, revealField]);
   const activeId = field?.id;
   useEffect(() => {
-    const el = fieldRef.current?.target;
-    if (!activeId || !el) return;
-    const h = panelRef.current?.offsetHeight ?? 240;
-    const r = el.getBoundingClientRect();
-    const limit = window.innerHeight - h - 12;
-    if (r.bottom > limit) window.scrollBy({ top: r.bottom - limit, behavior: "smooth" });
-  }, [activeId]);
+    if (activeId) revealField();
+  }, [activeId, revealField]);
 
   // A draft only exists in the field until it's committed. Backgrounding the
   // app (iOS may then evict it) or leaving the page must commit it, not drop
@@ -184,7 +199,7 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
   }, [field, close]);
 
   return (
-    <KeypadContext.Provider value={{ activeId: field?.id ?? null, open }}>
+    <KeypadContext.Provider value={{ activeId: field?.id ?? null, open, accessorySlot }}>
       {children}
       {mounted &&
         createPortal(
@@ -205,6 +220,7 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
                   "shadow-sheet",
                 )}
               >
+                <div ref={setAccessorySlot} />
                 <div className="grid grid-cols-3 gap-px bg-separator">
                   {KEYS.map((key) => (
                     <button

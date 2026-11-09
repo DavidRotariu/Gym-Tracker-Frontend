@@ -1,3 +1,4 @@
+import { EQUIPMENT, type EquipmentType } from "@/lib/equipment";
 import type {
   Exercise,
   ExerciseType,
@@ -160,6 +161,23 @@ const EXERCISE_NAMES: {
 /** Movements with no external load — everything else defaults to "weighted". */
 const BODY_WEIGHT_EXERCISE_IDS = new Set([13, 21, 72, 80, 82, 83, 85]);
 
+/** Only where the movement settles it. Anything ambiguous (Rear Delt Fly could
+ *  be cable, machine or dumbbell) or unloaded stays null: plain kg, no guessing. */
+const EQUIPMENT_BY_EXERCISE: Partial<Record<EquipmentType, number[]>> = {
+  barbell: [10, 20, 22, 26, 30, 40, 50, 60, 74, 100, 102, 110],
+  ez_bar: [65, 71],
+  smith_machine: [15, 44, 92],
+  machine: [16, 17, 41, 43, 51, 52, 75, 90, 91, 111],
+  cable: [12, 23, 24, 27, 64, 70, 81, 101],
+  dumbbell: [11, 14, 31, 33, 45, 61, 62],
+};
+
+const EQUIPMENT_LABEL_BY_ID = new Map(
+  (Object.entries(EQUIPMENT_BY_EXERCISE) as [EquipmentType, number[]][]).flatMap(([type, ids]) =>
+    ids.map((id) => [id, EQUIPMENT[type].label] as const),
+  ),
+);
+
 /**
  * Secondary muscles worked by each exercise. Not exhaustive — a
  * representative subset of the catalog, same ~40% split the real dataset
@@ -204,7 +222,7 @@ const EXERCISES: Exercise[] = EXERCISE_NAMES.map((e) => ({
   video_url: null,
   rest_time: 90,
   tips: null,
-  equipment: null,
+  equipment: EQUIPMENT_LABEL_BY_ID.get(e.id) ?? null,
   favourite: false,
   primary_muscle: e.muscle,
   secondary_muscles: (SECONDARY_MUSCLES[e.id] ?? [])

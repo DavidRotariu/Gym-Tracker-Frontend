@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/Card";
 import { MediaThumb } from "@/components/ui/MediaThumb";
 import { SetRow } from "@/components/workout/SetRow";
 import { useExerciseHistory } from "@/hooks/use-exercises";
+import { EQUIPMENT, type EquipmentType } from "@/lib/equipment";
 import { cn } from "@/lib/utils";
 import type { ExerciseType, Set, WorkoutExercise } from "@/types";
 import { AnimatePresence, motion } from "framer-motion";
@@ -21,6 +22,8 @@ interface ExerciseCardProps {
   mediaUrl?: string | null;
   /** Governs which fields sets in this card log — see SetRow. */
   exerciseType?: ExerciseType;
+  /** Governs how weights read and load in this card — see lib/equipment. */
+  equipment?: EquipmentType | null;
   /** The workout being logged — excluded from the "Previous" lookup. */
   sessionId?: string;
   onChangeSet: (setId: string, patch: Partial<Set>) => void;
@@ -46,6 +49,7 @@ function ExerciseCardImpl({
   muscle,
   mediaUrl,
   exerciseType,
+  equipment,
   sessionId,
   onChangeSet,
   onDeleteSet,
@@ -281,7 +285,8 @@ function ExerciseCardImpl({
                 </span>
                 {exerciseType !== "body_weight" && exerciseType !== "timer" && (
                   <span className="text-center text-tab font-medium text-label-tertiary uppercase">
-                    Kg
+                    {/* Per dumbbell — the row has no room to repeat it on every set. */}
+                    {equipment && EQUIPMENT[equipment].perItem ? "Kg each" : "Kg"}
                   </span>
                 )}
                 <span className="text-center text-tab font-medium text-label-tertiary uppercase">
@@ -320,6 +325,7 @@ function ExerciseCardImpl({
                       previous={previousBySetNumber.get(set.set_number)}
                       readOnly={readOnly}
                       exerciseType={exerciseType}
+                      equipment={equipment}
                       onChange={(patch) => onChangeSet(set.id, patch)}
                       onDelete={() => onDeleteSet(set.id)}
                       weightOverride={mirrorFor(set.id, "weight")}
@@ -364,6 +370,7 @@ export const ExerciseCard = memo(
     a.muscle === b.muscle &&
     a.mediaUrl === b.mediaUrl &&
     a.exerciseType === b.exerciseType &&
+    a.equipment === b.equipment &&
     a.sessionId === b.sessionId &&
     a.readOnly === b.readOnly &&
     a.addPending === b.addPending &&

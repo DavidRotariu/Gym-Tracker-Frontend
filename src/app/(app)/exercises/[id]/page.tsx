@@ -15,6 +15,7 @@ import { TextField } from "@/components/ui/TextField";
 import { useExerciseHistory, useExercises, useUpdateExercise } from "@/hooks/use-exercises";
 import { useFavorite } from "@/hooks/use-favorites";
 import { useMuscles } from "@/hooks/use-muscles";
+import { EQUIPMENT, formatWeight, parseEquipment, weightUnit } from "@/lib/equipment";
 import { formatDay, formatVolume, shortMuscleName } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Exercise, ExerciseType, Muscle } from "@/types";
@@ -36,6 +37,7 @@ export default function ExerciseDetailPage() {
     () => exercises?.find((e) => e.id === exerciseId),
     [exercises, exerciseId],
   );
+  const equipmentType = parseEquipment(exercise?.equipment);
   const muscleNameRaw = muscles?.find((m) => m.id === exercise?.muscle_id)?.name;
   const muscleName = muscleNameRaw ? shortMuscleName(muscleNameRaw) : undefined;
 
@@ -177,7 +179,7 @@ export default function ExerciseDetailPage() {
                 </p>
                 <p className="tabular text-stat text-label">
                   {stats.best}
-                  <span className="text-body text-label-tertiary"> kg</span>
+                  <span className="text-body text-label-tertiary"> {weightUnit(equipmentType)}</span>
                 </p>
               </div>
               {stats.bestReps > 0 && (
@@ -230,7 +232,7 @@ export default function ExerciseDetailPage() {
                         </span>
                         <SetTypeBadge type={set.set_type} short />
                         <span className="tabular flex-1 text-body font-medium text-label">
-                          {set.actual_weight ?? 0} kg × {set.actual_reps ?? 0}
+                          {formatWeight(set.actual_weight ?? 0, equipmentType)} × {set.actual_reps ?? 0}
                         </span>
                         <span className="tabular shrink-0 text-caption text-label-tertiary">
                           {set.actual_rir !== null
@@ -286,7 +288,12 @@ function ExerciseEditForm({
         .map((mu) => mu.id),
     ),
   );
-  const [equipment, setEquipment] = useState(exercise.equipment ?? "");
+  // Normalised to the canonical label; free text from before this was a picker
+  // stays as its own option, so saving other fields never rewrites it.
+  const [equipment, setEquipment] = useState(() => {
+    const known = parseEquipment(exercise.equipment);
+    return known ? EQUIPMENT[known].label : (exercise.equipment ?? "");
+  });
   const [tips, setTips] = useState(exercise.tips ?? "");
   const [restTime, setRestTime] = useState(String(exercise.rest_time));
   const [error, setError] = useState<string | null>(null);
@@ -414,13 +421,25 @@ function ExerciseEditForm({
         </div>
       </div>
 
-      <TextField
-        label="Equipment"
-        value={equipment}
-        onChange={(e) => setEquipment(e.target.value)}
-        placeholder="Barbell, bench…"
-        autoComplete="off"
-      />
+      <div className="flex flex-col gap-2">
+        <label htmlFor="exercise-equipment" className="text-caption font-medium text-label-secondary">
+          Equipment
+        </label>
+        <select
+          id="exercise-equipment"
+          value={equipment}
+          onChange={(e) => setEquipment(e.target.value)}
+          className="h-12 rounded-control bg-fill px-4 text-body text-label focus:outline-2 focus:outline-offset-0 focus:outline-blue"
+        >
+          <option value="">None</option>
+          {Object.values(EQUIPMENT).map(({ label }) => (
+            <option key={label} value={label}>
+              {label}
+            </option>
+          ))}
+          {equipment && !parseEquipment(equipment) && <option value={equipment}>{equipment}</option>}
+        </select>
+      </div>
 
       <div className="flex flex-col gap-2">
         <label className="text-caption font-medium text-label-secondary">Tips</label>

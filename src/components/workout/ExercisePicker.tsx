@@ -16,6 +16,7 @@ import {
   muscleImage,
   shortMuscleName,
 } from "@/lib/format";
+import { formatWeight, parseEquipment } from "@/lib/equipment";
 import { cn } from "@/lib/utils";
 import type { Exercise } from "@/types";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -507,7 +508,7 @@ function ExercisePreview({
                     <>
                       Last trained {formatDay(lastSet.logged_at)} ·{" "}
                       <span className="font-semibold text-label">
-                        {lastSet.actual_weight ?? 0} kg × {lastSet.actual_reps ?? 0}
+                        {formatWeight(lastSet.actual_weight ?? 0, parseEquipment(exercise.equipment))} × {lastSet.actual_reps ?? 0}
                       </span>
                     </>
                   ) : (

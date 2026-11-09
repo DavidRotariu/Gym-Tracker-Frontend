@@ -28,6 +28,7 @@ import {
 import type { SetPatch } from "@/hooks/use-workout-session";
 import { useDeleteWorkout, usePatchWorkout, useWorkout } from "@/hooks/use-workouts";
 import { getExerciseHistory } from "@/lib/api/exercises";
+import { parseEquipment } from "@/lib/equipment";
 import { MAX_WORKOUT_MS, formatElapsed, hasCompletedSets, shortMuscleName, workoutEndTime } from "@/lib/format";
 import { isProgrammaticScroll, scrollIntoViewQuietly } from "@/lib/scroll";
 import { cn } from "@/lib/utils";
@@ -237,6 +238,10 @@ export default function WorkoutSessionPage() {
   );
   const exerciseType = useMemo(
     () => new Map(exercises?.map((e) => [e.id, e.exercise_type])),
+    [exercises],
+  );
+  const exerciseEquipment = useMemo(
+    () => new Map(exercises?.map((e) => [e.id, parseEquipment(e.equipment)])),
     [exercises],
   );
 
@@ -871,6 +876,7 @@ export default function WorkoutSessionPage() {
                           muscle={exerciseMuscle.get(we.exercise_id)}
                           mediaUrl={exerciseMedia.get(we.exercise_id)}
                           exerciseType={exerciseType.get(we.exercise_id)}
+                          equipment={exerciseEquipment.get(we.exercise_id)}
                           sessionId={sessionId}
                           onChangeSet={(setId, patch) => latest.current.handleChangeSet(we, setId, patch)}
                           onDeleteSet={(setId) => latest.current.handleDeleteSet(setId)}
@@ -945,6 +951,7 @@ export default function WorkoutSessionPage() {
           session={summary}
           title={title}
           exerciseNames={exerciseNames}
+          exerciseEquipment={exerciseEquipment}
           onDone={() => router.replace(`/history/${sessionId}`)}
         />
       )}

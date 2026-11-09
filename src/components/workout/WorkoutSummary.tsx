@@ -3,6 +3,7 @@
 import { setThemeColorMeta, themeColorFor, useTheme } from "@/components/ThemeProvider";
 import { StatDisplay } from "@/components/ui/StatDisplay";
 import { getExerciseHistory } from "@/lib/api/exercises";
+import { formatWeight, weightUnit, type EquipmentType } from "@/lib/equipment";
 import {
   formatDuration,
   formatVolume,
@@ -18,6 +19,7 @@ interface WorkoutSummaryProps {
   session: WorkoutSession;
   title: string;
   exerciseNames: Map<string, string>;
+  exerciseEquipment: Map<string, EquipmentType | null>;
   onDone: () => void;
 }
 
@@ -39,6 +41,7 @@ export function WorkoutSummary({
   session,
   title,
   exerciseNames,
+  exerciseEquipment,
   onDone,
 }: WorkoutSummaryProps) {
   const reduceMotion = useReducedMotion();
@@ -192,12 +195,12 @@ export function WorkoutSummary({
                     {exerciseNames.get(pr.exerciseId) ?? "Exercise"}
                   </p>
                   <p className="text-caption text-white/60">
-                    Previous best {pr.previous} kg
+                    Previous best {formatWeight(pr.previous, exerciseEquipment.get(pr.exerciseId))}
                   </p>
                 </div>
                 <p className="tabular shrink-0 font-stat text-stat-sm text-accent">
                   {pr.weight}
-                  <span className="text-caption"> kg</span>
+                  <span className="text-caption"> {weightUnit(exerciseEquipment.get(pr.exerciseId))}</span>
                 </p>
               </div>
             ))}
