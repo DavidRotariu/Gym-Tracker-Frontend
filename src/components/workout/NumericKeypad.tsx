@@ -293,7 +293,7 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
                   animate={{ height: panelVisible ? "auto" : 0 }}
                   transition={reduceMotion ? { duration: 0 } : { duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
                   aria-hidden={!panelVisible}
-                  className="overflow-hidden border-b border-separator"
+                  className="overflow-hidden"
                 >
                   {load && <EquipmentLoadPanel request={load} />}
                 </motion.div>

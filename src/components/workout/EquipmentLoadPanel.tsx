@@ -102,7 +102,11 @@ const Plates = memo(function Plates({ plates }: { plates: number[] }) {
   );
 });
 
-/** Text is what carries the configuration: the colours only tie it to the drawing. */
+/**
+ * Text is what carries the configuration: the colours only tie it to the drawing.
+ * Fixed columns and no position animation: entries never travel, since a row
+ * sliding across its neighbour mid-change reads as a glitch, not as motion.
+ */
 const Legend = memo(function Legend({ plates }: { plates: number[] }) {
   const reduceMotion = useReducedMotion();
   const counts = plateCounts(plates);
@@ -110,17 +114,15 @@ const Legend = memo(function Legend({ plates }: { plates: number[] }) {
   return (
     <ul
       aria-label="Plates per side"
-      className="grid shrink-0 grid-flow-col justify-end gap-x-3 gap-y-0.5"
+      className="grid w-34 shrink-0 grid-flow-col grid-cols-2 gap-x-2 gap-y-0.5"
       style={{ gridTemplateRows: `repeat(${counts.length > 4 ? 3 : 2}, auto)` }}
     >
-      <AnimatePresence initial={false} mode="popLayout">
+      <AnimatePresence initial={false}>
         {counts.map(({ plate, count }) => (
           <motion.li
             key={plate}
-            layout="position"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
             transition={{ duration: reduceMotion ? 0 : 0.16, ease: "easeOut" }}
             aria-label={`${count} × ${plate} kg`}
             className="tabular flex items-center gap-1.5 text-caption leading-4 font-medium whitespace-nowrap text-label"
@@ -138,27 +140,24 @@ const Legend = memo(function Legend({ plates }: { plates: number[] }) {
   );
 });
 
-/** Old and new text overlap in one grid cell, so swapping them can't move anything. */
+/** Only the new text fades up: crossfading two sums in one spot makes both unreadable. */
 function SummaryLine({ text, warn }: { text: string; warn: boolean }) {
   const reduceMotion = useReducedMotion();
   return (
-    <p aria-live="polite" className="grid h-7 items-center overflow-hidden border-t border-separator px-4">
-      <AnimatePresence initial={false}>
-        <motion.span
-          key={text}
-          data-load-summary
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: reduceMotion ? 0 : 0.16, ease: "easeOut" }}
-          className={cn(
-            "tabular col-start-1 row-start-1 truncate text-caption",
-            warn ? "font-medium text-orange" : "text-label-secondary",
-          )}
-        >
-          {text}
-        </motion.span>
-      </AnimatePresence>
+    <p aria-live="polite" className="flex h-7 items-center overflow-hidden border-t border-separator px-4">
+      <motion.span
+        key={text}
+        data-load-summary
+        initial={{ opacity: reduceMotion ? 1 : 0.4 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: reduceMotion ? 0 : 0.16, ease: "easeOut" }}
+        className={cn(
+          "tabular min-w-0 truncate text-caption",
+          warn ? "font-medium text-orange" : "text-label-secondary",
+        )}
+      >
+        {text}
+      </motion.span>
     </p>
   );
 }
@@ -174,7 +173,7 @@ export function EquipmentLoadPanel({ request }: { request: LoadRequest }) {
   const summary = loadSummary(load);
 
   return (
-    <div data-load-panel>
+    <div data-load-panel className="border-b border-separator">
       {/* Fixed height, whatever is loaded: the keypad must not move under the finger. */}
       <div className="flex h-14 items-center gap-3 px-4">
         <div role="img" aria-label={summary} className="relative flex h-full min-w-0 flex-1 items-center overflow-hidden">
