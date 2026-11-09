@@ -2,8 +2,6 @@
 
 import { Sheet } from "@/components/ui/Sheet";
 import { useStreakData, useSetRestDate, useSetRestWeekdays } from "@/hooks/use-streak";
-import { useSplits } from "@/hooks/use-splits";
-import { formatDuration } from "@/lib/format";
 import { playCompleteFeedback } from "@/lib/feedback";
 import {
   addDays,
@@ -16,7 +14,6 @@ import {
 } from "@/lib/streak";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
-import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 
 const FLAME =
@@ -80,7 +77,7 @@ export function StreakBadge() {
         </svg>
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title="Consistency">
-        <StreakContent onClose={() => setOpen(false)} />
+        <StreakContent />
       </Sheet>
     </>
   );
@@ -92,11 +89,10 @@ const WEEKDAY_JS = [1, 2, 3, 4, 5, 6, 0]; // Monday-first column → JS getDay()
 const fmtLong = (key: string) =>
   parseKey(key).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 
-function StreakContent({ onClose }: { onClose: () => void }) {
+function StreakContent() {
   const { workouts, rest, restData, restError, retryRest, stats, today } = useStreakData();
   const setRestDate = useSetRestDate();
   const setWeekdays = useSetRestWeekdays();
-  const { data: splits } = useSplits();
 
   const todayDate = parseKey(today);
   const thisMonth = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
@@ -122,12 +118,6 @@ function StreakContent({ onClose }: { onClose: () => void }) {
   };
 
   const monthKey = dayKey(month).slice(0, 7);
-  const workoutsInMonth = useMemo(() => {
-    let n = 0;
-    for (const [k, list] of workouts) if (k.startsWith(monthKey)) n += list.length;
-    return n;
-  }, [workouts, monthKey]);
-
   // 6 rows always, so the sheet doesn't jump between 5- and 6-week months.
   const offset = (month.getDay() + 6) % 7;
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
@@ -149,9 +139,10 @@ function StreakContent({ onClose }: { onClose: () => void }) {
     requestAnimationFrame(() => gridRef.current?.querySelector<HTMLElement>(`[data-day="${next}"]`)?.focus());
   }
 
+  const selKind = kindOf(selected);
+  const selScheduled = rest.weekdays.has(parseKey(selected).getDay());
   const milestone = milestoneFor(stats.current);
   const monthLabel = month.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-  const isThisMonth = month.getTime() === thisMonth.getTime();
 
   return (
     <div className="flex flex-col gap-5 pb-2">
@@ -177,13 +168,11 @@ function StreakContent({ onClose }: { onClose: () => void }) {
             {streakCopy(stats.current)}
           </p>
         </div>
+        <div className="ml-auto shrink-0 text-right">
+          <RollingNumber value={stats.best} className="text-stat-sm text-label" />
+          <p className="text-tab font-semibold uppercase tracking-wider text-label-tertiary">Best streak</p>
+        </div>
       </motion.div>
-
-      <div className="grid grid-cols-3 gap-2">
-        <Stat label="Best streak" value={stats.best} unit={stats.best === 1 ? "day" : "days"} />
-        <Stat label={isThisMonth ? "This month" : month.toLocaleDateString(undefined, { month: "long" })} value={workoutsInMonth} unit={workoutsInMonth === 1 ? "workout" : "workouts"} />
-        <Stat label="Last 30 days" value={stats.consistency === null ? "—" : `${stats.consistency}%`} unit="consistent" />
-      </div>
 
       {restError && (
         <p role="alert" className="rounded-control bg-warning-soft px-3 py-2 text-caption text-warning">
@@ -257,32 +246,19 @@ function StreakContent({ onClose }: { onClose: () => void }) {
         <Legend />
       </section>
 
-      {/* Selected day -------------------------------------------------- */}
-      <div className="min-h-[96px] rounded-card bg-fill p-4" aria-live="polite">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={selected}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.12 }}
-          >
-            <DayDetail
-              dayKey={selected}
-              kind={kindOf(selected)}
-              sessions={workouts.get(selected)}
-              scheduled={rest.weekdays.has(parseKey(selected).getDay())}
-              explicit={rest.dates.has(selected)}
-              splitName={(id) => splits?.find((s) => s.id === id)?.name}
-              onClose={onClose}
-              onToggleRest={(on) => {
-                if (on) playCompleteFeedback();
-                setRestDate.mutate({ date: selected, rest: on });
-              }}
-            />
-          </motion.div>
-        </AnimatePresence>
-      </div>
+      {/* Selected day: only shown when there's something to do ------- */}
+      {(selKind === "missed" || selKind === "pending" || (selKind === "rest" && rest.dates.has(selected) && !selScheduled)) && (
+        <div className="rounded-card bg-fill p-4" aria-live="polite">
+          <DayDetail
+            dayKey={selected}
+            kind={selKind}
+            onToggleRest={(on) => {
+              if (on) playCompleteFeedback();
+              setRestDate.mutate({ date: selected, rest: on });
+            }}
+          />
+        </div>
+      )}
 
       {/* Recurring rest days: secondary, collapsed -------------------- */}
       <details className="group rounded-card bg-fill">
@@ -324,16 +300,6 @@ function StreakContent({ onClose }: { onClose: () => void }) {
           </p>
         </div>
       </details>
-    </div>
-  );
-}
-
-function Stat({ label, value, unit }: { label: string; value: number | string; unit: string }) {
-  return (
-    <div className="rounded-card bg-fill px-3 py-3">
-      <RollingNumber value={value} className="text-stat-sm text-label" />
-      <p className="text-caption text-label-secondary">{unit}</p>
-      <p className="text-tab font-semibold uppercase tracking-wider text-label-tertiary">{label}</p>
     </div>
   );
 }
@@ -437,82 +403,28 @@ function DayCell(props: {
   );
 }
 
-function DayDetail(props: {
-  dayKey: string;
-  kind: DayKind;
-  sessions: { id: string; split_id: string | null; started_at: string; completed_at: string | null }[] | undefined;
-  scheduled: boolean;
-  explicit: boolean;
-  splitName: (id: string) => string | undefined;
-  onClose: () => void;
-  onToggleRest: (on: boolean) => void;
-}) {
-  const { kind } = props;
-  const action = (label: string, on: boolean) => (
-    <button
-      type="button"
-      onClick={() => props.onToggleRest(on)}
-      className="mt-2 inline-flex h-11 cursor-pointer items-center rounded-button bg-background-elevated px-4 text-subhead font-semibold text-label active:opacity-60"
-    >
-      {label}
-    </button>
-  );
-  let body: React.ReactNode;
-  if (kind === "workout") {
-    body = (
-      <>
-        <p className="text-subhead font-semibold text-label">✓ Workout completed</p>
-        <ul className="mt-1 flex flex-col gap-1">
-          {props.sessions?.map((s) => (
-            <li key={s.id} className="flex min-h-11 items-center justify-between gap-3">
-              <span className="text-subhead text-label-secondary">
-                {(s.split_id && props.splitName(s.split_id)) || "Workout"} · {formatDuration(s.started_at, s.completed_at)}
-              </span>
-              <Link href={`/history/${s.id}`} onClick={props.onClose} className="text-subhead font-semibold text-accent-ink">
-                View workout
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </>
-    );
-  } else if (kind === "rest") {
-    const viaWeekday = props.scheduled;
-    body = (
-      <>
-        <p className="text-subhead font-semibold text-label">○ {viaWeekday ? "Scheduled rest day" : "Rest day"}</p>
-        <p className="text-caption text-label-secondary">
-          This day doesn&apos;t break your streak.
-          {viaWeekday && " Change it under Recurring rest days."}
-        </p>
-        {!viaWeekday && props.explicit && action("Remove rest day", false)}
-      </>
-    );
-  } else if (kind === "missed") {
-    body = (
-      <>
-        <p className="text-subhead font-semibold text-label">× No workout</p>
-        <p className="text-caption text-label-secondary">This day broke your streak.</p>
-        {action("Mark as rest day", true)}
-      </>
-    );
-  } else if (kind === "pending") {
-    body = (
-      <>
-        <p className="text-subhead font-semibold text-label">No workout yet</p>
-        <p className="text-caption text-label-secondary">Your streak is safe until the day ends.</p>
-        {action("Mark as rest day", true)}
-      </>
-    );
-  } else if (kind === "future") {
-    body = <p className="text-subhead text-label-secondary">Nothing here yet.</p>;
-  } else {
-    body = <p className="text-subhead text-label-secondary">Before you started tracking.</p>;
-  }
+function DayDetail(props: { dayKey: string; kind: DayKind; onToggleRest: (on: boolean) => void }) {
+  const rest = props.kind === "rest";
   return (
     <>
       <p className="mb-1 text-kicker uppercase text-label-tertiary">{fmtLong(props.dayKey)}</p>
-      {body}
+      <p className="text-subhead font-semibold text-label">
+        {rest ? "○ Rest day" : props.kind === "missed" ? "× No workout" : "No workout yet"}
+      </p>
+      <p className="text-caption text-label-secondary">
+        {rest
+          ? "This day doesn't break your streak."
+          : props.kind === "missed"
+            ? "This day broke your streak."
+            : "Your streak is safe until the day ends."}
+      </p>
+      <button
+        type="button"
+        onClick={() => props.onToggleRest(!rest)}
+        className="mt-2 inline-flex h-11 cursor-pointer items-center rounded-button bg-background-elevated px-4 text-subhead font-semibold text-label active:opacity-60"
+      >
+        {rest ? "Remove rest day" : "Mark as rest day"}
+      </button>
     </>
   );
 }
