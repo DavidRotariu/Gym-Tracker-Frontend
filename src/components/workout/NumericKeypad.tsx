@@ -1,5 +1,6 @@
 "use client";
 
+import { EquipmentLoadPanel, type LoadRequest } from "@/components/workout/EquipmentLoadPanel";
 import { useMounted } from "@/hooks/use-mounted";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -8,6 +9,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -30,8 +32,8 @@ interface ActiveField {
 interface KeypadApi {
   activeId: string | null;
   open: (field: ActiveField) => void;
-  /** Top of the open keypad, for the active field to portal context into. */
-  accessorySlot: HTMLDivElement | null;
+  /** What the loading panel on top of the keypad shows, if anything. */
+  setLoad: (load: LoadRequest | null) => void;
 }
 
 const KeypadContext = createContext<KeypadApi | null>(null);
@@ -64,7 +66,7 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
   // a commit synchronously without waiting on a state update to land first.
   const fieldRef = useRef<ActiveField | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [accessorySlot, setAccessorySlot] = useState<HTMLDivElement | null>(null);
+  const [load, setLoad] = useState<LoadRequest | null>(null);
   const mounted = useMounted();
   const reduceMotion = useReducedMotion();
 
@@ -81,9 +83,10 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
     fieldRef.current?.onCommit();
     fieldRef.current = null;
     setField(null);
+    setLoad(null);
   }, []);
 
-  const open = useCallback<KeypadApi["open"]>((next) => {
+  const open =useCallback<KeypadApi["open"]>((next) => {
     if (fieldRef.current && fieldRef.current.id !== next.id) {
       fieldRef.current.onCommit();
     }
@@ -113,7 +116,7 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
     // "Open" for the rest of the page (the workout scroll-spy) — cleared the
     // instant it closes, not after the exit animation like the panel itself.
     body.dataset.keypadOpen = "";
-    // The panel changes height as a field's accessory comes and goes.
+    // The panel changes height when moving to or from equipment without plates.
     const panel = panelRef.current;
     const observer = new ResizeObserver(() => {
       if (!panel) return;
@@ -198,8 +201,13 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
     };
   }, [field, close]);
 
+  // Memoised so a weight change only re-renders the panel below, not every
+  // number field in the workout.
+  const activeFieldId = field?.id ?? null;
+  const api = useMemo(() => ({ activeId: activeFieldId, open, setLoad }), [activeFieldId, open]);
+
   return (
-    <KeypadContext.Provider value={{ activeId: field?.id ?? null, open, accessorySlot }}>
+    <KeypadContext.Provider value={api}>
       {children}
       {mounted &&
         createPortal(
@@ -220,7 +228,7 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
                   "shadow-sheet",
                 )}
               >
-                <div ref={setAccessorySlot} />
+                {load && <EquipmentLoadPanel request={load} />}
                 <div className="grid grid-cols-3 gap-px bg-separator">
                   {KEYS.map((key) => (
                     <button

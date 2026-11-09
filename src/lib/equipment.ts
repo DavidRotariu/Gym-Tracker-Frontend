@@ -2,7 +2,8 @@
  * The one place that knows what a logged weight means for each kind of
  * equipment. Everything is derived from the exercise's structured `equipment`
  * field, never from its name, and nothing here changes a stored weight: these
- * functions only describe how to load or read it.
+ * functions only describe how to load or read it. No animation or React state
+ * lives here; the panel just draws whichever plate configuration it's given.
  */
 export type EquipmentType =
   | "barbell"
@@ -18,8 +19,8 @@ interface EquipmentConfig {
   label: string;
   /** Empty-bar weight in kg; null when there's no bar to account for. */
   barWeight: number | null;
-  /** What the loading panel shows: bar + plates, the plain weight, or nothing. */
-  display: "plates" | "selected" | "none";
+  /** Whether the weight is loaded as plates, and so gets the loading panel. */
+  plates: boolean;
   /** Set when the logged weight is for one item rather than the total lifted. */
   perItem?: "dumbbell" | "side";
   /** Header of the logging table's weight column, when plain "Kg" would mislead. */
@@ -27,24 +28,24 @@ interface EquipmentConfig {
 }
 
 export const EQUIPMENT: Record<EquipmentType, EquipmentConfig> = {
-  barbell: { label: "Barbell", barWeight: 20, display: "plates" },
-  ez_bar: { label: "EZ Bar", barWeight: 10, display: "plates" },
+  barbell: { label: "Barbell", barWeight: 20, plates: true },
+  ez_bar: { label: "EZ Bar", barWeight: 10, plates: true },
   // This gym's Smith bar. Smith machines vary, so this isn't a universal figure.
-  smith_machine: { label: "Smith Machine", barWeight: 20, display: "plates" },
+  smith_machine: { label: "Smith Machine", barWeight: 20, plates: true },
   plate_loaded_machine: {
     label: "Plate-Loaded Machine",
     barWeight: null,
-    display: "plates",
+    plates: true,
     perItem: "side",
     columnLabel: "Kg / side",
   },
   // "Machine" is the value already stored in the catalog, so it stays the label.
-  machine_stack: { label: "Machine", barWeight: null, display: "selected" },
-  cable: { label: "Cable", barWeight: null, display: "none" },
+  machine_stack: { label: "Machine", barWeight: null, plates: false },
+  cable: { label: "Cable", barWeight: null, plates: false },
   dumbbell: {
     label: "Dumbbell",
     barWeight: null,
-    display: "none",
+    plates: false,
     perItem: "dumbbell",
     columnLabel: "Kg each",
   },
@@ -103,9 +104,10 @@ export function parseWeightDraft(draft: string): number | null {
 }
 
 export interface PlateLoad {
-  kind: "plates";
   /** The weight asked for, untouched: a total, or per side if `perSideEntry`. */
   entered: number;
+  /** Nothing usable was entered, or it was zero. */
+  blank: boolean;
   perSideEntry: boolean;
   /** 0 when there's no bar. */
   barWeight: number;
@@ -121,10 +123,17 @@ export interface PlateLoad {
   belowBar: boolean;
 }
 
-function plateLoad(config: EquipmentConfig, weight: number | null): PlateLoad {
+/** The plate configuration for a weight, or null if this equipment has no plates. */
+export function plateLoadFor(
+  type: EquipmentType | null | undefined,
+  weight: number | null,
+): PlateLoad | null {
+  if (!type || !EQUIPMENT[type].plates) return null;
+  const config = EQUIPMENT[type];
+  const valid = weight !== null && Number.isFinite(weight) && weight >= 0 ? weight : null;
   const barWeight = config.barWeight ?? 0;
   const perSideEntry = config.perItem === "side";
-  const entered = weight ?? (perSideEntry ? 0 : barWeight);
+  const entered = valid ?? (perSideEntry ? 0 : barWeight);
 
   // Whole grams, so fractional plates can't pick up float error.
   const enteredG = Math.round(entered * 1000);
@@ -143,8 +152,8 @@ function plateLoad(config: EquipmentConfig, weight: number | null): PlateLoad {
 
   const loadedG = barG + perSideG * 2;
   return {
-    kind: "plates",
     entered,
+    blank: !valid,
     perSideEntry,
     barWeight,
     plates,
@@ -155,19 +164,51 @@ function plateLoad(config: EquipmentConfig, weight: number | null): PlateLoad {
   };
 }
 
-/** The one-line breakdown. Short enough by construction to fit a phone's width. */
+/** "20 kg × 1 / side", "20 + 5 kg / side", "20 × 2 + 5 kg / side". */
+function platesText(plates: number[]): string {
+  const sizes = [...new Set(plates)];
+  const count = (size: number) => plates.filter((p) => p === size).length;
+  if (sizes.length === 1) return `${sizes[0]} kg × ${count(sizes[0])} / side`;
+  const parts = sizes.map((size) => (count(size) > 1 ? `${size} × ${count(size)}` : `${size}`));
+  return `${parts.join(" + ")} kg / side`;
+}
+
+/** What fits on one line at 375px, in characters of the panel's caption text. */
+export const SUMMARY_MAX_CHARS = 56;
+
+/**
+ * The one-line breakdown: the full sum where it fits, otherwise just the total.
+ * Warnings replace it, so the line never needs a second row.
+ */
 export function loadSummary(load: PlateLoad): string {
-  const { entered, perSide, loaded, missing, barWeight } = load;
+  const { entered, perSide, loaded, missing, barWeight, plates } = load;
   if (load.belowBar) return `${entered} kg is less than the ${barWeight} kg bar`;
   if (missing > 0) {
     return load.perSideEntry
-      ? `${perSide} kg / side loaded · ${missing} kg / side missing`
-      : `${loaded} kg loaded · ${missing} kg missing for ${entered} kg`;
+      ? `${perSide} kg / side loaded • ${missing} kg / side missing`
+      : `${loaded} kg loaded • ${missing} kg missing for ${entered} kg`;
   }
   if (perSide === 0) return barWeight > 0 ? `Empty bar = ${barWeight} kg` : "No plates loaded";
-  return barWeight > 0
-    ? `${perSide} kg / side + ${barWeight} kg bar = ${loaded} kg`
-    : `${perSide} kg / side = ${loaded} kg total`;
+
+  const short = `${platesText(plates)} • ${loaded} kg total`;
+  if (barWeight === 0) return short;
+  const full = `${platesText(plates)} • ${perSide} kg each side + ${barWeight} kg bar = ${loaded} kg`;
+  return full.length <= SUMMARY_MAX_CHARS ? full : short;
+}
+
+/** Long enough to skip digits typed in a burst, short enough not to feel late. */
+export const SETTLE_MS = 150;
+/** Longer than the gap between taps on a phone, so only a real stop gets here. */
+export const SETTLE_UNRESOLVED_MS = 600;
+
+/**
+ * How long a weight must stay put before it reaches the drawing. A value that
+ * can't be loaded as it stands (the "6" on the way to 60, a cleared field) is
+ * almost always someone mid-typing: tearing the plates off for it is the flash
+ * this exists to prevent, so it waits until they've actually stopped.
+ */
+export function settleDelay(load: PlateLoad): number {
+  return load.blank || load.belowBar || load.missing > 0 ? SETTLE_UNRESOLVED_MS : SETTLE_MS;
 }
 
 /**
@@ -181,23 +222,4 @@ export function plateKeys(plates: readonly number[]): string[] {
     seen.set(plate, nth + 1);
     return `${plate}-${nth}`;
   });
-}
-
-export type LoadView = PlateLoad | { kind: "selected"; weight: number };
-
-/**
- * What the loading panel should show, or null when it shouldn't exist at all.
- * With no valid weight entered, plate-loaded equipment shows up empty so its
- * starting weight is visible.
- */
-export function loadView(
-  type: EquipmentType | null | undefined,
-  weight: number | null,
-): LoadView | null {
-  if (!type) return null;
-  const config = EQUIPMENT[type];
-  const valid = weight !== null && Number.isFinite(weight) && weight >= 0 ? weight : null;
-  if (config.display === "plates") return plateLoad(config, valid);
-  if (config.display === "selected" && valid !== null) return { kind: "selected", weight: valid };
-  return null;
 }

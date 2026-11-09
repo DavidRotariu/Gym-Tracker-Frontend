@@ -2,15 +2,14 @@
 
 import { SwipeRow } from "@/components/ui/SwipeRow";
 import { SET_TYPE_ORDER, SET_TYPE_SHORT, SET_TYPE_STYLES } from "@/components/ui/SetTypeBadge";
-import { EquipmentLoadPanel } from "@/components/workout/EquipmentLoadPanel";
+import type { LoadRequest } from "@/components/workout/EquipmentLoadPanel";
 import { useNumericKeypad, type KeypadKey } from "@/components/workout/NumericKeypad";
 import { EQUIPMENT, formatWeight, parseWeightDraft, weightUnit, type EquipmentType } from "@/lib/equipment";
 import { playCompleteFeedback } from "@/lib/feedback";
 import { cn } from "@/lib/utils";
 import type { ExerciseType, Set } from "@/types";
 import { motion } from "framer-motion";
-import { useEffect, useId, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 type NumberFieldKind = "weight" | "reps";
 
@@ -80,10 +79,10 @@ function NumberField({
   integer = false,
   max,
   openRef,
-  accessory,
+  loadRequest,
 }: {
-  /** Shown on top of the keypad while this field is the one being edited. */
-  accessory?: (shown: string) => React.ReactNode;
+  /** What the keypad's loading panel shows while this field is being edited. */
+  loadRequest?: (shown: string) => LoadRequest | null;
   /** Display-only (e.g. "−" for negative exercises); never part of the stored number. */
   prefix?: string;
   /** Whole numbers only (reps, seconds) — no "." key, and no fractions stored. */
@@ -222,24 +221,30 @@ function NumberField({
   const active = keypad.activeId === fieldId;
   const shown = override ?? draft;
 
+  // Layout effect: the panel has to match this field in the same paint it opens.
+  const load = active ? (loadRequest?.(shown) ?? null) : null;
+  const { setLoad } = keypad;
+  useLayoutEffect(() => {
+    if (active) setLoad(load);
+    // Compared by value: `load` is a fresh object on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, setLoad, load?.sourceKey, load?.equipment, load?.weight]);
+
   return (
-    <>
-      <button
-        ref={buttonRef}
-        type="button"
-        data-keypad-field
-        onClick={openField}
-        aria-label={label}
-        className={cn(
-          "tabular h-10 w-full min-w-0 cursor-pointer rounded-control bg-fill text-center text-body font-semibold text-label",
-          active && "outline-2 outline-offset-0 outline-blue",
-          shown === "" && "font-normal text-label-tertiary",
-        )}
-      >
-        {shown ? prefix + shown : placeholder}
-      </button>
-      {active && accessory && keypad.accessorySlot && createPortal(accessory(shown), keypad.accessorySlot)}
-    </>
+    <button
+      ref={buttonRef}
+      type="button"
+      data-keypad-field
+      onClick={openField}
+      aria-label={label}
+      className={cn(
+        "tabular h-10 w-full min-w-0 cursor-pointer rounded-control bg-fill text-center text-body font-semibold text-label",
+        active && "outline-2 outline-offset-0 outline-blue",
+        shown === "" && "font-normal text-label-tertiary",
+      )}
+    >
+      {shown ? prefix + shown : placeholder}
+    </button>
   );
 }
 
@@ -316,9 +321,9 @@ export function SetRow({
   const unsaved = set.id.startsWith("optimistic-");
 
   // Blank means the placeholder (last time's weight), which is what ✓ would log.
-  function loadPanel(shown: string) {
-    if (exerciseType !== "weighted" || !equipment || EQUIPMENT[equipment].display === "none") return null;
-    return <EquipmentLoadPanel equipment={equipment} weight={parseWeightDraft(shown) ?? previous?.weight ?? null} />;
+  function loadFor(weight: number | null): LoadRequest | null {
+    if (exerciseType !== "weighted" || !equipment || !EQUIPMENT[equipment].plates) return null;
+    return { sourceKey: set.id, equipment, weight: weight ?? previous?.weight ?? null };
   }
 
   const row = (
@@ -361,7 +366,7 @@ export function SetRow({
           prefix={exerciseType === "negative" ? "−" : ""}
           onCommit={(v) => onChange({ actual_weight: v })}
           label={`Set ${set.set_number} weight, ${weightUnit(equipment)}`}
-          accessory={loadPanel}
+          loadRequest={(shown) => loadFor(parseWeightDraft(shown))}
           override={weightOverride}
           onDraft={(d) => onFieldDraft?.("weight", d)}
           onEditEnd={() => onFieldEditEnd?.("weight")}
@@ -373,6 +378,8 @@ export function SetRow({
         integer
         max={isTimer ? MAX_SECONDS : MAX_REPS}
         openRef={openReps}
+        // Same row, same bar: moving on to reps keeps the plates where they are.
+        loadRequest={() => loadFor(parseWeightDraft(weightOverride ?? "") ?? set.actual_weight)}
         placeholder={previous?.reps != null ? String(previous.reps) : "—"}
         onCommit={(v) => onChange({ actual_reps: v })}
         label={`Set ${set.set_number} ${isTimer ? "seconds" : "reps"}`}
