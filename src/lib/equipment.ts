@@ -25,19 +25,29 @@ interface EquipmentConfig {
   perItem?: "dumbbell" | "side";
   /** Header of the logging table's weight column, when plain "Kg" would mislead. */
   columnLabel?: string;
+  /** What the panel's drawing names in place of a bar weight, when there's no bar. */
+  frameLabel?: string;
 }
 
 export const EQUIPMENT: Record<EquipmentType, EquipmentConfig> = {
   barbell: { label: "Barbell", barWeight: 20, plates: true },
   ez_bar: { label: "EZ Bar", barWeight: 10, plates: true },
-  // This gym's Smith bar. Smith machines vary, so this isn't a universal figure.
-  smith_machine: { label: "Smith Machine", barWeight: 20, plates: true },
+  // Logged per side, with no bar added. Give it a barWeight if one should count.
+  smith_machine: {
+    label: "Smith Machine",
+    barWeight: null,
+    plates: true,
+    perItem: "side",
+    columnLabel: "Kg / side",
+    frameLabel: "Smith",
+  },
   plate_loaded_machine: {
     label: "Plate-Loaded Machine",
     barWeight: null,
     plates: true,
     perItem: "side",
     columnLabel: "Kg / side",
+    frameLabel: "Machine",
   },
   // "Machine" is the value already stored in the catalog, so it stays the label.
   machine_stack: { label: "Machine", barWeight: null, plates: false },
@@ -95,6 +105,14 @@ export function weightColumnLabel(type: EquipmentType | null | undefined): strin
   return (type && EQUIPMENT[type].columnLabel) || "Kg";
 }
 
+/**
+ * What the keypad's + and − change a weight by: the smallest plate, which adds
+ * up to 2.5 kg once it's on both sides of a bar logged as a total.
+ */
+export function weightStep(type: EquipmentType | null | undefined): number {
+  return type && EQUIPMENT[type].perItem === "side" ? 1.25 : 2.5;
+}
+
 /** A half-typed weight field as a number: null for "" or anything unparseable. */
 export function parseWeightDraft(draft: string): number | null {
   const trimmed = draft.trim();
@@ -111,6 +129,8 @@ export interface PlateLoad {
   perSideEntry: boolean;
   /** 0 when there's no bar. */
   barWeight: number;
+  /** What the drawing shows at the bar's end: "20 kg", "Smith", "Machine". */
+  frameLabel: string;
   /** One side, heaviest first. */
   plates: number[];
   /** Plate weight actually loaded on each side. */
@@ -156,6 +176,7 @@ export function plateLoadFor(
     blank: !valid,
     perSideEntry,
     barWeight,
+    frameLabel: config.frameLabel ?? `${barWeight} kg`,
     plates,
     perSide: perSideG / 1000,
     loaded: loadedG / 1000,
@@ -164,40 +185,31 @@ export function plateLoadFor(
   };
 }
 
-/** "20 kg × 1 / side", "20 + 5 kg / side", "20 × 2 + 5 kg / side". */
-function platesText(plates: number[]): string {
-  const sizes = [...new Set(plates)];
-  const count = (size: number) => plates.filter((p) => p === size).length;
-  if (sizes.length === 1) return `${sizes[0]} kg × ${count(sizes[0])} / side`;
-  const parts = sizes.map((size) => (count(size) > 1 ? `${size} × ${count(size)}` : `${size}`));
-  return `${parts.join(" + ")} kg / side`;
+/** One side's plates as the legend lists them: heaviest first, each size once. */
+export function plateCounts(plates: readonly number[]): { plate: number; count: number }[] {
+  return PLATES_KG.map((plate) => ({
+    plate: plate as number,
+    count: plates.filter((p) => p === plate).length,
+  })).filter(({ count }) => count > 0);
 }
 
-/** What fits on one line at 375px, in characters of the panel's caption text. */
-export const SUMMARY_MAX_CHARS = 56;
-
-/**
- * The one-line breakdown: the full sum where it fits, otherwise just the total.
- * Warnings replace it, so the line never needs a second row.
- */
+/** The calculation, on one line. Warnings replace it, so it never needs a second. */
 export function loadSummary(load: PlateLoad): string {
-  const { entered, perSide, loaded, missing, barWeight, plates } = load;
+  const { entered, perSide, loaded, missing, barWeight } = load;
   if (load.belowBar) return `${entered} kg is less than the ${barWeight} kg bar`;
   if (missing > 0) {
     return load.perSideEntry
-      ? `${perSide} kg / side loaded • ${missing} kg / side missing`
+      ? `${perSide} kg on both sides loaded • ${missing} kg / side missing`
       : `${loaded} kg loaded • ${missing} kg missing for ${entered} kg`;
   }
   if (perSide === 0) return barWeight > 0 ? `Empty bar = ${barWeight} kg` : "No plates loaded";
-
-  const short = `${platesText(plates)} • ${loaded} kg total`;
-  if (barWeight === 0) return short;
-  const full = `${platesText(plates)} • ${perSide} kg each side + ${barWeight} kg bar = ${loaded} kg`;
-  return full.length <= SUMMARY_MAX_CHARS ? full : short;
+  return barWeight > 0
+    ? `${perSide} kg on both sides + ${barWeight} kg bar weight = ${loaded} kg`
+    : `${perSide} kg on both sides = ${loaded} kg total`;
 }
 
 /** Long enough to skip digits typed in a burst, short enough not to feel late. */
-export const SETTLE_MS = 150;
+export const SETTLE_MS = 180;
 /** Longer than the gap between taps on a phone, so only a real stop gets here. */
 export const SETTLE_UNRESOLVED_MS = 600;
 

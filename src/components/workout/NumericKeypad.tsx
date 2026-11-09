@@ -27,6 +27,10 @@ interface ActiveField {
   target?: HTMLElement | null;
   /** False for whole-number fields (reps, seconds) — the "." key is disabled. */
   decimal?: boolean;
+  /** The + and − keys. */
+  onStep: (direction: 1 | -1) => void;
+  /** What the loading panel shows for this field, so it opens already correct. */
+  load: LoadRequest | null;
 }
 
 interface KeypadApi {
@@ -34,6 +38,8 @@ interface KeypadApi {
   open: (field: ActiveField) => void;
   /** What the loading panel on top of the keypad shows, if anything. */
   setLoad: (load: LoadRequest | null) => void;
+  /** Whether the keypad was last put away from this field, by its keyboard key. */
+  wasDismissedFrom: (id: string) => boolean;
 }
 
 const KeypadContext = createContext<KeypadApi | null>(null);
@@ -49,6 +55,19 @@ export function useNumericKeypad() {
 }
 
 const KEYS: KeypadKey[] = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "del"];
+
+const SHOW_WEIGHTS_KEY = "overload_show_weights";
+
+/** A display preference, so it fails open: storage trouble just means showing it. */
+function readShowWeights(): boolean {
+  try {
+    return localStorage.getItem(SHOW_WEIGHTS_KEY) !== "false";
+  } catch {
+    return true;
+  }
+}
+
+const SIDE_KEY = "flex min-w-0 cursor-pointer items-center justify-center gap-1 rounded-control bg-fill text-label-secondary active:opacity-60";
 
 /**
  * One shared keypad for the whole workout session, instead of the OS
@@ -67,6 +86,11 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
   const fieldRef = useRef<ActiveField | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [load, setLoad] = useState<LoadRequest | null>(null);
+  // Only read inside the keypad, which never renders on the server.
+  const [showWeights, setShowWeights] = useState(() =>
+    typeof window === "undefined" ? true : readShowWeights(),
+  );
+  const dismissedFromRef = useRef<string | null>(null);
   const mounted = useMounted();
   const reduceMotion = useReducedMotion();
 
@@ -90,9 +114,40 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
     if (fieldRef.current && fieldRef.current.id !== next.id) {
       fieldRef.current.onCommit();
     }
+    dismissedFromRef.current = null;
     fieldRef.current = next;
     setField(next);
+    setLoad(next.load);
   }, []);
+
+  const wasDismissedFrom = useCallback((id: string) => dismissedFromRef.current === id, []);
+
+  const dismiss = useCallback(() => {
+    const id = fieldRef.current?.id ?? null;
+    close();
+    dismissedFromRef.current = id;
+  }, [close]);
+
+  // On to the next field in this exercise (weight → reps → next set's weight),
+  // or put the keypad away at the end. Opening it commits this one on the way.
+  const goNext = useCallback(() => {
+    const current = fieldRef.current?.target;
+    const fields = [...(current?.closest(".exercise-card")?.querySelectorAll<HTMLElement>("[data-keypad-field]") ?? [])]
+      .filter((el) => !el.closest(".pointer-events-none"));
+    const next = current ? fields[fields.indexOf(current) + 1] : undefined;
+    if (next) next.click();
+    else close();
+  }, [close]);
+
+  function toggleWeights() {
+    const next = !showWeights;
+    setShowWeights(next);
+    try {
+      localStorage.setItem(SHOW_WEIGHTS_KEY, String(next));
+    } catch {
+      // Still applies for this session.
+    }
+  }
 
   // Tap-outside-to-dismiss: anything that isn't the keypad panel itself
   // commits and closes it. A tap that lands on a *different* number field
@@ -204,7 +259,11 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
   // Memoised so a weight change only re-renders the panel below, not every
   // number field in the workout.
   const activeFieldId = field?.id ?? null;
-  const api = useMemo(() => ({ activeId: activeFieldId, open, setLoad }), [activeFieldId, open]);
+  const api = useMemo(
+    () => ({ activeId: activeFieldId, open, setLoad, wasDismissedFrom }),
+    [activeFieldId, open, wasDismissedFrom],
+  );
+  const panelVisible = load !== null && showWeights;
 
   return (
     <KeypadContext.Provider value={api}>
@@ -228,23 +287,69 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
                   "shadow-sheet",
                 )}
               >
-                {load && <EquipmentLoadPanel request={load} />}
-                <div className="grid grid-cols-3 gap-px bg-separator">
-                  {KEYS.map((key) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => fieldRef.current?.onKey(key)}
-                      disabled={key === "." && field.decimal === false}
-                      aria-label={key === "del" ? "Delete" : key}
-                      className={cn(
-                        "flex h-14 cursor-pointer items-center justify-center bg-background-elevated",
-                        "text-2xl font-semibold text-label active:bg-fill disabled:text-label-tertiary disabled:opacity-40",
-                      )}
-                    >
-                      {key === "del" ? <BackspaceIcon /> : key}
+                {/* Stays mounted while hidden, so showing it again isn't a rebuild. */}
+                <motion.div
+                  initial={false}
+                  animate={{ height: panelVisible ? "auto" : 0 }}
+                  transition={reduceMotion ? { duration: 0 } : { duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+                  aria-hidden={!panelVisible}
+                  className="overflow-hidden border-b border-separator"
+                >
+                  {load && <EquipmentLoadPanel request={load} />}
+                </motion.div>
+                <div className="flex gap-1.5 p-1.5">
+                  <div className="grid min-w-0 flex-1 grid-cols-3">
+                    {KEYS.map((key) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => fieldRef.current?.onKey(key)}
+                        disabled={key === "." && field.decimal === false}
+                        aria-label={key === "del" ? "Delete" : key}
+                        className={cn(
+                          "flex h-13 cursor-pointer items-center justify-center rounded-control",
+                          "text-2xl font-medium text-label active:bg-fill disabled:text-label-tertiary disabled:opacity-40",
+                        )}
+                      >
+                        {key === "del" ? <BackspaceIcon /> : key}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid w-24 shrink-0 grid-rows-4 gap-1.5">
+                    <button type="button" onClick={dismiss} aria-label="Dismiss keypad" className={SIDE_KEY}>
+                      <KeyboardDownIcon />
                     </button>
-                  ))}
+                    {load ? (
+                      <button
+                        type="button"
+                        onClick={toggleWeights}
+                        aria-pressed={showWeights}
+                        aria-label={showWeights ? "Hide weights" : "Show weights"}
+                        className={cn(SIDE_KEY, "text-caption font-semibold")}
+                      >
+                        <BarbellIcon />
+                        {showWeights ? "Hide" : "Show"}
+                      </button>
+                    ) : (
+                      <span />
+                    )}
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button type="button" onClick={() => fieldRef.current?.onStep(-1)} aria-label="Decrease" className={cn(SIDE_KEY, "text-xl font-medium")}>
+                        −
+                      </button>
+                      <button type="button" onClick={() => fieldRef.current?.onStep(1)} aria-label="Increase" className={cn(SIDE_KEY, "text-xl font-medium")}>
+                        +
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={goNext}
+                      aria-label="Next field"
+                      className="flex cursor-pointer items-center justify-center rounded-control bg-label text-background active:opacity-70"
+                    >
+                      <ArrowIcon />
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -252,6 +357,32 @@ export function NumericKeypadProvider({ children }: { children: React.ReactNode 
           document.body,
         )}
     </KeypadContext.Provider>
+  );
+}
+
+function KeyboardDownIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
+      <rect x="2" y="2.5" width="16" height="10" rx="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M5.5 6h.01M8.5 6h.01M11.5 6h.01M14.5 6h.01M6.5 9.3h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M7.5 15.5 10 18l2.5-2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function BarbellIcon() {
+  return (
+    <svg width="18" height="14" viewBox="0 0 18 14" fill="none" aria-hidden>
+      <path d="M1 7h16M4 3v8M7 1.5v11M11 1.5v11M14 3v8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ArrowIcon() {
+  return (
+    <svg width="20" height="16" viewBox="0 0 20 16" fill="none" aria-hidden>
+      <path d="M2 8h15M11.5 2.5 17 8l-5.5 5.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

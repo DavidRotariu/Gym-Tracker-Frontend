@@ -4,7 +4,7 @@ import { SwipeRow } from "@/components/ui/SwipeRow";
 import { SET_TYPE_ORDER, SET_TYPE_SHORT, SET_TYPE_STYLES } from "@/components/ui/SetTypeBadge";
 import type { LoadRequest } from "@/components/workout/EquipmentLoadPanel";
 import { useNumericKeypad, type KeypadKey } from "@/components/workout/NumericKeypad";
-import { EQUIPMENT, formatWeight, parseWeightDraft, weightUnit, type EquipmentType } from "@/lib/equipment";
+import { EQUIPMENT, formatWeight, parseWeightDraft, weightStep, weightUnit, type EquipmentType } from "@/lib/equipment";
 import { playCompleteFeedback } from "@/lib/feedback";
 import { cn } from "@/lib/utils";
 import type { ExerciseType, Set } from "@/types";
@@ -80,7 +80,10 @@ function NumberField({
   max,
   openRef,
   loadRequest,
+  step,
 }: {
+  /** How much the keypad's + and − change this value by. */
+  step: number;
   /** What the keypad's loading panel shows while this field is being edited. */
   loadRequest?: (shown: string) => LoadRequest | null;
   /** Display-only (e.g. "−" for negative exercises); never part of the stored number. */
@@ -190,6 +193,16 @@ function NumberField({
     onDraft?.(next);
   }
 
+  // Starts from what's showing, or the placeholder if that's what ✓ would log.
+  function handleStep(direction: 1 | -1) {
+    const current = parseWeightDraft(draftRef.current) ?? parseWeightDraft(placeholder) ?? 0;
+    const next = String(Math.min(max, Math.max(0, Math.round((current + direction * step) * 100) / 100)));
+    replaceOnNextKeyRef.current = true;
+    setDraft(next);
+    draftRef.current = next;
+    onDraft?.(next);
+  }
+
   function openField() {
     // Seed the field's own draft from whatever's actually showing —
     // including a mirrored value it never locally typed — so typing,
@@ -199,13 +212,16 @@ function NumberField({
       setDraft(shown);
       draftRef.current = shown;
     }
-    replaceOnNextKeyRef.current = shown !== "";
+    // Coming back after putting the keypad away is carrying on, not correcting.
+    replaceOnNextKeyRef.current = shown !== "" && !keypad.wasDismissedFrom(fieldId);
     keypad.open({
       id: fieldId,
       onKey: handleKey,
       onCommit: commit,
+      onStep: handleStep,
       target: buttonRef.current,
       decimal: !integer,
+      load: loadRequest?.(shown) ?? null,
     });
     // Safari/iOS doesn't focus a <button> on tap the way it does a real
     // <input> — without this, tapping a weight/reps field never bubbles a
@@ -363,6 +379,7 @@ export function SetRow({
           value={set.actual_weight}
           placeholder={previous?.weight != null ? String(previous.weight) : "—"}
           max={MAX_WEIGHT}
+          step={weightStep(equipment)}
           prefix={exerciseType === "negative" ? "−" : ""}
           onCommit={(v) => onChange({ actual_weight: v })}
           label={`Set ${set.set_number} weight, ${weightUnit(equipment)}`}
@@ -377,6 +394,7 @@ export function SetRow({
         value={set.actual_reps}
         integer
         max={isTimer ? MAX_SECONDS : MAX_REPS}
+        step={isTimer ? 5 : 1}
         openRef={openReps}
         // Same row, same bar: moving on to reps keeps the plates where they are.
         loadRequest={() => loadFor(parseWeightDraft(weightOverride ?? "") ?? set.actual_weight)}

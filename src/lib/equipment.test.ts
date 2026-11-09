@@ -6,15 +6,16 @@ import {
   PLATES_KG,
   SETTLE_MS,
   SETTLE_UNRESOLVED_MS,
-  SUMMARY_MAX_CHARS,
   formatWeight,
   loadSummary,
   parseEquipment,
   parseWeightDraft,
+  plateCounts,
   plateKeys,
   plateLoadFor,
   settleDelay,
   weightColumnLabel,
+  weightStep,
   type EquipmentType,
   type PlateLoad,
 } from "./equipment.ts";
@@ -41,27 +42,48 @@ test("the gym's plates are exactly 1.25, 2.5, 5, 10 and 20", () => {
   assert.deepEqual([...PLATES_KG], [20, 10, 5, 2.5, 1.25]);
 });
 
-test("plate-loaded machine: the entered weight is per side", () => {
-  for (const [perSide, plates] of PER_SIDE_CASES) {
-    const l = load("plate_loaded_machine", perSide);
-    assert.deepEqual(l.plates, plates, `${perSide} / side`);
-    assert.equal(l.perSide, perSide);
-    assert.equal(l.loaded, perSide * 2, "no bar added, both sides counted");
-    assert.equal(l.missing, 0);
-    assert.equal(l.entered, perSide);
+test("Smith and plate-loaded machines: the entered weight is per side, no bar", () => {
+  for (const type of ["smith_machine", "plate_loaded_machine"] as const) {
+    assert.equal(EQUIPMENT[type].barWeight, null);
+    for (const [perSide, plates] of PER_SIDE_CASES) {
+      const l = load(type, perSide);
+      assert.deepEqual(l.plates, plates, `${type} ${perSide} / side`);
+      assert.equal(l.perSide, perSide);
+      assert.equal(l.loaded, perSide * 2, "no bar added, both sides counted");
+      assert.equal(l.missing, 0);
+      assert.equal(l.entered, perSide);
+    }
   }
+  assert.equal(load("smith_machine", 25).frameLabel, "Smith");
+  assert.equal(load("plate_loaded_machine", 25).frameLabel, "Machine");
 });
 
-test("Smith machine and barbell: the entered weight is the total, bar included", () => {
-  for (const type of ["smith_machine", "barbell"] as const) {
-    for (const [perSide, plates] of PER_SIDE_CASES) {
-      const total = perSide * 2 + 20;
-      const l = load(type, total);
-      assert.deepEqual(l.plates, plates, `${type} ${total} total`);
-      assert.equal(l.perSide, perSide);
-      assert.equal(l.loaded, total);
-      assert.equal(l.missing, 0);
-    }
+test("barbell: the entered weight is the total, bar included", () => {
+  for (const [perSide, plates] of PER_SIDE_CASES) {
+    const total = perSide * 2 + 20;
+    const l = load("barbell", total);
+    assert.deepEqual(l.plates, plates, `${total} total`);
+    assert.equal(l.perSide, perSide);
+    assert.equal(l.loaded, total);
+    assert.equal(l.missing, 0);
+  }
+  assert.equal(load("barbell", 50).frameLabel, "20 kg");
+});
+
+test("the exact totals: 20, 40, 50, 70, 87.5, 95, 97.5 and 100 kg", () => {
+  const cases: [number, number[]][] = [
+    [20, []],
+    [40, [10]],
+    [50, [10, 5]],
+    [70, [20, 5]],
+    [87.5, [20, 10, 2.5, 1.25]],
+    [95, [20, 10, 5, 2.5]],
+    [97.5, [20, 10, 5, 2.5, 1.25]],
+    [100, [20, 20]],
+  ];
+  for (const [total, plates] of cases) {
+    assert.deepEqual(load("barbell", total).plates, plates, `${total}`);
+    assert.equal(load("barbell", total).missing, 0);
   }
 });
 
@@ -71,25 +93,44 @@ test("EZ bar uses the same logic with its own bar weight", () => {
   }
 });
 
-test("the one-line breakdown", () => {
-  assert.equal(loadSummary(load("barbell", 40)), "10 kg × 1 / side • 10 kg each side + 20 kg bar = 40 kg");
-  assert.equal(loadSummary(load("barbell", 50)), "10 + 5 kg / side • 15 kg each side + 20 kg bar = 50 kg");
-  assert.equal(loadSummary(load("barbell", 60)), "20 kg × 1 / side • 20 kg each side + 20 kg bar = 60 kg");
-  assert.equal(loadSummary(load("smith_machine", 70)), "20 + 5 kg / side • 25 kg each side + 20 kg bar = 70 kg");
-  assert.equal(loadSummary(load("barbell", 100)), "20 kg × 2 / side • 40 kg each side + 20 kg bar = 100 kg");
-  assert.equal(loadSummary(load("plate_loaded_machine", 25)), "20 + 5 kg / side • 50 kg total");
-  assert.equal(loadSummary(load("ez_bar", 10)), "Empty bar = 10 kg");
-  assert.equal(loadSummary(load("smith_machine", 15)), "15 kg is less than the 20 kg bar");
+test("the legend lists each plate once, heaviest first, only those in use", () => {
+  assert.deepEqual(plateCounts(load("barbell", 87.5).plates), [
+    { plate: 20, count: 1 },
+    { plate: 10, count: 1 },
+    { plate: 2.5, count: 1 },
+    { plate: 1.25, count: 1 },
+  ]);
+  assert.deepEqual(plateCounts(load("barbell", 100).plates), [{ plate: 20, count: 2 }]);
+  assert.deepEqual(plateCounts(load("barbell", 20).plates), []);
 });
 
-test("the breakdown condenses rather than wrapping", () => {
-  assert.equal(loadSummary(load("barbell", 77.5)), "20 + 5 + 2.5 + 1.25 kg / side • 77.5 kg total");
-  for (let total = 20; total <= 500; total += 1.25) {
+test("the one-line calculation", () => {
+  assert.equal(loadSummary(load("barbell", 87.5)), "33.75 kg on both sides + 20 kg bar weight = 87.5 kg");
+  assert.equal(loadSummary(load("ez_bar", 30)), "10 kg on both sides + 10 kg bar weight = 30 kg");
+  assert.equal(loadSummary(load("smith_machine", 25)), "25 kg on both sides = 50 kg total");
+  assert.equal(loadSummary(load("plate_loaded_machine", 25)), "25 kg on both sides = 50 kg total");
+  assert.equal(loadSummary(load("ez_bar", 10)), "Empty bar = 10 kg");
+  assert.equal(loadSummary(load("barbell", 15)), "15 kg is less than the 20 kg bar");
+});
+
+test("the calculation is short enough for one line on a phone, at any weight", () => {
+  // 343px at about 6px a character; checked against the real text in the browser.
+  for (let weight = 0; weight <= 2000; weight += 1.25) {
     for (const type of ["barbell", "ez_bar", "smith_machine", "plate_loaded_machine"] as const) {
-      const text = loadSummary(load(type, total));
-      assert.ok(text.length <= SUMMARY_MAX_CHARS, `${type} ${total}: ${text.length} chars: ${text}`);
+      const text = loadSummary(load(type, weight));
+      assert.ok(text.length <= 56, `${type} ${weight}: ${text.length} chars: ${text}`);
     }
   }
+});
+
+test("+ and − move by the smallest loadable amount", () => {
+  assert.equal(weightStep("barbell"), 2.5);
+  assert.equal(weightStep("ez_bar"), 2.5);
+  assert.equal(weightStep("smith_machine"), 1.25);
+  assert.equal(weightStep("plate_loaded_machine"), 1.25);
+  assert.equal(weightStep("cable"), 2.5);
+  assert.equal(weightStep(null), 2.5);
+  for (const total of [70, 72.5, 75, 77.5, 80]) assert.equal(load("barbell", total).missing, 0);
 });
 
 test("impossible loads report what's missing and never touch the entered weight", () => {
@@ -102,17 +143,17 @@ test("impossible loads report what's missing and never touch the entered weight"
     [71, 25, 1],
   ];
   for (const [total, perSide, missing] of totals) {
-    const l = load("smith_machine", total);
+    const l = load("barbell", total);
     assert.equal(l.perSide, perSide, `${total} per side`);
     assert.equal(l.missing, missing, `${total} missing`);
     assert.equal(l.entered, total);
   }
-  assert.equal(loadSummary(load("smith_machine", 71)), "70 kg loaded • 1 kg missing for 71 kg");
+  assert.equal(loadSummary(load("barbell", 71)), "70 kg loaded • 1 kg missing for 71 kg");
 
-  const perSide = load("plate_loaded_machine", 26);
+  const perSide = load("smith_machine", 26);
   assert.deepEqual(perSide.plates, [20, 5]);
   assert.equal(perSide.missing, 1);
-  assert.equal(loadSummary(perSide), "25 kg / side loaded • 1 kg / side missing");
+  assert.equal(loadSummary(perSide), "25 kg on both sides loaded • 1 kg / side missing");
 });
 
 test("decimals stay float-clean", () => {
@@ -127,8 +168,8 @@ test("zero and empty input", () => {
   assert.deepEqual(load("plate_loaded_machine", 0).plates, []);
   assert.equal(loadSummary(load("plate_loaded_machine", 0)), "No plates loaded");
   assert.equal(loadSummary(load("plate_loaded_machine", null)), "No plates loaded");
-  assert.equal(load("smith_machine", null).entered, 20, "an empty bar, not 0 kg");
-  assert.equal(load("smith_machine", 0).belowBar, true);
+  assert.equal(load("barbell", null).entered, 20, "an empty bar, not 0 kg");
+  assert.equal(load("barbell", 0).belowBar, true);
 });
 
 test("invalid input never reaches the calculation", () => {
@@ -145,7 +186,7 @@ test("invalid input never reaches the calculation", () => {
 });
 
 test("very large weights still add up", () => {
-  const l = load("smith_machine", 2000);
+  const l = load("barbell", 2000);
   assert.equal(l.perSide, 990);
   assert.equal(l.plates.length, 50, "49 × 20 + 10");
   assert.equal(l.missing, 0);
@@ -165,10 +206,12 @@ test("logged weights read as what they mean", () => {
   assert.equal(formatWeight(50, "machine_stack"), "50 kg");
   assert.equal(formatWeight(30, "dumbbell"), "30 kg / dumbbell");
   assert.equal(formatWeight(25, "plate_loaded_machine"), "25 kg / side");
-  assert.equal(formatWeight(70, "smith_machine"), "70 kg");
+  assert.equal(formatWeight(25, "smith_machine"), "25 kg / side");
+  assert.equal(formatWeight(70, "barbell"), "70 kg");
   assert.equal(weightColumnLabel("plate_loaded_machine"), "Kg / side");
   assert.equal(weightColumnLabel("dumbbell"), "Kg each");
-  assert.equal(weightColumnLabel("smith_machine"), "Kg");
+  assert.equal(weightColumnLabel("smith_machine"), "Kg / side");
+  assert.equal(weightColumnLabel("barbell"), "Kg");
   assert.equal(weightColumnLabel(null), "Kg");
 });
 
@@ -192,8 +235,8 @@ test("every canonical label round-trips through the parser", () => {
 });
 
 test("a weight change keeps the identity of plates that stay on the bar", () => {
-  const before = plateKeys(load("smith_machine", 70).plates);
-  const after = plateKeys(load("smith_machine", 75).plates);
+  const before = plateKeys(load("barbell", 70).plates);
+  const after = plateKeys(load("barbell", 75).plates);
   assert.deepEqual(before, ["20-0", "5-0"]);
   assert.deepEqual(after, ["20-0", "5-0", "2.5-0"], "only the 2.5 is new");
   assert.deepEqual(plateKeys([20, 20]), ["20-0", "20-1"], "repeated plates stay distinct");
@@ -207,7 +250,7 @@ test("values that can't be loaded yet wait longer than ones that can", () => {
   assert.equal(settleDelay(load("barbell", null)), SETTLE_UNRESOLVED_MS, "field cleared");
   assert.equal(settleDelay(load("plate_loaded_machine", 2)), SETTLE_UNRESOLVED_MS);
   assert.equal(settleDelay(load("plate_loaded_machine", null)), SETTLE_UNRESOLVED_MS);
-  assert.ok(SETTLE_MS >= 120 && SETTLE_MS <= 180);
+  assert.ok(SETTLE_MS >= 150 && SETTLE_MS <= 250);
 });
 
 /** Types a sequence with a gap between keys; returns what the drawing went through. */

@@ -3,6 +3,7 @@
 import { debounce } from "@/lib/debounce";
 import {
   loadSummary,
+  plateCounts,
   plateKeys,
   plateLoadFor,
   settleDelay,
@@ -21,17 +22,17 @@ export interface LoadRequest {
   weight: number | null;
 }
 
-/** Height shows size at a glance; colours are the standard competition ones. */
-const PLATE_LOOK: Record<number, { height: number; className: string }> = {
-  20: { height: 56, className: "bg-[#1f6fd6] text-white" },
-  10: { height: 46, className: "bg-[#1f9d4d] text-white" },
-  5: { height: 36, className: "bg-[#f4f4f5] text-black" },
-  2.5: { height: 28, className: "bg-[#34343a] text-white" },
-  1.25: { height: 22, className: "bg-[#a1a1aa] text-black" },
+/** Size reads from height and thickness; colours are the standard competition ones. */
+const PLATE_LOOK: Record<number, { height: number; width: number; color: string }> = {
+  20: { height: 44, width: 9, color: "#1f6fd6" },
+  10: { height: 36, width: 8, color: "#1f9d4d" },
+  5: { height: 28, width: 6, color: "#f4f4f5" },
+  2.5: { height: 22, width: 5, color: "#d7263d" },
+  1.25: { height: 16, width: 4, color: "#a1a1aa" },
 };
 
-/** What fits on a side at 375px; the summary line still states the real load. */
-const MAX_DRAWN_PLATES = 8;
+/** What fits on the bar beside the legend; the legend still counts them all. */
+const MAX_DRAWN_PLATES = 11;
 
 const EASE_OUT = [0.32, 0.72, 0, 1] as const;
 
@@ -62,66 +63,86 @@ function useSettledLoad({ sourceKey, equipment, weight }: LoadRequest): PlateLoa
 }
 
 /**
- * Keyed by plate, not by weight, so a change only touches the plates that
- * differ. `initial={false}`: opening the keypad shows what's loaded without
- * replaying it onto the bar.
+ * One side of the bar: the real one is symmetrical, so drawing both would only
+ * take room from the legend. Keyed by plate, not by weight, so a change only
+ * touches the plates that differ, and each slides along the bar from its open
+ * end. `initial={false}`: opening the keypad doesn't replay the loading.
  */
-const Plates = memo(function Plates({
-  plates,
-  side,
-}: {
-  plates: number[];
-  side: "left" | "right";
-}) {
+const Plates = memo(function Plates({ plates }: { plates: number[] }) {
   const reduceMotion = useReducedMotion();
   const drawn = plates.slice(0, MAX_DRAWN_PLATES);
   const keys = plateKeys(drawn);
-  const hidden = plates.length - drawn.length;
-  // Heaviest sits against the collar, in the middle of the drawing.
-  const items = drawn.map((plate, i) => ({ plate, key: keys[i] }));
-  if (side === "left") items.reverse();
-  // Plates slide along the bar from its open end, as they would by hand.
-  const offstage = { x: side === "left" ? -10 : 10, opacity: 0 };
-  const transition = reduceMotion ? { duration: 0 } : { duration: 0.22, ease: EASE_OUT };
 
   return (
-    <div className={cn("relative flex items-center gap-px", side === "left" ? "justify-end" : "justify-start")}>
-      {hidden > 0 && side === "left" && <MorePlates count={hidden} />}
+    <div className="relative flex items-center gap-px">
       <AnimatePresence initial={false} mode="popLayout">
-        {items.map(({ plate, key }) => (
+        {drawn.map((plate, i) => (
           <motion.span
-            key={key}
+            key={keys[i]}
             layout="position"
-            initial={offstage}
+            initial={{ x: 12, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            exit={offstage}
-            transition={transition}
-            data-plate
-            style={{ height: PLATE_LOOK[plate].height }}
-            className={cn(
-              "flex w-3.5 shrink-0 items-center justify-center rounded-[3px] border border-black/25",
-              "text-[9px] leading-none font-bold tabular-nums [writing-mode:vertical-rl]",
-              PLATE_LOOK[plate].className,
-            )}
-          >
-            {plate}
-          </motion.span>
+            exit={{
+              x: 12,
+              opacity: 0,
+              transition: reduceMotion ? { duration: 0 } : { duration: 0.18, ease: EASE_OUT },
+            }}
+            transition={reduceMotion ? { duration: 0 } : { duration: 0.24, ease: EASE_OUT }}
+            data-plate={plate}
+            style={{
+              height: PLATE_LOOK[plate].height,
+              width: PLATE_LOOK[plate].width,
+              backgroundColor: PLATE_LOOK[plate].color,
+            }}
+            className="block shrink-0 rounded-[2px] border border-black/20"
+          />
         ))}
       </AnimatePresence>
-      {hidden > 0 && side === "right" && <MorePlates count={hidden} />}
     </div>
   );
 });
 
-function MorePlates({ count }: { count: number }) {
-  return <span className="tabular px-0.5 text-tab font-semibold text-label-secondary">+{count}</span>;
-}
+/** Text is what carries the configuration: the colours only tie it to the drawing. */
+const Legend = memo(function Legend({ plates }: { plates: number[] }) {
+  const reduceMotion = useReducedMotion();
+  const counts = plateCounts(plates);
+
+  return (
+    <ul
+      aria-label="Plates per side"
+      className="grid shrink-0 grid-flow-col justify-end gap-x-3 gap-y-0.5"
+      style={{ gridTemplateRows: `repeat(${counts.length > 4 ? 3 : 2}, auto)` }}
+    >
+      <AnimatePresence initial={false} mode="popLayout">
+        {counts.map(({ plate, count }) => (
+          <motion.li
+            key={plate}
+            layout="position"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.16, ease: "easeOut" }}
+            aria-label={`${count} × ${plate} kg`}
+            className="tabular flex items-center gap-1.5 text-caption leading-4 font-medium whitespace-nowrap text-label"
+          >
+            <span
+              aria-hidden
+              className="size-2.5 shrink-0 rounded-[2px] border border-black/20"
+              style={{ backgroundColor: PLATE_LOOK[plate].color }}
+            />
+            {count} × {plate}
+          </motion.li>
+        ))}
+      </AnimatePresence>
+    </ul>
+  );
+});
 
 /** Old and new text overlap in one grid cell, so swapping them can't move anything. */
 function SummaryLine({ text, warn }: { text: string; warn: boolean }) {
   const reduceMotion = useReducedMotion();
   return (
-    <p aria-live="polite" className="grid h-5 place-items-center overflow-hidden">
+    <p aria-live="polite" className="grid h-7 items-center overflow-hidden border-t border-separator px-4">
       <AnimatePresence initial={false}>
         <motion.span
           key={text}
@@ -131,12 +152,11 @@ function SummaryLine({ text, warn }: { text: string; warn: boolean }) {
           exit={{ opacity: 0 }}
           transition={{ duration: reduceMotion ? 0 : 0.16, ease: "easeOut" }}
           className={cn(
-            "tabular col-start-1 row-start-1 flex max-w-full items-center gap-1.5 text-caption font-medium whitespace-nowrap",
-            warn ? "text-orange" : "text-label-secondary",
+            "tabular col-start-1 row-start-1 truncate text-caption",
+            warn ? "font-medium text-orange" : "text-label-secondary",
           )}
         >
-          <span className={cn("size-1.5 shrink-0 rounded-pill", warn ? "bg-orange" : "bg-accent")} />
-          <span className="truncate">{text}</span>
+          {text}
         </motion.span>
       </AnimatePresence>
     </p>
@@ -146,7 +166,7 @@ function SummaryLine({ text, warn }: { text: string; warn: boolean }) {
 /**
  * The bar and its plates as one persistent object: the keypad keeps a single
  * instance of this mounted for as long as plate-loaded weights are being edited,
- * across sets and exercises, and only the plates and the line inside it change.
+ * across sets and exercises, and only the plates, legend and line inside it change.
  */
 export function EquipmentLoadPanel({ request }: { request: LoadRequest }) {
   const load = useSettledLoad(request);
@@ -154,15 +174,18 @@ export function EquipmentLoadPanel({ request }: { request: LoadRequest }) {
   const summary = loadSummary(load);
 
   return (
-    <div data-load-panel className="flex flex-col gap-2 border-b border-separator px-4 py-3">
+    <div data-load-panel>
       {/* Fixed height, whatever is loaded: the keypad must not move under the finger. */}
-      <div role="img" aria-label={summary} className="relative grid h-14 grid-cols-[1fr_auto_1fr] items-center">
-        <span className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-pill bg-fill-strong" />
-        <Plates plates={load.plates} side="left" />
-        <span className="tabular relative rounded-pill bg-fill-strong px-2 py-0.5 text-tab font-semibold text-label">
-          {load.barWeight > 0 ? `${load.barWeight} kg` : "Machine"}
-        </span>
-        <Plates plates={load.plates} side="right" />
+      <div className="flex h-14 items-center gap-3 px-4">
+        <div role="img" aria-label={summary} className="relative flex h-full min-w-0 flex-1 items-center overflow-hidden">
+          <span className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-pill bg-fill-strong" />
+          <span data-frame className="tabular relative shrink-0 rounded-pill bg-fill-strong px-2 py-0.5 text-tab font-semibold text-label">
+            {load.frameLabel}
+          </span>
+          <span className="relative mx-1 h-3.5 w-0.5 shrink-0 rounded-pill bg-label-tertiary" />
+          <Plates plates={load.plates} />
+        </div>
+        <Legend plates={load.plates} />
       </div>
       <SummaryLine text={summary} warn={load.missing > 0 || load.belowBar} />
     </div>
