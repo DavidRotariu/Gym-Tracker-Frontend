@@ -167,7 +167,8 @@ const EQUIPMENT_BY_EXERCISE: Partial<Record<EquipmentType, number[]>> = {
   barbell: [10, 20, 22, 26, 30, 40, 50, 60, 74, 100, 102, 110],
   ez_bar: [65, 71],
   smith_machine: [15, 44, 92],
-  machine: [16, 17, 41, 43, 51, 52, 75, 90, 91, 111],
+  plate_loaded_machine: [16, 91, 111], // "Lever" in the name is how the catalog names them
+  machine_stack: [17, 41, 43, 51, 52, 75, 90],
   cable: [12, 23, 24, 27, 64, 70, 81, 101],
   dumbbell: [11, 14, 31, 33, 45, 61, 62],
 };

@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/Card";
 import { MediaThumb } from "@/components/ui/MediaThumb";
 import { SetRow } from "@/components/workout/SetRow";
 import { useExerciseHistory } from "@/hooks/use-exercises";
-import { EQUIPMENT, type EquipmentType } from "@/lib/equipment";
+import { weightColumnLabel, type EquipmentType } from "@/lib/equipment";
 import { cn } from "@/lib/utils";
 import type { ExerciseType, Set, WorkoutExercise } from "@/types";
 import { AnimatePresence, motion } from "framer-motion";
@@ -285,8 +285,8 @@ function ExerciseCardImpl({
                 </span>
                 {exerciseType !== "body_weight" && exerciseType !== "timer" && (
                   <span className="text-center text-tab font-medium text-label-tertiary uppercase">
-                    {/* Per dumbbell — the row has no room to repeat it on every set. */}
-                    {equipment && EQUIPMENT[equipment].perItem ? "Kg each" : "Kg"}
+                    {/* Per dumbbell or per side — the row has no room to repeat it. */}
+                    {weightColumnLabel(equipment)}
                   </span>
                 )}
                 <span className="text-center text-tab font-medium text-label-tertiary uppercase">

@@ -4,7 +4,7 @@ import { SwipeRow } from "@/components/ui/SwipeRow";
 import { SET_TYPE_ORDER, SET_TYPE_SHORT, SET_TYPE_STYLES } from "@/components/ui/SetTypeBadge";
 import { EquipmentLoadPanel } from "@/components/workout/EquipmentLoadPanel";
 import { useNumericKeypad, type KeypadKey } from "@/components/workout/NumericKeypad";
-import { formatWeight, loadView, weightUnit, type EquipmentType } from "@/lib/equipment";
+import { EQUIPMENT, formatWeight, parseWeightDraft, weightUnit, type EquipmentType } from "@/lib/equipment";
 import { playCompleteFeedback } from "@/lib/feedback";
 import { cn } from "@/lib/utils";
 import type { ExerciseType, Set } from "@/types";
@@ -317,10 +317,8 @@ export function SetRow({
 
   // Blank means the placeholder (last time's weight), which is what ✓ would log.
   function loadPanel(shown: string) {
-    if (exerciseType !== "weighted") return null;
-    const typed = shown === "" ? NaN : Number(shown.replace(",", "."));
-    const view = loadView(equipment, Number.isFinite(typed) ? typed : (previous?.weight ?? null));
-    return view && <EquipmentLoadPanel view={view} />;
+    if (exerciseType !== "weighted" || !equipment || EQUIPMENT[equipment].display === "none") return null;
+    return <EquipmentLoadPanel equipment={equipment} weight={parseWeightDraft(shown) ?? previous?.weight ?? null} />;
   }
 
   const row = (
