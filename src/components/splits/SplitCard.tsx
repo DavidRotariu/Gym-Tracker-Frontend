@@ -19,7 +19,8 @@ interface SplitCardProps {
  * card surface and the edit/delete actions.
  */
 export function SplitCard({ split, muscles, onStart, pending }: SplitCardProps) {
-  const totalExercises = split.muscles.reduce(
+  const totalExercises = split.default_exercise_ids?.length ||
+    split.muscles.reduce(
     (sum, m) => sum + m.nr_of_exercises,
     0,
   );

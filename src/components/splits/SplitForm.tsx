@@ -1,5 +1,6 @@
 "use client";
 
+import { DefaultExercises } from "@/components/splits/DefaultExercises";
 import { MuscleAllocator } from "@/components/splits/MuscleAllocator";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
@@ -9,7 +10,7 @@ import type { SplitMuscle } from "@/types";
 import { useRef, useState } from "react";
 
 interface SplitFormProps {
-  initial?: { name: string; muscles: SplitMuscle[] };
+  initial?: { name: string; muscles: SplitMuscle[]; default_exercise_ids?: string[] };
   onSubmit: (input: SplitInput) => Promise<void>;
   onDelete?: () => Promise<void>;
   submitLabel: string;
@@ -25,6 +26,9 @@ export function SplitForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [allocation, setAllocation] = useState<SplitMuscle[]>(
     initial?.muscles ?? [],
+  );
+  const [defaultIds, setDefaultIds] = useState<string[]>(
+    initial?.default_exercise_ids ?? [],
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +57,7 @@ export function SplitForm({
     busy.current = true;
     setSubmitting(true);
     try {
-      await onSubmit({ name: name.trim(), pic: null, muscles: allocation });
+      await onSubmit({ name: name.trim(), pic: null, muscles: allocation, default_exercise_ids: defaultIds });
     } catch {
       setError("Couldn't save this split. Try again.");
     } finally {
@@ -113,6 +117,8 @@ export function SplitForm({
           <div className="h-64 animate-pulse rounded-card bg-fill" />
         )}
       </div>
+
+      <DefaultExercises ids={defaultIds} onChange={setDefaultIds} />
 
       {error && !nameError && (
         <p className="text-caption text-red">{error}</p>

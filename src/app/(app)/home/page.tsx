@@ -32,7 +32,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
  *  top muscle(s) by exercise share, so the card summarizes at a glance
  *  instead of listing every muscle chip. */
 function splitSummary(split: Split, muscleLookup: Map<string, string>): string {
-  const exerciseCount = split.muscles.reduce(
+  const exerciseCount = split.default_exercise_ids?.length ||
+    split.muscles.reduce(
     (sum, m) => sum + m.nr_of_exercises,
     0,
   );

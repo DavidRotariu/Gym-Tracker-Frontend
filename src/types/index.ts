@@ -55,6 +55,10 @@ export interface Split {
   name: string;
   pic: string | null;
   muscles: SplitMuscle[];
+  /** Exercises a workout started from this split gets, in order. When
+   *  non-empty they replace the per-muscle picks; optional because the API
+   *  may omit it. */
+  default_exercise_ids?: string[];
 }
 
 export type SetType = "standard" | "warmup" | "drop" | "myorep";
