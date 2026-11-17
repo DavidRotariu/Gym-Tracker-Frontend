@@ -40,6 +40,13 @@ export function useWorkout(id: string | null) {
   });
 }
 
+/**
+ * Sessions this tab just created (not resumed). The workout page presets their
+ * split's exercises with last time's sets once, on first open — never again,
+ * so sets deleted on purpose don't come back on a reload.
+ */
+export const freshlyStarted = new Set<string>();
+
 export function useStartWorkout() {
   const qc = useQueryClient();
   return useMutation({
@@ -96,7 +103,11 @@ export function useStartOrResumeWorkout() {
         invalidateExerciseHistory(qc);
         open = undefined;
       }
-      const id = open ? open.id : (await start.mutateAsync(splitId)).id;
+      let id = open?.id;
+      if (!id) {
+        id = (await start.mutateAsync(splitId)).id;
+        freshlyStarted.add(id);
+      }
       opts.onDone?.();
       const url = `/workout/${id}`;
       if (opts.replace) router.replace(url);

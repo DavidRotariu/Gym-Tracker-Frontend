@@ -325,6 +325,12 @@ export function SetRow({
   const next = SET_TYPE_ORDER[(SET_TYPE_ORDER.indexOf(set.set_type) + 1) % SET_TYPE_ORDER.length];
   const hasPrevious = previous?.weight != null || previous?.reps != null;
   const isTimer = exerciseType === "timer";
+  // What a blank field shows and what ✓ logs: this session's suggestion
+  // (target_*, see presetSets), else last time's numbers.
+  const suggested = {
+    weight: set.target_weight ?? previous?.weight ?? null,
+    reps: set.target_reps ?? previous?.reps ?? null,
+  };
 
   function copyPrevious() {
     if (!hasPrevious) return;
@@ -336,10 +342,10 @@ export function SetRow({
   // real row replaces it (a beat later).
   const unsaved = set.id.startsWith("optimistic-");
 
-  // Blank means the placeholder (last time's weight), which is what ✓ would log.
+  // Blank means the placeholder (the suggested weight), which is what ✓ would log.
   function loadFor(weight: number | null): LoadRequest | null {
     if (exerciseType !== "weighted" || !equipment || !EQUIPMENT[equipment].plates) return null;
-    return { sourceKey: set.id, equipment, weight: weight ?? previous?.weight ?? null };
+    return { sourceKey: set.id, equipment, weight: weight ?? suggested.weight };
   }
 
   const row = (
@@ -377,7 +383,7 @@ export function SetRow({
       {showWeight && (
         <NumberField
           value={set.actual_weight}
-          placeholder={previous?.weight != null ? String(previous.weight) : "—"}
+          placeholder={suggested.weight != null ? String(suggested.weight) : "—"}
           max={MAX_WEIGHT}
           step={weightStep(equipment)}
           prefix={exerciseType === "negative" ? "−" : ""}
@@ -398,7 +404,7 @@ export function SetRow({
         openRef={openReps}
         // Same row, same bar: moving on to reps keeps the plates where they are.
         loadRequest={() => loadFor(parseWeightDraft(weightOverride ?? "") ?? set.actual_weight)}
-        placeholder={previous?.reps != null ? String(previous.reps) : "—"}
+        placeholder={suggested.reps != null ? String(suggested.reps) : "—"}
         onCommit={(v) => onChange({ actual_reps: v })}
         label={`Set ${set.set_number} ${isTimer ? "seconds" : "reps"}`}
         override={repsOverride}
@@ -412,7 +418,7 @@ export function SetRow({
           // A completed set with no reps (nothing typed, nothing to carry over
           // from last time) would be logged as a done set with no data — open
           // the reps field instead of ticking it off.
-          if (!set.completed && set.actual_reps === null && previous?.reps == null) {
+          if (!set.completed && set.actual_reps === null && suggested.reps == null) {
             openReps.current?.();
             return;
           }
@@ -429,14 +435,14 @@ export function SetRow({
           onChange({
             completed: !set.completed,
             completed_at: set.completed ? null : new Date().toISOString(),
-            // The blank fields show the previous session's numbers as
-            // placeholders; completing without typing means "same as that",
-            // not "0 kg × 0" — log what the row visibly suggests.
-            ...(!set.completed && set.actual_weight === null && showWeight && previous?.weight != null
-              ? { actual_weight: previous.weight }
+            // The blank fields show the suggestion as placeholders;
+            // completing without typing means "did that", not "0 kg × 0" —
+            // log what the row visibly suggests.
+            ...(!set.completed && set.actual_weight === null && showWeight && suggested.weight != null
+              ? { actual_weight: suggested.weight }
               : {}),
-            ...(!set.completed && set.actual_reps === null && previous?.reps != null
-              ? { actual_reps: previous.reps }
+            ...(!set.completed && set.actual_reps === null && suggested.reps != null
+              ? { actual_reps: suggested.reps }
               : {}),
           });
         }}
