@@ -28,7 +28,7 @@ export default function EditSplitPage() {
         </div>
       ) : (
         <SplitForm
-          initial={{ name: split.name, muscles: split.muscles }}
+          initial={split}
           submitLabel="Save changes"
           onSubmit={async (input) => {
             await updateSplit.mutateAsync({ id: splitId, input });

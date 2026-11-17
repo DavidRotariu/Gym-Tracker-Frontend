@@ -5,6 +5,7 @@ export interface SplitInput {
   name: string;
   pic: string | null;
   muscles: SplitMuscle[];
+  default_exercise_ids: string[];
 }
 
 export function getSplits() {

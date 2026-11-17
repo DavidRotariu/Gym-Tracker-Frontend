@@ -314,7 +314,20 @@ export const handlers = [
     const split = db.splits.find((s) => s.id === splitId && s.user_id === userId);
 
     const exercises: WorkoutExercise[] = [];
-    if (split) {
+    const defaults = (split?.default_exercise_ids ?? []).filter((id) =>
+      db.exercises.some((e) => e.id === id),
+    );
+    if (split && defaults.length > 0) {
+      for (const exerciseId of defaults) {
+        exercises.push({
+          id: String(db.nextId.workoutExercise++),
+          exercise_id: exerciseId,
+          order_index: exercises.length,
+          superset_group_id: null,
+          sets: [],
+        });
+      }
+    } else if (split) {
       const favoriteIds = new Set(
         db.favorites.filter((f) => f.user_id === userId).map((f) => f.exercise_id),
       );
