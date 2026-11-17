@@ -26,11 +26,12 @@ import {
   useSwapExercise,
 } from "@/hooks/use-workout-session";
 import type { SetPatch } from "@/hooks/use-workout-session";
-import { useDeleteWorkout, usePatchWorkout, useWorkout } from "@/hooks/use-workouts";
+import { freshlyStarted, useDeleteWorkout, usePatchWorkout, useWorkout } from "@/hooks/use-workouts";
 import { getExerciseHistory } from "@/lib/api/exercises";
-import { parseEquipment } from "@/lib/equipment";
+import { parseEquipment, weightStep } from "@/lib/equipment";
 import { MAX_WORKOUT_MS, formatElapsed, hasCompletedSets, shortMuscleName, workoutEndTime } from "@/lib/format";
 import { isProgrammaticScroll, scrollIntoViewQuietly } from "@/lib/scroll";
+import { lastPerformed, prescribeSession, type Prescription } from "@/lib/progression";
 import { cn } from "@/lib/utils";
 import { ApiRequestError } from "@/lib/api/client";
 import type { Set, WorkoutExercise, WorkoutSession } from "@/types";
@@ -40,6 +41,9 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 /** Placeholder rows (see useLogSet) the server doesn't know yet — PATCHing one 404s and rolls the whole batch back. */
+/** Sessions to look back through for the last time an exercise was actually done. */
+const HISTORY_LOOKBACK = 5;
+
 function isSaved(s: Set): boolean {
   return !s.id.startsWith("optimistic-");
 }
@@ -453,7 +457,11 @@ export default function WorkoutSessionPage() {
     if (swapTarget) {
       const target = swapTarget;
       setSwapTarget(null);
-      swapExercise.mutateAsync({ workoutExerciseId: target.id, exerciseId }).catch(ignore);
+      const presets = presetsFor(exerciseId);
+      swapExercise
+        .mutateAsync({ workoutExerciseId: target.id, exerciseId })
+        .then(async () => presetSets(target.id, exerciseId, await presets))
+        .catch(ignore);
       return;
     }
     // Next free slot, not `length` — removing an exercise leaves a gap, and
@@ -461,7 +469,63 @@ export default function WorkoutSessionPage() {
     const orderIndex =
       Math.max(-1, ...(session?.exercises.map((e) => e.order_index) ?? [])) + 1;
     justAdded.current = { orderIndex, scrolled: false };
-    addExercise.mutateAsync({ exerciseId, orderIndex }).catch(ignore);
+    // History fetch runs alongside the POST, not after it.
+    const presets = presetsFor(exerciseId);
+    addExercise
+      .mutateAsync({ exerciseId, orderIndex })
+      .then(async (created) => presetSets(created.id, exerciseId, await presets))
+      .catch(ignore);
+  }
+
+  /**
+   * What to preset each set to: last time's sets (same count and types), with
+   * the working sets pushed one step on by the progression calculator — a bit
+   * more load, or one more rep (see lib/progression). Empty if never trained.
+   */
+  async function presetsFor(exerciseId: string): Promise<Prescription[]> {
+    const history = await getExerciseHistory(exerciseId, { limit: HISTORY_LOOKBACK }).catch(() => null);
+    const last = lastPerformed(history, sessionId);
+    if (!last) return [];
+    const exercise = exercises?.find((e) => e.id === exerciseId);
+    return prescribeSession(last.sets, {
+      weighted: exercise?.exercise_type === "weighted",
+      increment: weightStep(parseEquipment(exercise?.equipment)),
+      daysSince: (Date.now() - new Date(last.date).getTime()) / 86_400_000,
+    });
+  }
+
+  /**
+   * A freshly added/swapped card gets last time's number of sets, each with
+   * its suggestion — no tapping "Add set" N times. Suggestions go in target_*,
+   * never actual_*: a set is only logged data once ✓ copies them over (see
+   * SetRow), so a skipped set can't pass for a done one in next time's history.
+   */
+  function presetSets(weId: string, exerciseId: string, presets: Prescription[]) {
+    const we = qc
+      .getQueryData<WorkoutSession>(["workouts", sessionId])
+      ?.exercises.find((e) => e.id === weId);
+    // Bail if the lifter already logged a set by hand while history loaded,
+    // or swapped the card again since.
+    if (!we || we.exercise_id !== exerciseId || we.sets.length > 0 || presets.length === 0) return;
+    issuedSetNumber.current.set(weId, presets.length);
+    presets.forEach((p, i) => {
+      logSet
+        .mutateAsync({
+          workoutExerciseId: weId,
+          input: {
+            set_number: i + 1,
+            set_type: p.set_type,
+            target_weight: p.weight,
+            target_reps: p.reps,
+            target_rir: null,
+            actual_weight: null,
+            actual_reps: null,
+            actual_rir: null,
+            completed: false,
+          },
+        })
+        .catch(() => issuedSetNumber.current.delete(weId));
+    });
   }
 
   /**
@@ -511,12 +575,14 @@ export default function WorkoutSessionPage() {
         input: {
           set_number: setNumber,
           set_type: previous?.set_type ?? "standard",
-          target_weight: null,
-          target_reps: null,
+          // Suggest what the set above did (or was suggested), as a target
+          // only — see presetSets for why it's never actual_*.
+          target_weight: previous?.actual_weight ?? previous?.target_weight ?? null,
+          target_reps: previous?.actual_reps ?? previous?.target_reps ?? null,
           target_rir: null,
-          actual_weight: previous?.actual_weight ?? null,
-          actual_reps: previous?.actual_reps ?? null,
-          actual_rir: previous?.actual_rir ?? null,
+          actual_weight: null,
+          actual_reps: null,
+          actual_rir: null,
           completed: false,
         },
       })
@@ -532,8 +598,7 @@ export default function WorkoutSessionPage() {
   }
 
   async function seedFirstSet(we: WorkoutExercise, createdId: string, setNumber: number) {
-    const history = await getExerciseHistory(we.exercise_id, { limit: 2 }).catch(() => null);
-    const last = history?.find((h) => h.workout_session_id !== sessionId)?.sets.find((s) => s.set_number === setNumber);
+    const last = (await presetsFor(we.exercise_id))[setNumber - 1];
     if (!last) return;
     // The history fetch can land seconds later on a slow connection — only
     // fill a set that's still untouched, never over what the lifter typed
@@ -543,16 +608,7 @@ export default function WorkoutSessionPage() {
       ?.exercises.flatMap((e) => e.sets)
       .find((s) => s.id === createdId);
     if (!now || now.completed || now.actual_weight !== null || now.actual_reps !== null) return;
-    patchSets.mutate([
-      {
-        id: createdId,
-        patch: {
-          actual_weight: last.actual_weight,
-          actual_reps: last.actual_reps,
-          actual_rir: last.actual_rir,
-        },
-      },
-    ]);
+    patchSets.mutate([{ id: createdId, patch: { target_weight: last.weight, target_reps: last.reps } }]);
   }
 
   /**
@@ -578,14 +634,15 @@ export default function WorkoutSessionPage() {
     if (current) {
       if (patch.actual_weight !== undefined && patch.actual_weight !== null) {
         for (const s of we.sets) {
-          if (isSaved(s) && !s.completed && s.set_number > current.set_number && s.actual_weight === null) {
+          // A set's own suggestion (target_*) is left alone too.
+          if (isSaved(s) && !s.completed && s.set_number > current.set_number && s.actual_weight === null && s.target_weight === null) {
             updates.push({ id: s.id, patch: { actual_weight: patch.actual_weight } });
           }
         }
       }
       if (patch.actual_reps !== undefined && patch.actual_reps !== null) {
         for (const s of we.sets) {
-          if (isSaved(s) && !s.completed && s.set_number > current.set_number && s.actual_reps === null) {
+          if (isSaved(s) && !s.completed && s.set_number > current.set_number && s.actual_reps === null && s.target_reps === null) {
             updates.push({ id: s.id, patch: { actual_reps: patch.actual_reps } });
           }
         }
@@ -720,6 +777,20 @@ export default function WorkoutSessionPage() {
       .catch(ignore)
       .finally(() => deletingSets.current.delete(setId));
   }
+
+  // A split's exercises arrive with no sets: on a freshly started workout,
+  // preset each one exactly like a hand-picked exercise (see presetSets).
+  const loaded = !!session && !!exercises;
+  useEffect(() => {
+    if (!loaded || !freshlyStarted.delete(sessionId)) return;
+    const list = qc.getQueryData<WorkoutSession>(["workouts", sessionId])?.exercises ?? [];
+    for (const we of list) {
+      if (we.sets.length === 0) {
+        void presetsFor(we.exercise_id).then((p) => presetSets(we.id, we.exercise_id, p));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per started session
+  }, [loaded, sessionId]);
 
   // The cards are memoised and don't compare their callbacks (see ExerciseCard),
   // so every handler passed to one goes through this ref — always the current

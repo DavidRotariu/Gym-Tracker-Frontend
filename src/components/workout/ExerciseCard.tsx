@@ -5,6 +5,7 @@ import { MediaThumb } from "@/components/ui/MediaThumb";
 import { SetRow } from "@/components/workout/SetRow";
 import { useExerciseHistory } from "@/hooks/use-exercises";
 import { weightColumnLabel, type EquipmentType } from "@/lib/equipment";
+import { lastPerformed } from "@/lib/progression";
 import { cn } from "@/lib/utils";
 import type { ExerciseType, Set, WorkoutExercise } from "@/types";
 import { AnimatePresence, motion } from "framer-motion";
@@ -83,17 +84,19 @@ function ExerciseCardImpl({
     if (!activeSet || !thisSet || thisSet.set_number <= activeSet.set_number) return undefined;
     if (thisSet.completed || thisSet.id.startsWith("optimistic-")) return undefined;
     const committed = field === "weight" ? thisSet.actual_weight : thisSet.actual_reps;
-    return committed === null ? liveEdit.draft : undefined;
+    const target = field === "weight" ? thisSet.target_weight : thisSet.target_reps;
+    return committed === null && target === null ? liveEdit.draft : undefined;
   }
 
   // Last time this exercise was trained, keyed by set number — powers the
   // "Previous" column so logging is a comparison, not a blank form.
-  const { data: history } = useExerciseHistory(readOnly ? null : we.exercise_id, 3);
+  const { data: history } = useExerciseHistory(readOnly ? null : we.exercise_id, 5);
   const previousBySetNumber = useMemo(() => {
     const map = new Map<number, { weight: number | null; reps: number | null }>();
     // The in-progress workout can show up in its own history as soon as it
-    // has sets — skip it, or "Previous" turns into what you just logged.
-    const lastEntry = history?.find((h) => h.workout_session_id !== sessionId);
+    // has sets — skip it, or "Previous" turns into what you just logged. So
+    // does a session where this exercise was skipped (see lastPerformed).
+    const lastEntry = lastPerformed(history, sessionId);
     for (const s of lastEntry?.sets ?? []) {
       map.set(s.set_number, { weight: s.actual_weight, reps: s.actual_reps });
     }
